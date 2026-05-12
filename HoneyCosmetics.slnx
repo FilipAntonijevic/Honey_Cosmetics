@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/backend/" />
+  <Folder Name="/backend/src/">
+    <Project Path="backend/src/HoneyCosmetics.Api/HoneyCosmetics.Api.csproj" />
+    <Project Path="backend/src/HoneyCosmetics.Application/HoneyCosmetics.Application.csproj" />
+    <Project Path="backend/src/HoneyCosmetics.Domain/HoneyCosmetics.Domain.csproj" />
+    <Project Path="backend/src/HoneyCosmetics.Infrastructure/HoneyCosmetics.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/backend/tests/">
+    <Project Path="backend/tests/HoneyCosmetics.Tests/HoneyCosmetics.Tests.csproj" />
+  </Folder>
+</Solution>

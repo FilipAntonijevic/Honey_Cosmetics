@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.db
+frontend/node_modules/
+frontend/dist/
+backend/**/bin/
+backend/**/obj/
+.env
