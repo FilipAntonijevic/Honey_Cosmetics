@@ -39,7 +39,7 @@ Full-stack premium beauty e-commerce starter for **Honey Cosmetics**.
 
 Default seeded admin:
 - Email: `admin@honeycosmetics.local`
-- Password: `Admin123!`
+- Password: value from `Admin:SeedPassword` config/environment variable
 
 ## Environment
 - Backend template: `backend/src/HoneyCosmetics.Api/.env.example`

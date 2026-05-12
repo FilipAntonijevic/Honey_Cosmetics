@@ -70,7 +70,8 @@ using (var scope = app.Services.CreateScope())
             DefaultAddress = "Bulevar oslobođenja 1, Novi Sad"
         };
         var hasher = new PasswordHasher<User>();
-        admin.PasswordHash = hasher.HashPassword(admin, "Admin123!");
+        var adminPassword = builder.Configuration["Admin:SeedPassword"] ?? throw new InvalidOperationException("Missing Admin:SeedPassword configuration");
+        admin.PasswordHash = hasher.HashPassword(admin, adminPassword);
 
         db.Users.Add(admin);
         db.Coupons.Add(new Coupon
