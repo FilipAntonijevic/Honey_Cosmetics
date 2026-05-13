@@ -36,7 +36,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
         };
 
         var result = await products
-            .Select(x => new ProductResponse(x.Id, x.Name, x.Description, x.Price, x.ImageUrl, x.Category!.Name, x.CreatedAt))
+            .Select(x => new ProductResponse(x.Id, x.Name, x.Description, x.Price, x.ImageUrl, x.CategoryId, x.Category!.Name, x.ProductType, x.CreatedAt))
             .ToListAsync();
 
         return Ok(result);
@@ -48,7 +48,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
         var product = await db.Products.Include(x => x.Category).FirstOrDefaultAsync(x => x.Id == id);
         return product is null
             ? NotFound()
-            : Ok(new ProductResponse(product.Id, product.Name, product.Description, product.Price, product.ImageUrl, product.Category?.Name ?? string.Empty, product.CreatedAt));
+            : Ok(new ProductResponse(product.Id, product.Name, product.Description, product.Price, product.ImageUrl, product.CategoryId, product.Category?.Name ?? string.Empty, product.ProductType, product.CreatedAt));
     }
 
     [Authorize(Roles = "Admin")]
@@ -61,14 +61,15 @@ public class ProductsController(AppDbContext db) : ControllerBase
             Description = request.Description,
             Price = request.Price,
             ImageUrl = request.ImageUrl,
-            CategoryId = request.CategoryId
+            CategoryId = request.CategoryId,
+            ProductType = request.ProductType
         };
 
         db.Products.Add(product);
         await db.SaveChangesAsync();
         var category = await db.Categories.FindAsync(product.CategoryId);
 
-        return CreatedAtAction(nameof(GetById), new { id = product.Id }, new ProductResponse(product.Id, product.Name, product.Description, product.Price, product.ImageUrl, category?.Name ?? string.Empty, product.CreatedAt));
+        return CreatedAtAction(nameof(GetById), new { id = product.Id }, new ProductResponse(product.Id, product.Name, product.Description, product.Price, product.ImageUrl, product.CategoryId, category?.Name ?? string.Empty, product.ProductType, product.CreatedAt));
     }
 
     [Authorize(Roles = "Admin")]
@@ -86,6 +87,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
         product.Price = request.Price;
         product.ImageUrl = request.ImageUrl;
         product.CategoryId = request.CategoryId;
+        product.ProductType = request.ProductType;
         await db.SaveChangesAsync();
         return NoContent();
     }

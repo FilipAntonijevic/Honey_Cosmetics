@@ -4,6 +4,14 @@ namespace HoneyCosmetics.Application.DTOs;
 
 public record CartItemRequest(int ProductId, int Quantity);
 public record CheckoutRequest(string? DeliveryAddress, string? Phone, PaymentMethod PaymentMethod, string? CouponCode);
+public record GuestCheckoutRequest(
+    IReadOnlyList<CartItemRequest> Items,
+    string DeliveryAddress,
+    string? Phone,
+    PaymentMethod PaymentMethod,
+    string? CouponCode,
+    string? GuestName,
+    string? GuestEmail);
 
 public record OrderItemResponse(int ProductId, string ProductName, int Quantity, decimal UnitPrice);
 

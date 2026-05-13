@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../api'
 
 const StoreContext = createContext(null)
@@ -18,41 +18,92 @@ export function StoreProvider({ children }) {
   const [cart, setCart] = useState(fromStorage('honey_cart', []))
   const [wishlist, setWishlist] = useState(fromStorage('honey_wishlist', []))
   const [toast, setToast] = useState('')
+  const [initializing, setInitializing] = useState(true)
 
+  // Persist state to localStorage
   useEffect(() => localStorage.setItem('honey_user', JSON.stringify(user)), [user])
   useEffect(() => localStorage.setItem('honey_cart', JSON.stringify(cart)), [cart])
   useEffect(() => localStorage.setItem('honey_wishlist', JSON.stringify(wishlist)), [wishlist])
 
+  // Auto-dismiss toast
   useEffect(() => {
     if (!toast) return
-    const timeout = setTimeout(() => setToast(''), 2500)
-    return () => clearTimeout(timeout)
+    const t = setTimeout(() => setToast(''), 2500)
+    return () => clearTimeout(t)
   }, [toast])
 
-  const login = async (payload) => {
+  // Session restore: validate stored refresh token on mount
+  useEffect(() => {
+    const restore = async () => {
+      const refreshToken = localStorage.getItem('honey_refresh_token')
+      if (refreshToken) {
+        try {
+          const { data } = await api.post('/auth/refresh', { refreshToken })
+          localStorage.setItem('honey_access_token', data.accessToken)
+          localStorage.setItem('honey_refresh_token', data.refreshToken)
+          setUser(data.user)
+        } catch {
+          localStorage.removeItem('honey_access_token')
+          localStorage.removeItem('honey_refresh_token')
+          localStorage.removeItem('honey_user')
+          setUser(null)
+        }
+      }
+      setInitializing(false)
+
+      // Remove cart items that no longer exist in the DB
+      try {
+        const { data: products } = await api.get('/products')
+        const validIds = new Set(products.map(p => p.id))
+        setCart(prev => prev.filter(item => validIds.has(item.id)))
+      } catch {
+        // silently ignore — keep cart as-is if products can't be fetched
+      }
+    }
+    restore()
+  }, [])
+
+  // Handle forced logout from token refresh interceptor
+  useEffect(() => {
+    const handleForcedLogout = () => {
+      setUser(null)
+      setToast('Sesija je istekla. Prijavite se ponovo.')
+    }
+    window.addEventListener('auth:logout', handleForcedLogout)
+    return () => window.removeEventListener('auth:logout', handleForcedLogout)
+  }, [])
+
+  const login = useCallback(async (payload) => {
     const { data } = await api.post('/auth/login', payload)
     localStorage.setItem('honey_access_token', data.accessToken)
     localStorage.setItem('honey_refresh_token', data.refreshToken)
     setUser(data.user)
     setToast('Uspešno ste prijavljeni.')
-  }
+    return data.user
+  }, [])
 
-  const register = async (payload) => {
+  const register = useCallback(async (payload) => {
     const { data } = await api.post('/auth/register', payload)
     localStorage.setItem('honey_access_token', data.accessToken)
     localStorage.setItem('honey_refresh_token', data.refreshToken)
     setUser(data.user)
     setToast('Nalog je kreiran.')
-  }
+    return data.user
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/auth/logout')
+    } catch {
+      // Best-effort server logout
+    }
     localStorage.removeItem('honey_access_token')
     localStorage.removeItem('honey_refresh_token')
     setUser(null)
     setToast('Odjavljeni ste.')
-  }
+  }, [])
 
-  const addToCart = (product) => {
+  const addToCart = useCallback((product) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id)
       if (existing) {
@@ -61,11 +112,14 @@ export function StoreProvider({ children }) {
       return [...prev, { ...product, quantity: 1 }]
     })
     setToast('Proizvod dodat u korpu.')
-  }
+  }, [])
 
-  const removeFromCart = (productId) => setCart((prev) => prev.filter((item) => item.id !== productId))
+  const removeFromCart = useCallback(
+    (productId) => setCart((prev) => prev.filter((item) => item.id !== productId)),
+    [],
+  )
 
-  const toggleWishlist = (product) => {
+  const toggleWishlist = useCallback((product) => {
     setWishlist((prev) => {
       if (prev.some((item) => item.id === product.id)) {
         setToast('Uklonjeno sa wishlist-e.')
@@ -74,7 +128,7 @@ export function StoreProvider({ children }) {
       setToast('Dodato u wishlist.')
       return [...prev, product]
     })
-  }
+  }, [])
 
   const value = useMemo(
     () => ({
@@ -82,6 +136,7 @@ export function StoreProvider({ children }) {
       cart,
       wishlist,
       toast,
+      initializing,
       login,
       register,
       logout,
@@ -89,8 +144,9 @@ export function StoreProvider({ children }) {
       removeFromCart,
       toggleWishlist,
       setToast,
+      setCart,
     }),
-    [user, cart, wishlist, toast],
+    [user, cart, wishlist, toast, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, setCart],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

@@ -19,11 +19,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<User>().Ignore(x => x.FullName);
         modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.Entity<Coupon>().HasIndex(x => x.Code).IsUnique();
         modelBuilder.Entity<CouponUsage>().HasIndex(x => new { x.CouponId, x.UserId }).IsUnique();
         modelBuilder.Entity<Wishlist>().HasIndex(x => new { x.UserId, x.ProductId }).IsUnique();
         modelBuilder.Entity<Cart>().HasIndex(x => new { x.UserId, x.ProductId }).IsUnique();
+
+        modelBuilder.Entity<Order>()
+            .HasOne(x => x.User)
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<Order>()
             .HasMany(x => x.Items)

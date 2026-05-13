@@ -5,7 +5,6 @@ using HoneyCosmetics.Domain.Enums;
 using HoneyCosmetics.Infrastructure.Data;
 using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -61,17 +60,18 @@ using (var scope = app.Services.CreateScope())
 
     if (!db.Users.Any(x => x.Role == UserRole.Admin))
     {
+        var adminEmail = builder.Configuration["Admin:SeedEmail"] ?? "admin@honeycosmetics.local";
+        var adminPassword = builder.Configuration["Admin:SeedPassword"] ?? throw new InvalidOperationException("Missing Admin:SeedPassword");
         var admin = new User
         {
-            Email = "admin@honeycosmetics.local",
-            FullName = "Honey Admin",
+            Email = adminEmail.Trim().ToLowerInvariant(),
+            FirstName = builder.Configuration["Admin:SeedFirstName"] ?? "Honey",
+            LastName = builder.Configuration["Admin:SeedLastName"] ?? "Admin",
             Role = UserRole.Admin,
-            Phone = "+38160000000",
+            PhoneNumber = "+38160000000",
             DefaultAddress = "Bulevar oslobođenja 1, Novi Sad"
         };
-        var hasher = new PasswordHasher<User>();
-        var adminPassword = builder.Configuration["Admin:SeedPassword"] ?? throw new InvalidOperationException("Missing Admin:SeedPassword configuration");
-        admin.PasswordHash = hasher.HashPassword(admin, adminPassword);
+        admin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword);
 
         db.Users.Add(admin);
         db.Coupons.Add(new Coupon
@@ -94,6 +94,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("frontend");
+
+// Serve uploaded images from <content-root>/images/
+var imagesPath = Path.Combine(app.Environment.ContentRootPath, "images");
+Directory.CreateDirectory(imagesPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(imagesPath),
+    RequestPath = "/images"
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

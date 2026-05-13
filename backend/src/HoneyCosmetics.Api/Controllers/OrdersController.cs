@@ -82,7 +82,7 @@ public class OrdersController(AppDbContext db, IEmailService emailService) : Con
         {
             UserId = userId,
             DeliveryAddress = string.IsNullOrWhiteSpace(request.DeliveryAddress) ? user.DefaultAddress ?? string.Empty : request.DeliveryAddress,
-            Phone = string.IsNullOrWhiteSpace(request.Phone) ? user.Phone : request.Phone,
+            Phone = string.IsNullOrWhiteSpace(request.Phone) ? user.PhoneNumber : request.Phone,
             PaymentMethod = request.PaymentMethod,
             Subtotal = subtotal,
             Discount = discount,
@@ -107,6 +107,83 @@ public class OrdersController(AppDbContext db, IEmailService emailService) : Con
             "admin@honeycosmetics.local",
             "Nova porudžbina",
             $"Kupac: {user.FullName}, Telefon: {order.Phone}, Adresa: {order.DeliveryAddress}, Ukupno: {order.Total}, Plaćanje: {order.PaymentMethod}");
+
+        return Ok(MapOrder(order));
+    }
+
+    [AllowAnonymous]
+    [HttpPost("guest-checkout")]
+    public async Task<ActionResult<OrderResponse>> GuestCheckout(GuestCheckoutRequest request)
+    {
+        if (request.Items is null || request.Items.Count == 0)
+            return BadRequest("Cart is empty.");
+
+        if (string.IsNullOrWhiteSpace(request.DeliveryAddress))
+            return BadRequest("Delivery address is required.");
+
+        // Fetch real prices from DB — never trust client
+        var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();
+        var products = await db.Products
+            .Where(p => productIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id);
+
+        var missingIds = productIds.Except(products.Keys).ToList();
+        if (missingIds.Count > 0)
+            return BadRequest($"Products not found: {string.Join(", ", missingIds)}");
+
+        var subtotal = request.Items.Sum(i => i.Quantity * products[i.ProductId].Price);
+        decimal discount = 0;
+        Coupon? coupon = null;
+
+        if (!string.IsNullOrWhiteSpace(request.CouponCode))
+        {
+            var code = request.CouponCode.Trim().ToUpperInvariant();
+            coupon = await db.Coupons.FirstOrDefaultAsync(x => x.Code.ToUpper() == code && x.IsActive);
+            if (coupon is null || (coupon.ExpiresAt.HasValue && coupon.ExpiresAt <= DateTime.UtcNow))
+                return BadRequest("Coupon is invalid or expired.");
+
+            if (coupon.FirstOrderOnly)
+                return BadRequest("Coupon available only for first order.");
+
+            discount = coupon.IsPercentage ? subtotal * (coupon.DiscountValue / 100m) : coupon.DiscountValue;
+        }
+
+        var total = Math.Max(0, subtotal - discount);
+
+        var order = new Order
+        {
+            UserId = null,
+            GuestName = request.GuestName?.Trim(),
+            GuestEmail = request.GuestEmail?.Trim(),
+            DeliveryAddress = request.DeliveryAddress.Trim(),
+            Phone = request.Phone?.Trim(),
+            PaymentMethod = request.PaymentMethod,
+            Subtotal = subtotal,
+            Discount = discount,
+            Total = total,
+            Status = request.PaymentMethod == PaymentMethod.BankTransfer ? OrderStatus.AwaitingPayment : OrderStatus.Pending,
+            Items = request.Items.Select(i => new OrderItem
+            {
+                ProductId = i.ProductId,
+                Quantity = i.Quantity,
+                UnitPrice = products[i.ProductId].Price
+            }).ToList()
+        };
+
+        db.Orders.Add(order);
+
+        if (coupon is not null)
+            db.CouponUsages.Add(new CouponUsage { CouponId = coupon.Id, UserId = Guid.Empty });
+
+        db.Notifications.Add(new Notification { Message = $"Nova gost porudžbina #{order.Id}" });
+
+        await db.SaveChangesAsync();
+
+        var guestName = order.GuestName ?? "Gost";
+        await emailService.SendAsync(
+            "admin@honeycosmetics.local",
+            "Nova gost porudžbina",
+            $"Kupac: {guestName}, Email: {order.GuestEmail}, Telefon: {order.Phone}, Adresa: {order.DeliveryAddress}, Ukupno: {order.Total}, Plaćanje: {order.PaymentMethod}");
 
         return Ok(MapOrder(order));
     }
