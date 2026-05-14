@@ -10,6 +10,61 @@ namespace HoneyCosmetics.Api.Controllers;
 [Route("api/products")]
 public class ProductsController(AppDbContext db) : ControllerBase
 {
+    [AllowAnonymous]
+    [HttpGet("~/api/product-types")]
+    public async Task<ActionResult<IReadOnlyCollection<ProductTypeResponse>>> GetProductTypesPublic()
+    {
+        var list = await db.ProductTypes.OrderBy(x => x.Id).Select(x => new ProductTypeResponse(x.Id, x.Name)).ToListAsync();
+        return Ok(list);
+    }
+
+    [AllowAnonymous]
+    [HttpGet("bestsellers")]
+    public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetBestsellers()
+    {
+        var list = await db.Products
+            .Include(x => x.Category)
+            .Include(x => x.ProductType)
+            .Where(x => x.IsBestseller)
+            .OrderBy(x => x.BestsellerSortOrder)
+            .Select(x => new ProductResponse(
+                x.Id,
+                x.Name,
+                x.Description,
+                x.Price,
+                x.ImageUrl,
+                x.ProductTypeId,
+                x.ProductType != null ? x.ProductType.Name : string.Empty,
+                x.CategoryId,
+                x.Category != null ? x.Category.Name : string.Empty,
+                x.IsBestseller,
+                x.BestsellerSortOrder,
+                x.CreatedAt))
+            .ToListAsync();
+        return Ok(list);
+    }
+
+    [AllowAnonymous]
+    [HttpGet("~/api/categories")]
+    public async Task<ActionResult<IReadOnlyCollection<PublicCategoryResponse>>> GetCategoriesPublic([FromQuery] int? productTypeId)
+    {
+        var query = db.Categories.AsQueryable();
+        if (productTypeId.HasValue)
+            query = query.Where(c => c.ProductTypeId == productTypeId.Value);
+
+        var list = await query
+            .OrderBy(c => c.Id)
+            .Select(c => new PublicCategoryResponse(
+                c.Id,
+                c.Name,
+                c.ImageUrl,
+                c.ProductTypeId,
+                c.Products.Count))
+            .ToListAsync();
+
+        return Ok(list);
+    }
+
     [HttpGet]
     public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetAll([FromQuery] ProductQuery query)
     {
@@ -46,6 +101,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
                 x.ProductType != null ? x.ProductType.Name : string.Empty,
                 x.CategoryId,
                 x.Category != null ? x.Category.Name : string.Empty,
+                x.IsBestseller,
+                x.BestsellerSortOrder,
                 x.CreatedAt))
             .ToListAsync();
 
@@ -68,6 +125,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
                 product.ProductType != null ? product.ProductType.Name : string.Empty,
                 product.CategoryId,
                 product.Category != null ? product.Category.Name : string.Empty,
+                product.IsBestseller,
+                product.BestsellerSortOrder,
                 product.CreatedAt));
     }
 
@@ -75,6 +134,9 @@ public class ProductsController(AppDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ProductResponse>> Create(ProductRequest request)
     {
+        if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
+            return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
+
         var product = new HoneyCosmetics.Domain.Entities.Product
         {
             Name = request.Name,
@@ -100,6 +162,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
             product.ProductType != null ? product.ProductType.Name : string.Empty,
             product.CategoryId,
             product.Category != null ? product.Category.Name : string.Empty,
+            product.IsBestseller,
+            product.BestsellerSortOrder,
             product.CreatedAt));
     }
 
@@ -112,6 +176,9 @@ public class ProductsController(AppDbContext db) : ControllerBase
         {
             return NotFound();
         }
+
+        if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
+            return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
 
         product.Name = request.Name;
         product.Description = request.Description;
@@ -136,5 +203,11 @@ public class ProductsController(AppDbContext db) : ControllerBase
         db.Products.Remove(product);
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private Task<bool> CategoryMatchesProductTypeAsync(int productTypeId, int? categoryId)
+    {
+        if (categoryId is null) return Task.FromResult(true);
+        return db.Categories.AnyAsync(c => c.Id == categoryId.Value && c.ProductTypeId == productTypeId);
     }
 }

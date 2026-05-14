@@ -19,6 +19,7 @@ export default function ProductDetails() {
       <img src={product.imageUrl} alt={product.name} />
       <div>
         <h1>{product.name}</h1>
+        <p className="detail-meta">{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
         <p>{product.description}</p>
         <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
         <div className="card-actions">

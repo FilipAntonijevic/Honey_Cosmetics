@@ -114,7 +114,8 @@ using (var scope = app.Services.CreateScope())
         scope.ServiceProvider
             .GetRequiredService<AppDbContext>();
 
-    db.Database.EnsureCreated();
+    // Primeni EF migracije (EnsureCreated ne koristi migracije i lako ostane u raskoraku sa šemom).
+    db.Database.Migrate();
 
     //
     // Seed Admin User
@@ -173,6 +174,62 @@ using (var scope = app.Services.CreateScope())
             IsActive = true,
             FirstOrderOnly = false
         });
+    }
+
+    if (!db.ProductTypes.Any())
+    {
+        var defaultTypes = new[]
+        {
+            "Gel Lak",
+            "Baze",
+            "Builder Gel",
+            "Top Coat",
+            "Nega Kože",
+            "Ostali Proizvodi"
+        };
+
+        foreach (var name in defaultTypes)
+            db.ProductTypes.Add(new ProductType { Name = name });
+    }
+
+    // U Development: opcioni test nalozi iz appsettings (nakon prazne/resetovane baze).
+    if (app.Environment.IsDevelopment())
+    {
+        foreach (var item in builder.Configuration.GetSection("DevSeed:Users").GetChildren())
+        {
+            var email = item["Email"]?.Trim().ToLowerInvariant();
+            var password = item["Password"];
+            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+                continue;
+
+            if (db.Users.Any(x => x.Email == email))
+                continue;
+
+            var firstName = string.IsNullOrWhiteSpace(item["FirstName"])
+                ? "Test"
+                : item["FirstName"]!.Trim();
+
+            var lastName = string.IsNullOrWhiteSpace(item["LastName"])
+                ? "Korisnik"
+                : item["LastName"]!.Trim();
+
+            Enum.TryParse<UserRole>(item["Role"] ?? "User", true, out var role);
+            role = role == UserRole.Admin ? UserRole.Admin : UserRole.User;
+
+            var u = new User
+            {
+                Email = email,
+                FirstName = firstName,
+                LastName = lastName,
+                Role = role,
+                Country = string.IsNullOrWhiteSpace(item["Country"]) ? "Srbija" : item["Country"]!.Trim()
+            };
+
+            u.PasswordHash =
+                BCrypt.Net.BCrypt.HashPassword(password);
+
+            db.Users.Add(u);
+        }
     }
 
     db.SaveChanges();

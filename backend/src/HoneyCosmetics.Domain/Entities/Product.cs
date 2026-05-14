@@ -11,5 +11,7 @@ public class Product
     public ProductType? ProductType { get; set; }
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
+    public bool IsBestseller { get; set; }
+    public int BestsellerSortOrder { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -79,6 +79,9 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
     [HttpPost("products")]
     public async Task<ActionResult<ProductResponse>> CreateProduct([FromBody] ProductRequest request)
     {
+        if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
+            return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
+
         var product = new Product
         {
             Name = request.Name,
@@ -101,12 +104,16 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         var product = await db.Products.Include(x => x.Category).Include(x => x.ProductType).FirstOrDefaultAsync(x => x.Id == id);
         if (product is null) return NotFound();
 
+        if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
+            return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
+
         product.Name = request.Name;
         product.Description = request.Description;
         product.Price = request.Price;
         product.ImageUrl = request.ImageUrl;
         product.ProductTypeId = request.ProductTypeId;
         product.CategoryId = request.CategoryId;
+
         await db.SaveChangesAsync();
         await db.Entry(product).Reference(p => p.Category).LoadAsync();
         await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
@@ -123,12 +130,136 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         return NoContent();
     }
 
-    // ── Categories ────────────────────────────────────────────────────────────
-    [HttpGet("categories")]
-    public async Task<ActionResult<IReadOnlyCollection<CategoryResponse>>> GetCategories()
+    // ── Product types (vrste) ─────────────────────────────────────────────────
+    // Vrste su statične — definisane seed-om u Program.cs. Nema endpoint-a za kreiranje/brisanje.
+    [HttpGet("product-types")]
+    public async Task<ActionResult<IReadOnlyCollection<ProductTypeResponse>>> GetProductTypes()
     {
-        var cats = await db.Categories.OrderBy(x => x.Id).ToListAsync();
-        return Ok(cats.Select(c => new CategoryResponse(c.Id, c.Name)));
+        var list = await db.ProductTypes.OrderBy(x => x.Id).Select(x => new ProductTypeResponse(x.Id, x.Name)).ToListAsync();
+        return Ok(list);
+    }
+
+    // ── Categories (unutar vrste) ─────────────────────────────────────────────
+    [HttpGet("categories")]
+    public async Task<ActionResult<IReadOnlyCollection<AdminCategoryResponse>>> GetCategories([FromQuery] int? productTypeId)
+    {
+        var query = db.Categories.Include(c => c.ProductType).AsQueryable();
+        if (productTypeId.HasValue)
+            query = query.Where(c => c.ProductTypeId == productTypeId.Value);
+
+        var cats = await query.OrderBy(x => x.Name).ToListAsync();
+        return Ok(cats.Select(c => new AdminCategoryResponse(
+            c.Id,
+            c.Name,
+            c.ImageUrl,
+            c.ProductTypeId,
+            c.ProductType != null ? c.ProductType.Name : string.Empty)));
+    }
+
+    [HttpPost("categories")]
+    public async Task<ActionResult<AdminCategoryResponse>> CreateCategory([FromBody] CategoryUpsertRequest request)
+    {
+        if (!await db.ProductTypes.AnyAsync(x => x.Id == request.ProductTypeId))
+            return BadRequest("Nepoznata vrsta proizvoda.");
+
+        var name = request.Name.Trim();
+        if (string.IsNullOrEmpty(name)) return BadRequest("Naziv je obavezan.");
+
+        var entity = new Category
+        {
+            Name = name,
+            ImageUrl = request.ImageUrl.Trim(),
+            ProductTypeId = request.ProductTypeId
+        };
+        db.Categories.Add(entity);
+        await db.SaveChangesAsync();
+        await db.Entry(entity).Reference(x => x.ProductType).LoadAsync();
+        return Ok(new AdminCategoryResponse(
+            entity.Id,
+            entity.Name,
+            entity.ImageUrl,
+            entity.ProductTypeId,
+            entity.ProductType?.Name ?? string.Empty));
+    }
+
+    [HttpPut("categories/{id:int}")]
+    public async Task<ActionResult<AdminCategoryResponse>> UpdateCategory(int id, [FromBody] CategoryUpsertRequest request)
+    {
+        var entity = await db.Categories.Include(x => x.ProductType).FirstOrDefaultAsync(x => x.Id == id);
+        if (entity is null) return NotFound();
+
+        if (entity.ProductTypeId != request.ProductTypeId)
+            return BadRequest("Promena vrste nije dozvoljena.");
+
+        entity.Name = request.Name.Trim();
+        entity.ImageUrl = request.ImageUrl.Trim();
+        await db.SaveChangesAsync();
+        await db.Entry(entity).Reference(x => x.ProductType).LoadAsync();
+        return Ok(new AdminCategoryResponse(
+            entity.Id,
+            entity.Name,
+            entity.ImageUrl,
+            entity.ProductTypeId,
+            entity.ProductType?.Name ?? string.Empty));
+    }
+
+    [HttpDelete("categories/{id:int}")]
+    public async Task<IActionResult> DeleteCategory(int id)
+    {
+        var entity = await db.Categories.FindAsync(id);
+        if (entity is null) return NotFound();
+        db.Categories.Remove(entity);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ── Bestsellers ───────────────────────────────────────────────────────────
+    [HttpGet("bestsellers")]
+    public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetBestsellers()
+    {
+        var list = await db.Products
+            .Include(x => x.Category)
+            .Include(x => x.ProductType)
+            .Where(x => x.IsBestseller)
+            .OrderBy(x => x.BestsellerSortOrder)
+            .ToListAsync();
+        return Ok(list.Select(MapProduct));
+    }
+
+    [HttpPut("bestsellers")]
+    public async Task<IActionResult> UpdateBestsellers([FromBody] BestsellersUpdateRequest request)
+    {
+        var ids = request.ProductIds?.Distinct().ToList() ?? new List<int>();
+
+        if (ids.Count > 0)
+        {
+            var existing = await db.Products.Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync();
+            var missing = ids.Except(existing).ToList();
+            if (missing.Count > 0)
+                return BadRequest($"Proizvodi sa Id-jevima [{string.Join(", ", missing)}] ne postoje.");
+        }
+
+        // Reset flags on previously flagged products not in the new list
+        var current = await db.Products.Where(p => p.IsBestseller).ToListAsync();
+        foreach (var p in current)
+        {
+            if (!ids.Contains(p.Id))
+            {
+                p.IsBestseller = false;
+                p.BestsellerSortOrder = 0;
+            }
+        }
+
+        // Apply new list with order
+        for (int i = 0; i < ids.Count; i++)
+        {
+            var prod = await db.Products.FirstAsync(p => p.Id == ids[i]);
+            prod.IsBestseller = true;
+            prod.BestsellerSortOrder = i;
+        }
+
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 
     // ── Image upload ─────────────────────────────────────────────────────────
@@ -154,6 +285,12 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         return Ok(new { url });
     }
 
+    private Task<bool> CategoryMatchesProductTypeAsync(int productTypeId, int? categoryId)
+    {
+        if (categoryId is null) return Task.FromResult(true);
+        return db.Categories.AnyAsync(c => c.Id == categoryId.Value && c.ProductTypeId == productTypeId);
+    }
+
     // ── Mappers ───────────────────────────────────────────────────────────────
     private static ProductResponse MapProduct(Product p) =>
         new(
@@ -166,6 +303,8 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
             p.ProductType != null ? p.ProductType.Name : string.Empty,
             p.CategoryId,
             p.Category != null ? p.Category.Name : string.Empty,
+            p.IsBestseller,
+            p.BestsellerSortOrder,
             p.CreatedAt);
 
     private static AdminOrderResponse MapAdminOrder(Order o) => new(

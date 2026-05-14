@@ -1,45 +1,219 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
 
-export default function Shop() {
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [searchParams] = useSearchParams()
-  const { addToCart, toggleWishlist } = useStore()
+function CategoryStrip({ categories, selectedId, onSelect }) {
+  const trackRef = useRef(null)
+  const [canLeft, setCanLeft] = useState(false)
+  const [canRight, setCanRight] = useState(false)
+
+  const updateArrows = () => {
+    const el = trackRef.current
+    if (!el) return
+    setCanLeft(el.scrollLeft > 4)
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  }
 
   useEffect(() => {
+    updateArrows()
+    const el = trackRef.current
+    if (!el) return
+    const onScroll = () => updateArrows()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', updateArrows)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', updateArrows)
+    }
+  }, [categories])
+
+  const scrollBy = (dx) => {
+    trackRef.current?.scrollBy({ left: dx, behavior: 'smooth' })
+  }
+
+  if (!categories.length) return null
+
+  return (
+    <div className="cat-strip-wrap">
+      <button
+        type="button"
+        className={`cat-strip-arrow left${canLeft ? '' : ' is-disabled'}`}
+        onClick={() => canLeft && scrollBy(-Math.round((trackRef.current?.clientWidth || 400) * 0.8))}
+        aria-label="Pomeri levo"
+        aria-disabled={!canLeft}
+      >
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+
+      <div className="cat-strip" ref={trackRef}>
+        {categories.map((c) => {
+          const active = String(c.id) === String(selectedId)
+          return (
+            <button
+              key={c.id}
+              type="button"
+              className={`cat-strip-item${active ? ' active' : ''}`}
+              onClick={() => onSelect(active ? null : c.id)}
+              title={c.name}
+            >
+              <div className="cat-strip-img-wrap">
+                {c.imageUrl ? (
+                  <img src={c.imageUrl} alt={c.name} loading="lazy" />
+                ) : (
+                  <div className="cat-strip-img-empty" />
+                )}
+              </div>
+              <span className="cat-strip-name">
+                {c.name}
+                {typeof c.productCount === 'number' && (
+                  <span className="cat-strip-count"> ({c.productCount})</span>
+                )}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      <button
+        type="button"
+        className={`cat-strip-arrow right${canRight ? '' : ' is-disabled'}`}
+        onClick={() => canRight && scrollBy(Math.round((trackRef.current?.clientWidth || 400) * 0.8))}
+        aria-label="Pomeri desno"
+        aria-disabled={!canRight}
+      >
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+export default function Shop() {
+  const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
+  const [productTypes, setProductTypes] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { addToCart, toggleWishlist } = useStore()
+
+  const bestsellersMode = ['1', 'true'].includes(searchParams.get('bestsellers') ?? '')
+  const vrstaName = bestsellersMode ? null : (searchParams.get('vrsta') ?? searchParams.get('category'))
+  const categoryIdParam = bestsellersMode ? null : searchParams.get('categoryId')
+  const sort = searchParams.get('sort') ?? 'newest'
+
+  // Učitaj liste vrsta jednom (radi mapiranja name -> id).
+  useEffect(() => {
+    api
+      .get('/product-types')
+      .then(({ data }) => setProductTypes(Array.isArray(data) ? data : []))
+      .catch(() => setProductTypes([]))
+  }, [])
+
+  const selectedType = useMemo(
+    () => productTypes.find((t) => t.name === vrstaName) ?? null,
+    [productTypes, vrstaName],
+  )
+
+  // Učitaj kategorije za izabranu vrstu.
+  /* eslint-disable react-hooks/set-state-in-effect -- fetch dependant on vrsta */
+  useEffect(() => {
+    if (!selectedType) {
+      setCategories([])
+      return
+    }
+    let cancelled = false
+    api
+      .get('/categories', { params: { productTypeId: selectedType.id } })
+      .then(({ data }) => {
+        if (!cancelled) setCategories(Array.isArray(data) ? data : [])
+      })
+      .catch(() => {
+        if (!cancelled) setCategories([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedType])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Učitaj proizvode po izabranom filteru.
+  useEffect(() => {
+    let cancelled = false
     const load = async () => {
       setLoading(true)
       try {
-        const category = searchParams.get('category')
-        const sort = searchParams.get('sort') ?? 'newest'
-        const { data } = await api.get('/products', {
-          params: {
-            categoryId: undefined,
-            sort: sort === 'newest' ? undefined : sort,
-            search: searchParams.get('search') ?? undefined,
-          },
-        })
-        const filtered = category ? data.filter((item) => item.category === category) : data
-        setProducts(filtered)
+        if (bestsellersMode) {
+          const { data } = await api.get('/products/bestsellers')
+          if (!cancelled) setProducts(Array.isArray(data) ? data : [])
+          return
+        }
+
+        const params = {
+          sort: sort === 'newest' ? undefined : sort,
+          search: searchParams.get('search') ?? undefined,
+        }
+        if (categoryIdParam) params.categoryId = categoryIdParam
+
+        const { data } = await api.get('/products', { params })
+        const filtered = vrstaName && !categoryIdParam
+          ? data.filter((item) => item.productType === vrstaName)
+          : data
+        if (!cancelled) setProducts(filtered)
       } catch {
-        setProducts([])
+        if (!cancelled) setProducts([])
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     load()
-  }, [searchParams])
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, sort, vrstaName, categoryIdParam, bestsellersMode])
+
+  const onSelectCategory = (id) => {
+    const next = new URLSearchParams(searchParams)
+    if (id == null) {
+      next.delete('categoryId')
+    } else {
+      next.set('categoryId', String(id))
+    }
+    setSearchParams(next, { replace: true })
+  }
+
+  const headerTitle = useMemo(() => {
+    if (bestsellersMode) return 'Bestsellers'
+    if (!vrstaName) return 'Shop'
+    if (categoryIdParam) {
+      const cat = categories.find((c) => String(c.id) === String(categoryIdParam))
+      if (cat) return `${vrstaName} — ${cat.name}`
+    }
+    return vrstaName
+  }, [bestsellersMode, vrstaName, categoryIdParam, categories])
 
   const content = useMemo(() => {
     if (loading) {
-      return <div className="skeleton-grid">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="skeleton" />)}</div>
+      return (
+        <div className="skeleton-grid">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="skeleton" />
+          ))}
+        </div>
+      )
     }
 
     if (!products.length) {
-      return <p>Nema rezultata za izabrane filtere.</p>
+      return (
+        <p>
+          {bestsellersMode
+            ? 'Trenutno nema proizvoda u sekciji Bestsellers.'
+            : 'Nema rezultata za izabrane filtere.'}
+        </p>
+      )
     }
 
     return (
@@ -47,22 +221,35 @@ export default function Shop() {
         {products.map((product) => (
           <article key={product.id} className="product-card">
             <img src={product.imageUrl} alt={product.name} loading="lazy" />
-            <h3><Link to={`/products/${product.id}`}>{product.name}</Link></h3>
-            <p>{product.category}</p>
+            <h3>
+              <Link to={`/products/${product.id}`}>{product.name}</Link>
+            </h3>
+            <p>{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
             <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
             <div className="card-actions">
               <button onClick={() => addToCart(product)}>Dodaj u korpu</button>
-              <button onClick={() => toggleWishlist(product)} className="ghost">Wishlist</button>
+              <button onClick={() => toggleWishlist(product)} className="ghost">
+                Wishlist
+              </button>
             </div>
           </article>
         ))}
       </div>
     )
-  }, [loading, products, addToCart, toggleWishlist])
+  }, [loading, products, addToCart, toggleWishlist, bestsellersMode])
 
   return (
     <section className="page shell">
-      <h1>Shop</h1>
+      <h1>{headerTitle}</h1>
+
+      {!bestsellersMode && selectedType && categories.length > 0 && (
+        <CategoryStrip
+          categories={categories}
+          selectedId={categoryIdParam}
+          onSelect={onSelectCategory}
+        />
+      )}
+
       {content}
     </section>
   )

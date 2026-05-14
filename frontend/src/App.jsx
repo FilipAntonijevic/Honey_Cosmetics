@@ -20,6 +20,8 @@ import AdminDashboard from './pages/AdminDashboard'
 import AdminOrders from './pages/AdminOrders'
 import AdminProducts from './pages/AdminProducts'
 import AdminCoupons from './pages/AdminCoupons'
+import AdminCategories from './pages/AdminCategories'
+import AdminBestsellers from './pages/AdminBestsellers'
 
 // Requires user to be logged in; admins are kicked to /admin
 function AuthRoute({ children }) {
@@ -74,6 +76,8 @@ function AdminRoutes() {
           <Route index element={<AdminDashboard />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="products" element={<AdminProducts />} />
+          <Route path="categories" element={<AdminCategories />} />
+          <Route path="bestsellers" element={<AdminBestsellers />} />
           <Route path="coupons" element={<AdminCoupons />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>

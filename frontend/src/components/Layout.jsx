@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
+import api from '../api'
 import { useStore } from '../context/StoreContext'
-
-const categories = ['Gel Lak', 'Baze', 'Builder Gel', 'Top Coat', 'Nega Kože', 'Ostali Proizvodi']
 
 export default function Layout({ children }) {
   const { cart, wishlist, user, logout, toast } = useStore()
-  const navigate = useNavigate()
+  const [vrste, setVrste] = useState([])
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef(null)
+
+  useEffect(() => {
+    api
+      .get('/product-types')
+      .then(({ data }) => setVrste(Array.isArray(data) ? data.map((x) => x.name) : []))
+      .catch(() =>
+        setVrste(['Gel Lak', 'Baze', 'Builder Gel', 'Top Coat', 'Nega Kože', 'Ostali Proizvodi']),
+      )
+  }, [])
 
   useEffect(() => {
     if (!userMenuOpen) return
@@ -46,7 +54,7 @@ export default function Layout({ children }) {
           <Link to="/collaboration">Saradnja</Link>
           <Link to="/delivery-payment">Dostava i plaćanje</Link>
           <Link to="/contact">Kontakt</Link>
-          <Link to="/shop?sort=newest">Bestsellers</Link>
+          <Link to="/shop?bestsellers=1">Bestsellers</Link>
         </div>
 
         {/* Main header row */}
@@ -125,8 +133,8 @@ export default function Layout({ children }) {
 
         {/* Category navbar */}
         <nav className="category-nav">
-          {categories.map((cat) => (
-            <NavLink key={cat} to={`/shop?category=${encodeURIComponent(cat)}`} className="cat-link">
+          {vrste.map((cat) => (
+            <NavLink key={cat} to={`/shop?vrsta=${encodeURIComponent(cat)}`} className="cat-link">
               {cat.toUpperCase()}
             </NavLink>
           ))}

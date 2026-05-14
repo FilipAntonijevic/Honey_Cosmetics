@@ -6,13 +6,14 @@ const EMPTY_FORM = {
   description: '',
   price: '',
   imageUrl: '',
+  productTypeId: '',
   categoryId: '',
-  productType: '',
 }
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([])
-  const [categories, setCategories] = useState([])
+  const [productTypes, setProductTypes] = useState([])
+  const [categoriesForType, setCategoriesForType] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState(EMPTY_FORM)
   const [editId, setEditId] = useState(null)
@@ -25,18 +26,43 @@ export default function AdminProducts() {
   const loadProducts = async () => {
     setLoading(true)
     try {
-      const [prodRes, catRes] = await Promise.all([
+      const [prodRes, typesRes] = await Promise.all([
         api.get('/admin/products'),
-        api.get('/admin/categories'),
+        api.get('/admin/product-types'),
       ])
       setProducts(prodRes.data)
-      setCategories(catRes.data)
+      setProductTypes(typesRes.data)
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { loadProducts() }, [])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount fetch
+    loadProducts()
+  }, [])
+
+  /* eslint-disable react-hooks/set-state-in-effect -- load category options when vrsta changes */
+  useEffect(() => {
+    const typeId = form.productTypeId
+    if (!typeId) {
+      setCategoriesForType([])
+      return
+    }
+    let cancelled = false
+    api
+      .get('/admin/categories', { params: { productTypeId: typeId } })
+      .then(({ data }) => {
+        if (!cancelled) setCategoriesForType(data)
+      })
+      .catch(() => {
+        if (!cancelled) setCategoriesForType([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [form.productTypeId])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const openNew = () => {
     setForm(EMPTY_FORM)
@@ -51,8 +77,8 @@ export default function AdminProducts() {
       description: product.description,
       price: String(product.price),
       imageUrl: product.imageUrl,
-      categoryId: String(product.categoryId ?? ''),
-      productType: product.productType ?? '',
+      productTypeId: String(product.productTypeId ?? ''),
+      categoryId: product.categoryId != null ? String(product.categoryId) : '',
     })
     setEditId(product.id)
     setError('')
@@ -65,7 +91,15 @@ export default function AdminProducts() {
     setError('')
   }
 
-  const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }))
+  const set = (key) => (e) => {
+    const v = e.target.value
+    setForm((f) => {
+      if (key === 'productTypeId' && v !== f.productTypeId) {
+        return { ...f, productTypeId: v, categoryId: '' }
+      }
+      return { ...f, [key]: v }
+    })
+  }
 
   const uploadImage = async (file) => {
     setUploading(true)
@@ -75,7 +109,7 @@ export default function AdminProducts() {
       const { data } = await api.post('/admin/upload', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
-      setForm(f => ({ ...f, imageUrl: data.url }))
+      setForm((f) => ({ ...f, imageUrl: data.url }))
     } catch {
       setError('Upload slike nije uspeo.')
     } finally {
@@ -86,8 +120,8 @@ export default function AdminProducts() {
   const save = async (e) => {
     e.preventDefault()
     setError('')
-    if (!form.name.trim() || !form.price || !form.categoryId) {
-      setError('Naziv, cena i kategorija su obavezni.')
+    if (!form.name.trim() || !form.price || !form.productTypeId) {
+      setError('Naziv, cena i vrsta proizvoda su obavezni.')
       return
     }
     setSaving(true)
@@ -97,19 +131,20 @@ export default function AdminProducts() {
         description: form.description.trim(),
         price: parseFloat(form.price),
         imageUrl: form.imageUrl.trim(),
-        categoryId: parseInt(form.categoryId),
-        productType: form.productType.trim() || null,
+        productTypeId: parseInt(form.productTypeId, 10),
+        categoryId: form.categoryId ? parseInt(form.categoryId, 10) : null,
       }
       if (editId) {
         const { data } = await api.put(`/admin/products/${editId}`, payload)
-        setProducts(prev => prev.map(p => p.id === editId ? data : p))
+        setProducts((prev) => prev.map((p) => (p.id === editId ? data : p)))
       } else {
         const { data } = await api.post('/admin/products', payload)
-        setProducts(prev => [data, ...prev])
+        setProducts((prev) => [data, ...prev])
       }
       closeForm()
     } catch (err) {
-      setError(err.response?.data?.title ?? 'Čuvanje nije uspelo.')
+      const d = err.response?.data
+      setError(typeof d === 'string' ? d : d?.title ?? 'Čuvanje nije uspelo.')
     } finally {
       setSaving(false)
     }
@@ -119,16 +154,10 @@ export default function AdminProducts() {
     if (!window.confirm(`Obrisati "${name}"?`)) return
     try {
       await api.delete(`/admin/products/${id}`)
-      setProducts(prev => prev.filter(p => p.id !== id))
+      setProducts((prev) => prev.filter((p) => p.id !== id))
     } catch (err) {
       alert('Brisanje nije uspelo: ' + (err.response?.status ?? err.message))
     }
-  }
-
-  // find category id from name (for product rows)
-  const getCatId = (product) => {
-    const cat = categories.find(c => c.name === product.category)
-    return cat?.id ?? ''
   }
 
   return (
@@ -138,16 +167,15 @@ export default function AdminProducts() {
           <h1 className="adm-page-title">Proizvodi</h1>
           <p className="adm-page-sub">{products.length} proizvoda</p>
         </div>
-        <button className="adm-btn adm-btn-primary" onClick={openNew}>+ Novi proizvod</button>
+        <button type="button" className="adm-btn adm-btn-primary" onClick={openNew}>+ Novi proizvod</button>
       </div>
 
-      {/* Form modal */}
       {showForm && (
-        <div className="adm-modal-overlay" onClick={e => e.target === e.currentTarget && closeForm()}>
+        <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && closeForm()}>
           <div className="adm-modal">
             <div className="adm-modal-header">
               <h2>{editId ? 'Izmeni proizvod' : 'Novi proizvod'}</h2>
-              <button className="adm-modal-close" onClick={closeForm}>✕</button>
+              <button type="button" className="adm-modal-close" onClick={closeForm}>✕</button>
             </div>
 
             <form onSubmit={save} className="adm-form">
@@ -160,17 +188,30 @@ export default function AdminProducts() {
 
               <div className="adm-form-row adm-form-row--2">
                 <div>
-                  <label>Kategorija *</label>
-                  <select className="adm-input" value={form.categoryId} onChange={set('categoryId')} required>
-                    <option value="">— izaberi —</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                  <label>Vrsta proizvoda *</label>
+                  <select className="adm-input" value={form.productTypeId} onChange={set('productTypeId')} required>
+                    <option value="">— izaberite vrstu —</option>
+                    {productTypes.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label>Tip proizvoda</label>
-                  <input className="adm-input" placeholder="npr. BIAB, Hard Gel..." value={form.productType} onChange={set('productType')} />
+                  <label>Kategorija</label>
+                  <select
+                    className="adm-input"
+                    value={form.categoryId}
+                    onChange={set('categoryId')}
+                    disabled={!form.productTypeId}
+                  >
+                    <option value="">— bez kategorije —</option>
+                    {categoriesForType.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#9ca3af' }}>
+                    Opciono. Liste se puni u panelu Kategorije za izabranu vrstu.
+                  </p>
                 </div>
               </div>
 
@@ -187,14 +228,14 @@ export default function AdminProducts() {
               <div className="adm-form-row">
                 <label>Slika</label>
                 <div className="adm-image-row">
-                  <input className="adm-input" placeholder="URL slike..." value={form.imageUrl} onChange={set('imageUrl')} />
+                  <input className="adm-input" placeholder="URL slike…" value={form.imageUrl} onChange={set('imageUrl')} />
                   <span className="adm-or">ili</span>
                   <input
                     type="file"
                     ref={fileRef}
                     accept="image/*"
                     style={{ display: 'none' }}
-                    onChange={e => e.target.files[0] && uploadImage(e.target.files[0])}
+                    onChange={(e) => e.target.files[0] && uploadImage(e.target.files[0])}
                   />
                   <button
                     type="button"
@@ -202,7 +243,7 @@ export default function AdminProducts() {
                     disabled={uploading}
                     onClick={() => fileRef.current?.click()}
                   >
-                    {uploading ? 'Upload...' : '↑ Upload'}
+                    {uploading ? 'Upload…' : '↑ Upload'}
                   </button>
                 </div>
                 {form.imageUrl && (
@@ -213,7 +254,7 @@ export default function AdminProducts() {
               <div className="adm-modal-footer">
                 <button type="button" className="adm-btn" onClick={closeForm}>Odustani</button>
                 <button type="submit" className="adm-btn adm-btn-primary" disabled={saving}>
-                  {saving ? 'Čuvanje...' : editId ? 'Sačuvaj izmene' : 'Kreiraj proizvod'}
+                  {saving ? 'Čuvanje…' : editId ? 'Sačuvaj izmene' : 'Kreiraj proizvod'}
                 </button>
               </div>
             </form>
@@ -222,12 +263,12 @@ export default function AdminProducts() {
       )}
 
       {loading ? (
-        <div className="adm-loading">Učitavanje...</div>
+        <div className="adm-loading">Učitavanje…</div>
       ) : products.length === 0 ? (
         <div className="adm-empty">Nema proizvoda. Dodajte prvi proizvod.</div>
       ) : (
         <div className="adm-product-grid">
-          {products.map(product => (
+          {products.map((product) => (
             <div key={product.id} className="adm-product-card">
               <div className="adm-product-img-wrap">
                 {product.imageUrl ? (
@@ -239,19 +280,21 @@ export default function AdminProducts() {
               <div className="adm-product-info">
                 <div className="adm-product-name">{product.name}</div>
                 <div className="adm-product-meta">
-                  <span className="adm-product-cat">{product.category}</span>
-                  {product.productType && <span className="adm-product-type">{product.productType}</span>}
+                  {product.productType && (
+                    <span className="adm-product-type" title="Vrsta">{product.productType}</span>
+                  )}
+                  {product.category && (
+                    <span className="adm-product-cat" title="Kategorija">{product.category}</span>
+                  )}
                 </div>
                 <div className="adm-product-price">{product.price.toLocaleString('sr-RS')} RSD</div>
               </div>
               <div className="adm-product-actions">
-                <button
-                  className="adm-btn adm-btn-sm"
-                  onClick={() => openEdit(product)}
-                >
+                <button type="button" className="adm-btn adm-btn-sm" onClick={() => openEdit(product)}>
                   Izmeni
                 </button>
                 <button
+                  type="button"
                   className="adm-btn adm-btn-sm adm-btn-danger"
                   onClick={() => deleteProduct(product.id, product.name)}
                 >
