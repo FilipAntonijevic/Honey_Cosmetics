@@ -1795,6 +1795,9 @@ button, input, select { font-family: inherit; }
   background: #fff;
   color: #1a1a1a;
   transition: border-color 0.2s;
+  text-transform: uppercase;
+  font-variant-numeric: lining-nums;
+  letter-spacing: 0.05em;
 }
 .co-coupon-input:focus { outline: none; border-color: #8B6B47; }
 .co-coupon-input::placeholder { color: #c0a888; }
@@ -1827,6 +1830,9 @@ button, input, select { font-family: inherit; }
   font-size: 0.82rem;
   font-weight: 600;
   color: #15803d;
+  text-transform: uppercase;
+  font-variant-numeric: lining-nums;
+  letter-spacing: 0.05em;
 }
 .co-coupon-remove {
   background: transparent;

@@ -22,7 +22,7 @@ export default function Checkout() {
     phone: user?.phoneNumber ?? '',
     paymentMethod: '0',
     couponCode: '',
-    instagram: '',,
+    instagram: '',
     note: '',
     addNote: false,
     createAccount: false,
@@ -40,16 +40,16 @@ export default function Checkout() {
         headers: { 'Content-Type': 'application/json' }
       })
       if (data.isValid) {
-        setCoupon({ code, discountAmount: data.discountAmount })
+        setCoupon({ code, discountValue: data.discountValue, isPercentage: data.isPercentage })
         setForm(f => ({ ...f, couponCode: code }))
         setCouponError('')
       } else {
         setCoupon(null)
         setForm(f => ({ ...f, couponCode: '' }))
-        setCouponError(data.message || 'Nepostojeći ili istekli kupon.')
+        setCouponError(data.message || 'Izabrali ste nepostojeci kupon.')
       }
     } catch {
-      setCouponError('Greška pri proveri kupona.')
+      setCouponError('Izabrali ste nepostojeci kupon.')
     } finally {
       setCouponLoading(false)
     }
@@ -107,7 +107,11 @@ export default function Checkout() {
   const fmt = (n) =>
     Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const subtotal = cart.reduce((s, item) => s + Number(item.price) * item.quantity, 0)
-  const discountAmt = coupon ? coupon.discountAmount : 0
+  const discountAmt = coupon
+    ? coupon.isPercentage
+      ? subtotal * (coupon.discountValue / 100)
+      : coupon.discountValue
+    : 0
   const grandTotal = Math.max(0, subtotal - discountAmt)
 
   if (!cart.length) {
@@ -291,7 +295,7 @@ export default function Checkout() {
               {coupon ? (
                 <div className="co-coupon-applied">
                   <span className="co-coupon-tag">
-                    🎫 {coupon.code} &mdash; &minus;{fmt(coupon.discountAmount)} RSD
+                    🎫 {coupon.code} &mdash; &minus;{fmt(discountAmt)} RSD
                   </span>
                   <button type="button" className="co-coupon-remove" onClick={removeCoupon}>&#x2715;</button>
                 </div>

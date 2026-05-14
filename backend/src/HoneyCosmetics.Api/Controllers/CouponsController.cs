@@ -13,23 +13,27 @@ namespace HoneyCosmetics.Api.Controllers;
 [Route("api/coupons")]
 public class CouponsController(AppDbContext db) : ControllerBase
 {
+    [AllowAnonymous]
     [HttpPost("validate")]
     public async Task<ActionResult<CouponValidationResponse>> Validate([FromBody] string code)
     {
-        var userId = User.GetUserId();
         var coupon = await db.Coupons.FirstOrDefaultAsync(x => x.Code.ToUpper() == code.Trim().ToUpper() && x.IsActive);
         if (coupon is null || (coupon.ExpiresAt.HasValue && coupon.ExpiresAt <= DateTime.UtcNow))
         {
-            return Ok(new CouponValidationResponse(false, "Coupon ne postoji ili je istekao.", 0));
+            return Ok(new CouponValidationResponse(false, "Izabrali ste nepostojeci kupon.", 0, false));
         }
 
-        var alreadyUsed = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
-        if (alreadyUsed)
+        if (User.Identity?.IsAuthenticated == true)
         {
-            return Ok(new CouponValidationResponse(false, "Coupon je već iskorišćen.", 0));
+            var userId = User.GetUserId();
+            var alreadyUsed = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
+            if (alreadyUsed)
+            {
+                return Ok(new CouponValidationResponse(false, "Kupon je već iskorišćen.", 0, false));
+            }
         }
 
-        return Ok(new CouponValidationResponse(true, "Coupon je validan.", coupon.DiscountValue));
+        return Ok(new CouponValidationResponse(true, "Kupon je validan.", coupon.DiscountValue, coupon.IsPercentage));
     }
 
     [Authorize(Roles = "Admin")]

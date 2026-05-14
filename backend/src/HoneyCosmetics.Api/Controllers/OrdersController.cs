@@ -204,9 +204,6 @@ public class OrdersController(
 
         db.Orders.Add(order);
 
-        if (coupon is not null)
-            db.CouponUsages.Add(new CouponUsage { CouponId = coupon.Id, UserId = Guid.Empty });
-
         db.Notifications.Add(new Notification { Message = $"Nova gost porudžbina #{order.Id}" });
 
         await db.SaveChangesAsync();
