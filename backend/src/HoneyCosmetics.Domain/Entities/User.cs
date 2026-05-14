@@ -11,6 +11,11 @@ public class User
     public string LastName { get; set; } = string.Empty;
     public string FullName => $"{FirstName} {LastName}".Trim();
     public string? PhoneNumber { get; set; }
+    // Flat address fields — stored directly on user for simplicity
+    public string? Street { get; set; }
+    public string? City { get; set; }
+    public string? PostalCode { get; set; }
+    public string? Country { get; set; }
     public string? DefaultAddress { get; set; }
     public UserRole Role { get; set; } = UserRole.User;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

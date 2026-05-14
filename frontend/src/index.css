@@ -13,6 +13,7 @@
 }
 
 * { box-sizing: border-box; }
+html { font-size: 150%; }
 body {
   margin: 0;
   font-family: 'COTERIE', 'Cormorant Garamond', 'Georgia', serif;
@@ -33,7 +34,7 @@ button, input, select { font-family: inherit; }
 .badge { background: rgba(19, 19, 19, .8); color: #fff; border-radius: 999px; padding: .3rem .8rem; font-size: .75rem; margin: .9rem; display: inline-block; }
 .eyebrow { letter-spacing: .12em; text-transform: uppercase; font-size: .78rem; }
 .hero h1 { margin: .3rem 0 .6rem; font-size: clamp(1.8rem, 3.5vw, 3.4rem); line-height: 1.1; }
-.cta, button { border: none; background: var(--charcoal); color: #fff; padding: .8rem 1.2rem; border-radius: 999px; cursor: pointer; transition: transform .2s ease, opacity .2s ease; }
+.cta, button { border: none; background: var(--charcoal); color: #fff; padding: .8rem 1.2rem; border-radius: 999px; cursor: pointer; transition: transform .2s ease, opacity .2s ease; font-size: 0.733rem; }
 .cta:hover, button:hover { transform: translateY(-1px); opacity: .92; }
 
 .page { padding: 1.6rem 0 2.8rem; }
@@ -41,10 +42,11 @@ button, input, select { font-family: inherit; }
 .grid-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 .grid-three article, .order-card { background: rgba(255, 255, 255, 0.75); border: 1px solid #f1e5d8; border-radius: 16px; padding: 1rem; }
 .product-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
-.product-card { background: #fff; border: 1px solid #f1e5d8; border-radius: 20px; padding: .9rem; box-shadow: 0 10px 22px rgba(0, 0, 0, .04); transition: transform .22s ease; }
+.product-card { background: #fff; border: 1px solid #f1e5d8; border-radius: 20px; padding: .9rem; box-shadow: 0 10px 22px rgba(0, 0, 0, .04); transition: transform .22s ease; font-size: 0.733rem; }
 .product-card:hover { transform: translateY(-3px); }
 .product-card img { width: 100%; height: 180px; object-fit: cover; border-radius: 14px; }
-.card-actions { display: flex; gap: .5rem; margin-top: .65rem; }
+.product-card button { font-size: 0.6rem; border-radius: 10px; }
+.card-actions { display: flex; gap: .5rem; margin-top: .65rem; justify-content: center; }
 .ghost { background: transparent; color: var(--espresso); border: 1px solid #d9c5b3; }
 
 .detail { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
@@ -61,6 +63,27 @@ button, input, select { font-family: inherit; }
 @keyframes pulse { 0% { background-position: 0 0; } 100% { background-position: 280px 0; } }
 
 .orders-grid { display: grid; gap: .8rem; }
+.orders-list { display: flex; flex-direction: column; gap: 1.2rem; }
+.order-card { display: flex; flex-direction: column; gap: .8rem; }
+.order-card-header { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.order-card-id { font-weight: 700; color: var(--charcoal); }
+.order-card-date { font-size: .85rem; color: #888; margin-left: auto; }
+.order-status { font-size: .78rem; font-weight: 600; padding: .25rem .7rem; border-radius: 999px; background: #f1e5d8; color: var(--charcoal); }
+.order-status--delivered { background: #d4edda; color: #155724; }
+.order-status--cancelled { background: #f8d7da; color: #721c24; }
+.order-status--shipped { background: #cce5ff; color: #004085; }
+.order-items { display: flex; flex-direction: column; gap: .5rem; border-top: 1px solid #f1e5d8; padding-top: .8rem; }
+.order-item-row { display: flex; align-items: center; gap: .75rem; }
+.order-item-img { width: 52px; height: 52px; object-fit: cover; border-radius: 10px; flex-shrink: 0; }
+.order-item-img--ph { background: #f1e5d8; }
+.order-item-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.order-item-name { font-size: .9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.order-item-qty { font-size: .8rem; color: #888; }
+.order-item-price { font-size: .9rem; font-weight: 600; white-space: nowrap; }
+.order-card-footer { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; border-top: 1px solid #f1e5d8; padding-top: .8rem; font-size: .9rem; }
+.order-payment { color: #888; }
+.order-discount { color: #c0392b; }
+.order-total { margin-left: auto; font-size: 1rem; }
 .toast { position: fixed; right: 1rem; bottom: 1rem; background: var(--charcoal); color: #fff; padding: .7rem 1rem; border-radius: 999px; }
 
 /* ===== AUTH PAGES ===== */
@@ -197,7 +220,7 @@ button, input, select { font-family: inherit; }
   border-radius: 999px;
   background: var(--charcoal);
   color: #fff;
-  font-size: 0.95rem;
+  font-size: 0.697rem;
   letter-spacing: 0.02em;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
@@ -612,7 +635,8 @@ button, input, select { font-family: inherit; }
 /* ===== ADMIN PANEL ===== */
 .adm-shell {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #f0f2f5;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
@@ -625,9 +649,8 @@ button, input, select { font-family: inherit; }
   display: flex;
   flex-direction: column;
   padding: 0;
-  position: sticky;
-  top: 0;
   height: 100vh;
+  overflow-y: auto;
 }
 
 .adm-logo {
@@ -695,11 +718,19 @@ button, input, select { font-family: inherit; }
 .adm-content {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-.adm-main { padding: 2rem; }
+.adm-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 2rem;
+}
 
-.adm-page {}
+.adm-page { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .adm-page-header {
   display: flex;
   align-items: flex-start;
@@ -929,7 +960,7 @@ button, input, select { font-family: inherit; }
   color: #fff;
   overflow: hidden;
   padding: 0;
-  height: 34px;
+  height: 50px;
   display: flex;
   align-items: center;
 }
@@ -1044,6 +1075,9 @@ button, input, select { font-family: inherit; }
   border-radius: 50%;
   background: transparent;
   border: none;
+  padding: 0;
+  overflow: visible;
+  box-sizing: border-box;
   color: #3f2b22;
   cursor: pointer;
   transition: background 0.18s;
@@ -1067,6 +1101,11 @@ button, input, select { font-family: inherit; }
   font-weight: 600;
 }
 .cart-icon-btn { position: relative; }
+/* Make user menu trigger more visible (uses profile icon) */
+.user-menu-wrap .icon-btn {
+  background: #fff;
+  border: 1px solid #f1e5d8;
+}
 /* Ensure SVG icons are visible and not collapsed */
 .icon-btn svg {
   display: block;
@@ -1266,7 +1305,7 @@ button, input, select { font-family: inherit; }
   border: none;
   width: 32px;
   height: 32px;
-  font-size: 1rem;
+  font-size: 0.733rem;
   color: #3f2b22;
   cursor: pointer;
   display: flex;
@@ -1377,7 +1416,7 @@ button, input, select { font-family: inherit; }
   border: none;
   border-radius: 999px;
   padding: 1rem 1.2rem;
-  font-size: 0.8rem;
+  font-size: 0.587rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;

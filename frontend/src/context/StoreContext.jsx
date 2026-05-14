@@ -42,23 +42,36 @@ export function StoreProvider({ children }) {
           localStorage.setItem('honey_access_token', data.accessToken)
           localStorage.setItem('honey_refresh_token', data.refreshToken)
           setUser(data.user)
+          // Cart sync: server is source of truth for logged-in users
+          try {
+            const { data: serverCart } = await api.get('/cart')
+            if (serverCart.length > 0) {
+              setCart(serverCart.map(item => ({
+                id: item.productId, name: item.name, price: item.price,
+                imageUrl: item.imageUrl, quantity: item.quantity,
+              })))
+            } else {
+              const localCart = fromStorage('honey_cart', [])
+              localCart.forEach(item => {
+                api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {})
+              })
+            }
+          } catch {}
         } catch {
           localStorage.removeItem('honey_access_token')
           localStorage.removeItem('honey_refresh_token')
           localStorage.removeItem('honey_user')
           setUser(null)
         }
+      } else {
+        // Guest: remove cart items that no longer exist in the DB
+        try {
+          const { data: products } = await api.get('/products')
+          const validIds = new Set(products.map(p => p.id))
+          setCart(prev => prev.filter(item => validIds.has(item.id)))
+        } catch {}
       }
       setInitializing(false)
-
-      // Remove cart items that no longer exist in the DB
-      try {
-        const { data: products } = await api.get('/products')
-        const validIds = new Set(products.map(p => p.id))
-        setCart(prev => prev.filter(item => validIds.has(item.id)))
-      } catch {
-        // silently ignore — keep cart as-is if products can't be fetched
-      }
     }
     restore()
   }, [])
@@ -79,8 +92,12 @@ export function StoreProvider({ children }) {
     localStorage.setItem('honey_refresh_token', data.refreshToken)
     setUser(data.user)
     setToast('Uspešno ste prijavljeni.')
+    // Sync local cart to server after login
+    cart.forEach(item => {
+      api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {})
+    })
     return data.user
-  }, [])
+  }, [cart])
 
   const register = useCallback(async (payload) => {
     const { data } = await api.post('/auth/register', payload)
@@ -88,8 +105,12 @@ export function StoreProvider({ children }) {
     localStorage.setItem('honey_refresh_token', data.refreshToken)
     setUser(data.user)
     setToast('Nalog je kreiran.')
+    // Sync local cart to server after registration
+    cart.forEach(item => {
+      api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {})
+    })
     return data.user
-  }, [])
+  }, [cart])
 
   const logout = useCallback(async () => {
     try {
@@ -111,12 +132,20 @@ export function StoreProvider({ children }) {
       }
       return [...prev, { ...product, quantity: 1 }]
     })
+    if (user) {
+      api.post('/cart', { productId: product.id, quantity: 1 }).catch(() => {})
+    }
     setToast('Proizvod dodat u korpu.')
-  }, [])
+  }, [user])
 
   const removeFromCart = useCallback(
-    (productId) => setCart((prev) => prev.filter((item) => item.id !== productId)),
-    [],
+    (productId) => {
+      setCart((prev) => prev.filter((item) => item.id !== productId))
+      if (user) {
+        api.delete(`/cart/${productId}`).catch(() => {})
+      }
+    },
+    [user],
   )
 
   const toggleWishlist = useCallback((product) => {
@@ -133,6 +162,7 @@ export function StoreProvider({ children }) {
   const value = useMemo(
     () => ({
       user,
+      setUser,
       cart,
       wishlist,
       toast,
@@ -146,7 +176,7 @@ export function StoreProvider({ children }) {
       setToast,
       setCart,
     }),
-    [user, cart, wishlist, toast, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, setCart],
+    [user, cart, wishlist, toast, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, setCart, setUser],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

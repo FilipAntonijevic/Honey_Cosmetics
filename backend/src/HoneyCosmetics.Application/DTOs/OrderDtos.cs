@@ -13,7 +13,7 @@ public record GuestCheckoutRequest(
     string? GuestName,
     string? GuestEmail);
 
-public record OrderItemResponse(int ProductId, string ProductName, int Quantity, decimal UnitPrice);
+public record OrderItemResponse(int ProductId, string ProductName, string? ImageUrl, int Quantity, decimal UnitPrice);
 
 public record OrderResponse(int Id, string DeliveryAddress, string? Phone, PaymentMethod PaymentMethod, string Status, decimal Subtotal, decimal Discount, decimal Total, DateTime CreatedAt, IReadOnlyCollection<OrderItemResponse> Items);
 

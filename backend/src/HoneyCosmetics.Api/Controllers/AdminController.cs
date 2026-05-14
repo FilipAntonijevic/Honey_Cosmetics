@@ -167,7 +167,7 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         o.Discount,
         o.Total,
         o.CreatedAt,
-        o.Items.Select(i => new OrderItemResponse(i.ProductId, i.Product?.Name ?? "—", i.Quantity, i.UnitPrice)).ToList());
+        o.Items.Select(i => new OrderItemResponse(i.ProductId, i.Product?.Name ?? "—", i.Product?.ImageUrl, i.Quantity, i.UnitPrice)).ToList());
 }
 
 public record UpdateOrderStatusRequest(OrderStatus Status);

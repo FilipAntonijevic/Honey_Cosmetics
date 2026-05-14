@@ -60,7 +60,6 @@ export default function Account({ initialMode = 'login' }) {
         const result = await login({ email: form.email, password: form.password })
         navigate(result?.role === 'Admin' ? '/admin' : from, { replace: true })
       } else {
-        const addressFilled = form.city.trim() || form.street.trim() || form.postalCode.trim()
         const result = await register({
           email: form.email,
           password: form.password,
@@ -68,14 +67,10 @@ export default function Account({ initialMode = 'login' }) {
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
           phoneNumber: form.phoneNumber.trim() || undefined,
-          address: addressFilled
-            ? {
-                country: form.country || 'Srbija',
-                city: form.city.trim(),
-                street: form.street.trim(),
-                postalCode: form.postalCode.trim(),
-              }
-            : undefined,
+          street: form.street.trim() || undefined,
+          city: form.city.trim() || undefined,
+          postalCode: form.postalCode.trim() || undefined,
+          country: form.country || 'Srbija',
         })
         navigate(result?.role === 'Admin' ? '/admin' : from, { replace: true })
       }

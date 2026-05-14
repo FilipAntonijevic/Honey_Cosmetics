@@ -11,10 +11,10 @@ export default function Checkout() {
     email: user?.email ?? '',
     firstName: user?.fullName?.split(' ')[0] ?? '',
     lastName: user?.fullName?.split(' ').slice(1).join(' ') ?? '',
-    address: user?.defaultAddress ?? '',
-    city: '',
-    state: '',
-    postalCode: '',
+    address: user?.street ?? '',
+    city: user?.city ?? '',
+    state: user?.country ?? 'Srbija',
+    postalCode: user?.postalCode ?? '',
     phone: user?.phoneNumber ?? '',
     paymentMethod: '0',
     couponCode: '',
@@ -46,6 +46,7 @@ export default function Checkout() {
           paymentMethod: Number(form.paymentMethod),
           couponCode: form.couponCode || null,
         })
+        setCart([])
         navigate('/my-orders')
       } else {
         await api.post('/orders/guest-checkout', {

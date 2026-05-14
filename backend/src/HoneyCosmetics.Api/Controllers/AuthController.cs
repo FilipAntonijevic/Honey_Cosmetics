@@ -34,24 +34,13 @@ public class AuthController(
             FirstName = request.FirstName.Trim(),
             LastName = request.LastName.Trim(),
             PhoneNumber = request.PhoneNumber?.Trim(),
+            Street = request.Street?.Trim(),
+            City = request.City?.Trim(),
+            PostalCode = request.PostalCode?.Trim(),
+            Country = request.Country?.Trim() ?? "Srbija",
             Role = UserRole.User
         };
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
-        if (request.Address is not null)
-        {
-            var formattedAddress = $"{request.Address.Street}, {request.Address.City} {request.Address.PostalCode}, {request.Address.Country}";
-            user.DefaultAddress = formattedAddress;
-            user.Addresses.Add(new Address
-            {
-                Country = request.Address.Country,
-                City = request.Address.City,
-                Street = request.Address.Street,
-                PostalCode = request.Address.PostalCode,
-                Label = "Kućna adresa",
-                IsDefault = true
-            });
-        }
 
         db.Users.Add(user);
         db.Coupons.Add(new Coupon
@@ -148,22 +137,18 @@ public class AuthController(
     public async Task<IActionResult> GetProfile()
     {
         var userId = User.GetUserId();
-        var user = await db.Users
-            .Include(u => u.Addresses)
-            .FirstOrDefaultAsync(u => u.Id == userId);
+        var user = await db.Users.FindAsync(userId);
         if (user is null) return NotFound();
-        var addr = user.Addresses.FirstOrDefault(a => a.IsDefault)
-                   ?? user.Addresses.FirstOrDefault();
         return Ok(new
         {
             user.FirstName,
             user.LastName,
             user.Email,
             user.PhoneNumber,
-            Street  = addr?.Street,
-            City    = addr?.City,
-            PostalCode = addr?.PostalCode,
-            Country = addr?.Country ?? "Srbija"
+            Street = user.Street ?? string.Empty,
+            City = user.City ?? string.Empty,
+            PostalCode = user.PostalCode ?? string.Empty,
+            Country = user.Country ?? "Srbija"
         });
     }
 
@@ -172,30 +157,16 @@ public class AuthController(
     public async Task<IActionResult> UpdateProfile(UpdateProfileRequest request)
     {
         var userId = User.GetUserId();
-        var user = await db.Users
-            .Include(u => u.Addresses)
-            .FirstOrDefaultAsync(u => u.Id == userId);
+        var user = await db.Users.FindAsync(userId);
         if (user is null) return NotFound();
 
         user.FirstName = request.FirstName.Trim();
         user.LastName = request.LastName.Trim();
         user.PhoneNumber = request.PhoneNumber?.Trim();
-
-        // Update or create default address
-        var addr = user.Addresses.FirstOrDefault(a => a.IsDefault)
-                   ?? user.Addresses.FirstOrDefault();
-        if (addr is null)
-        {
-            addr = new Address { UserId = userId, Label = "Kućna adresa", IsDefault = true, Country = "Srbija" };
-            user.Addresses.Add(addr);
-        }
-        addr.Street     = request.Street?.Trim() ?? string.Empty;
-        addr.City       = request.City?.Trim() ?? string.Empty;
-        addr.PostalCode = request.PostalCode?.Trim() ?? string.Empty;
-
-        // Keep DefaultAddress string in sync
-        var parts = new[] { addr.Street, addr.City, addr.PostalCode }.Where(s => !string.IsNullOrWhiteSpace(s));
-        user.DefaultAddress = parts.Any() ? string.Join(", ", parts) : null;
+        user.Street = request.Street?.Trim();
+        user.City = request.City?.Trim();
+        user.PostalCode = request.PostalCode?.Trim();
+        user.Country = request.Country?.Trim() ?? "Srbija";
 
         await db.SaveChangesAsync();
         return Ok();
@@ -213,7 +184,17 @@ public class AuthController(
             accessToken,
             user.RefreshToken,
             jwt.ValidTo,
-            new UserSummary(user.Id, user.Email, user.FullName, user.Role.ToString()));
+            new UserSummary(
+                user.Id,
+                user.Email,
+                user.FullName,
+                user.Role.ToString(),
+                user.PhoneNumber,
+                user.Street,
+                user.City,
+                user.PostalCode,
+                user.Country
+            ));
     }
 
     private static string BuildForgotPasswordEmail(string name, string link) => $"""

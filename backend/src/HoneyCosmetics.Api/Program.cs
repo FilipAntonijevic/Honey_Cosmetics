@@ -2,78 +2,168 @@ using System.Text;
 using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Domain.Enums;
+using HoneyCosmetics.Infrastructure.Configurations;
 using HoneyCosmetics.Infrastructure.Data;
 using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+//
+// Controllers & Swagger
+//
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+//
+// Database
+//
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
 
+//
+// Configurations
+//
+builder.Services.Configure<SendGridSettings>(
+    builder.Configuration.GetSection("SendGrid"));
+
+//
+// Services
+//
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+
+//
+// Background Services
+//
 builder.Services.AddHostedService<OrderNotificationBackgroundService>();
 
+//
+// CORS
+//
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("frontend", policy =>
-        policy.WithOrigins(builder.Configuration["FrontendUrl"] ?? "http://localhost:5173")
+    {
+        policy
+            .WithOrigins(
+                builder.Configuration["FrontendUrl"]
+                ?? "http://localhost:5173")
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
 });
 
-var secret = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("Missing Jwt:Secret");
-var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+//
+// JWT Authentication
+//
+var secret =
+    builder.Configuration["Jwt:Secret"]
+    ?? throw new InvalidOperationException(
+        "Missing Jwt:Secret");
+
+var key = new SymmetricSecurityKey(
+    Encoding.UTF8.GetBytes(secret));
 
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddAuthentication(
+        JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = key,
-            RoleClaimType = System.Security.Claims.ClaimTypes.Role
-        };
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+
+                ValidIssuer =
+                    builder.Configuration["Jwt:Issuer"],
+
+                ValidAudience =
+                    builder.Configuration["Jwt:Audience"],
+
+                IssuerSigningKey = key,
+
+                RoleClaimType =
+                    System.Security.Claims.ClaimTypes.Role
+            };
     });
 
+//
+// Authorization
+//
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+//
+// Database Seed
+//
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var db =
+        scope.ServiceProvider
+            .GetRequiredService<AppDbContext>();
+
     db.Database.EnsureCreated();
 
+    //
+    // Seed Admin User
+    //
     if (!db.Users.Any(x => x.Role == UserRole.Admin))
     {
-        var adminEmail = builder.Configuration["Admin:SeedEmail"] ?? "admin@honeycosmetics.local";
-        var adminPassword = builder.Configuration["Admin:SeedPassword"] ?? throw new InvalidOperationException("Missing Admin:SeedPassword");
+        var adminEmail =
+            builder.Configuration["Admin:SeedEmail"]
+            ?? "filipdantonijevic@gmail.com";
+
+        var adminPassword =
+            builder.Configuration["Admin:SeedPassword"]
+            ?? "sifra1";
+
         var admin = new User
         {
-            Email = adminEmail.Trim().ToLowerInvariant(),
-            FirstName = builder.Configuration["Admin:SeedFirstName"] ?? "Honey",
-            LastName = builder.Configuration["Admin:SeedLastName"] ?? "Admin",
+            Email =
+                adminEmail
+                    .Trim()
+                    .ToLowerInvariant(),
+
+            FirstName =
+                builder.Configuration["Admin:SeedFirstName"]
+                ?? "Filip",
+
+            LastName =
+                builder.Configuration["Admin:SeedLastName"]
+                ?? "Antonijevic",
+
             Role = UserRole.Admin,
+
             PhoneNumber = "+38160000000",
-            DefaultAddress = "Bulevar oslobođenja 1, Novi Sad"
+
+            DefaultAddress =
+                "Bulevar oslobođenja 1, Novi Sad"
         };
-        admin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword);
+
+        admin.PasswordHash =
+            BCrypt.Net.BCrypt.HashPassword(
+                adminPassword);
 
         db.Users.Add(admin);
+    }
+
+    //
+    // Seed Default Coupon
+    //
+    if (!db.Coupons.Any(x => x.Code == "SUMMER10"))
+    {
         db.Coupons.Add(new Coupon
         {
             Code = "SUMMER10",
@@ -83,29 +173,61 @@ using (var scope = app.Services.CreateScope())
             IsActive = true,
             FirstOrderOnly = false
         });
-        db.SaveChanges();
     }
+
+    db.SaveChanges();
 }
 
+//
+// Swagger
+//
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+//
+// HTTPS
+//
+app.UseHttpsRedirection();
+
+//
+// CORS
+//
 app.UseCors("frontend");
 
-// Serve uploaded images from <content-root>/images/
-var imagesPath = Path.Combine(app.Environment.ContentRootPath, "images");
+//
+// Static Images
+//
+var imagesPath =
+    Path.Combine(
+        app.Environment.ContentRootPath,
+        "images");
+
 Directory.CreateDirectory(imagesPath);
+
+var provider = new FileExtensionContentTypeProvider();
+
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(imagesPath),
-    RequestPath = "/images"
+    FileProvider =
+        new PhysicalFileProvider(imagesPath),
+
+    RequestPath = "/images",
+
+    ContentTypeProvider = provider
 });
 
+//
+// Authentication & Authorization
+//
 app.UseAuthentication();
 app.UseAuthorization();
+
+//
+// Controllers
+//
 app.MapControllers();
 
 app.Run();

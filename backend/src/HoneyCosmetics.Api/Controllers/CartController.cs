@@ -36,23 +36,22 @@ public class CartController(AppDbContext db) : ControllerBase
     public async Task<IActionResult> Add(CartItemRequest request)
     {
         var userId = User.GetUserId();
-        var product = await db.Products.FindAsync(request.ProductId);
-        if (product is null)
+        var productExists = await db.Products.AnyAsync(p => p.Id == request.ProductId);
+        if (!productExists)
         {
             return NotFound("Product not found.");
         }
 
-        var item = await db.Carts.FirstOrDefaultAsync(x => x.UserId == userId && x.ProductId == request.ProductId);
-        if (item is null)
-        {
-            db.Carts.Add(new HoneyCosmetics.Domain.Entities.Cart { UserId = userId, ProductId = request.ProductId, Quantity = Math.Max(1, request.Quantity) });
-        }
-        else
-        {
-            item.Quantity = Math.Max(1, item.Quantity + request.Quantity);
-        }
+        var qty = Math.Max(1, request.Quantity);
 
-        await db.SaveChangesAsync();
+        // Upsert: handles concurrent requests without duplicate key errors
+        await db.Database.ExecuteSqlRawAsync(
+            @"INSERT INTO ""Carts"" (""UserId"", ""ProductId"", ""Quantity"")
+              VALUES ({0}, {1}, {2})
+              ON CONFLICT (""UserId"", ""ProductId"") DO UPDATE
+              SET ""Quantity"" = ""Carts"".""Quantity"" + EXCLUDED.""Quantity""",
+            userId, request.ProductId, qty);
+
         return NoContent();
     }
 

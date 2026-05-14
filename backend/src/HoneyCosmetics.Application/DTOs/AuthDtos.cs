@@ -2,12 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace HoneyCosmetics.Application.DTOs;
 
-public record RegisterAddressRequest(
-    [Required] string Country,
-    [Required] string City,
-    [Required] string Street,
-    [Required] string PostalCode);
-
+// Flat registration — address fields optional, stored directly on User
 public record RegisterRequest(
     [Required, EmailAddress] string Email,
     [Required, MinLength(8)] string Password,
@@ -15,7 +10,10 @@ public record RegisterRequest(
     [Required] string FirstName,
     [Required] string LastName,
     string? PhoneNumber,
-    RegisterAddressRequest? Address);
+    string? Street,
+    string? City,
+    string? PostalCode,
+    string? Country);
 
 public record LoginRequest([Required, EmailAddress] string Email, [Required] string Password);
 
@@ -31,8 +29,20 @@ public record UpdateProfileRequest(
     string? PhoneNumber,
     string? Street,
     string? City,
-    string? PostalCode);
+    string? PostalCode,
+    string? Country);
 
 public record AuthResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserSummary User);
 
-public record UserSummary(Guid Id, string Email, string FullName, string Role);
+// All user fields returned on login/register/refresh so frontend can prefill forms
+public record UserSummary(
+    Guid Id,
+    string Email,
+    string FullName,
+    string Role,
+    string? PhoneNumber,
+    string? Street,
+    string? City,
+    string? PostalCode,
+    string? Country
+);

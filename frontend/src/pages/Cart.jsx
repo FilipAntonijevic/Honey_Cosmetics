@@ -4,7 +4,7 @@ import api from '../api'
 import { useStore } from '../context/StoreContext'
 
 export default function Cart() {
-  const { cart, removeFromCart, setCart } = useStore()
+  const { cart, removeFromCart, setCart, user } = useStore()
   const navigate = useNavigate()
   const [freshPrices, setFreshPrices] = useState({})
   const [coupon, setCoupon] = useState('')
@@ -25,6 +25,9 @@ export default function Cart() {
     setCart(prev => prev
       .map(item => item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item)
     )
+    if (user) {
+      api.post('/cart', { productId: id, quantity: delta }).catch(() => {})
+    }
   }
 
   const fmt = (n) => Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })

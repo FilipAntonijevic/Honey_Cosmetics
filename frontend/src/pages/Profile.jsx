@@ -4,13 +4,16 @@ import api from '../api'
 import { useStore } from '../context/StoreContext'
 
 export default function Profile() {
-  const { setToast } = useStore()
+  const { setToast, user, setUser } = useStore()
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phoneNumber: '',
-    defaultAddress: '',
+    street: '',
+    city: '',
+    postalCode: '',
+    country: 'Srbija',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -24,7 +27,10 @@ export default function Profile() {
           lastName: data.lastName ?? '',
           email: data.email ?? '',
           phoneNumber: data.phoneNumber ?? '',
-          defaultAddress: data.defaultAddress ?? '',
+          street: data.street ?? '',
+          city: data.city ?? '',
+          postalCode: data.postalCode ?? '',
+          country: data.country ?? 'Srbija',
         })
       })
       .catch(() => setError('Greška pri učitavanju podataka.'))
@@ -42,8 +48,23 @@ export default function Profile() {
         firstName: form.firstName,
         lastName: form.lastName,
         phoneNumber: form.phoneNumber || null,
-        defaultAddress: form.defaultAddress || null,
+        street: form.street || null,
+        city: form.city || null,
+        postalCode: form.postalCode || null,
+        country: form.country || null,
       })
+      // Update local user in context/localStorage so checkout gets new values immediately
+      const updated = {
+        ...user,
+        fullName: `${form.firstName} ${form.lastName}`.trim(),
+        phoneNumber: form.phoneNumber || null,
+        street: form.street || null,
+        city: form.city || null,
+        postalCode: form.postalCode || null,
+        country: form.country || null,
+      }
+      setUser(updated)
+      localStorage.setItem('honey_user', JSON.stringify(updated))
       setToast('Podaci su uspešno sačuvani.')
     } catch (err) {
       setError(err.response?.data ?? 'Greška pri čuvanju.')
@@ -109,14 +130,42 @@ export default function Profile() {
             <section className="profile-section">
               <div className="profile-section-title">Adresa dostave</div>
               <div className="profile-field">
-                <label className="profile-label">Podrazumevana adresa</label>
+                <label className="profile-label">Ulica i broj</label>
                 <input
                   className="profile-input"
-                  placeholder="Ulica i broj, grad, poštanski broj"
-                  value={form.defaultAddress}
-                  onChange={set('defaultAddress')}
+                  placeholder="npr. Bulevar oslobođenja 15"
+                  value={form.street}
+                  onChange={set('street')}
                 />
-                <p className="profile-field-hint">Koristiće se kao podrazumevana adresa pri naplati.</p>
+              </div>
+              <div className="profile-row-2">
+                <div className="profile-field">
+                  <label className="profile-label">Grad</label>
+                  <input
+                    className="profile-input"
+                    placeholder="npr. Novi Sad"
+                    value={form.city}
+                    onChange={set('city')}
+                  />
+                </div>
+                <div className="profile-field">
+                  <label className="profile-label">Poštanski broj</label>
+                  <input
+                    className="profile-input"
+                    placeholder="npr. 21000"
+                    value={form.postalCode}
+                    onChange={set('postalCode')}
+                  />
+                </div>
+              </div>
+              <div className="profile-field">
+                <label className="profile-label">Država</label>
+                <input
+                  className="profile-input"
+                  placeholder="Srbija"
+                  value={form.country}
+                  onChange={set('country')}
+                />
               </div>
             </section>
 
