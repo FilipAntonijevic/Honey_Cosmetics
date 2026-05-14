@@ -152,10 +152,6 @@ export default function Checkout() {
                   <input className="co-input" type="email" placeholder="Email" value={form.email} onChange={set('email')} />
                   <p className="co-field-hint">Trenutno završavate kupovinu kao gost.</p>
                 </div>
-                <label className="co-checkbox-label">
-                  <input type="checkbox" checked={form.createAccount} onChange={toggle('createAccount')} className="co-checkbox" />
-                  <span>Kreirajte nalog sa Honey Cosmetics</span>
-                </label>
               </>
             )}
           </section>

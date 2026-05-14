@@ -4,13 +4,13 @@
     <ProjectReference Include="..\HoneyCosmetics.Domain\HoneyCosmetics.Domain.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="MailKit" Version="4.9.0" />
+    <PackageReference Include="MailKit" Version="4.10.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.4" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="SendGrid" Version="9.29.3" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.4.0" />
   </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>

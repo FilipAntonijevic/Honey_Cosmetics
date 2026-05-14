@@ -33,7 +33,7 @@ export default function Layout({ children }) {
               <span key={i} className="ticker-item">
                 Besplatna dostava za porudžbinu preko 10.000 RSD
                 <span className="ticker-sep">•</span>
-                Popust na prvu porudžbinu od 10% uz kod HNB10
+                Popust na prvu porudžbinu 10% uz kod FIRSTORDER
                 <span className="ticker-sep">•</span>
               </span>
             ))}
@@ -43,7 +43,7 @@ export default function Layout({ children }) {
         {/* Small links row */}
         <div className="links-strip">
           <Link to="/about">O nama</Link>
-          <a href="mailto:saradnja@honeycosmetics.rs">Saradnja</a>
+          <Link to="/collaboration">Saradnja</Link>
           <Link to="/delivery-payment">Dostava i plaćanje</Link>
           <Link to="/contact">Kontakt</Link>
           <Link to="/shop?sort=newest">Bestsellers</Link>
@@ -149,7 +149,7 @@ export default function Layout({ children }) {
           <div className="footer-col">
             <div className="footer-col-title">O Nama</div>
             <Link to="/about">O Nama</Link>
-            <a href="mailto:saradnja@honeycosmetics.rs">Saradnja</a>
+            <Link to="/collaboration">Saradnja</Link>
             <Link to="/delivery-payment">Dostava i plaćanje</Link>
           </div>
 

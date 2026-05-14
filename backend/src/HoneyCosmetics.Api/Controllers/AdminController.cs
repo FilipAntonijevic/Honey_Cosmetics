@@ -70,6 +70,7 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
     {
         var products = await db.Products
             .Include(x => x.Category)
+            .Include(x => x.ProductType)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
         return Ok(products.Select(MapProduct));
@@ -84,29 +85,31 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
             Description = request.Description,
             Price = request.Price,
             ImageUrl = request.ImageUrl,
-            CategoryId = request.CategoryId,
-            ProductType = request.ProductType
+            ProductTypeId = request.ProductTypeId,
+            CategoryId = request.CategoryId
         };
         db.Products.Add(product);
         await db.SaveChangesAsync();
         await db.Entry(product).Reference(p => p.Category).LoadAsync();
+        await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
         return Ok(MapProduct(product));
     }
 
     [HttpPut("products/{id:int}")]
     public async Task<ActionResult<ProductResponse>> UpdateProduct(int id, [FromBody] ProductRequest request)
     {
-        var product = await db.Products.Include(x => x.Category).FirstOrDefaultAsync(x => x.Id == id);
+        var product = await db.Products.Include(x => x.Category).Include(x => x.ProductType).FirstOrDefaultAsync(x => x.Id == id);
         if (product is null) return NotFound();
 
         product.Name = request.Name;
         product.Description = request.Description;
         product.Price = request.Price;
         product.ImageUrl = request.ImageUrl;
+        product.ProductTypeId = request.ProductTypeId;
         product.CategoryId = request.CategoryId;
-        product.ProductType = request.ProductType;
         await db.SaveChangesAsync();
         await db.Entry(product).Reference(p => p.Category).LoadAsync();
+        await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
         return Ok(MapProduct(product));
     }
 
@@ -153,7 +156,17 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
 
     // ── Mappers ───────────────────────────────────────────────────────────────
     private static ProductResponse MapProduct(Product p) =>
-        new(p.Id, p.Name, p.Description, p.Price, p.ImageUrl, p.CategoryId, p.Category?.Name ?? string.Empty, p.ProductType, p.CreatedAt);
+        new(
+            p.Id,
+            p.Name,
+            p.Description,
+            p.Price,
+            p.ImageUrl,
+            p.ProductTypeId,
+            p.ProductType != null ? p.ProductType.Name : string.Empty,
+            p.CategoryId,
+            p.Category != null ? p.Category.Name : string.Empty,
+            p.CreatedAt);
 
     private static AdminOrderResponse MapAdminOrder(Order o) => new(
         o.Id,
