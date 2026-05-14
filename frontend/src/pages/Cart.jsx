@@ -7,7 +7,6 @@ export default function Cart() {
   const { cart, removeFromCart, setCart, user } = useStore()
   const navigate = useNavigate()
   const [freshPrices, setFreshPrices] = useState({})
-  const [coupon, setCoupon] = useState('')
 
   useEffect(() => {
     if (!cart.length) return
@@ -88,14 +87,6 @@ export default function Cart() {
             <div className="cart-summary">
               <div className="cart-summary-title">UKUPNA VREDNOST KORPE</div>
 
-              <div className="cart-coupon-wrap">
-                <input
-                  className="cart-coupon-input"
-                  placeholder="Dodaj kupone"
-                  value={coupon}
-                  onChange={e => setCoupon(e.target.value)}
-                />
-              </div>
 
               <div className="cart-estimate">
                 <div className="cart-estimate-label">Procenjeni ukupan iznos</div>

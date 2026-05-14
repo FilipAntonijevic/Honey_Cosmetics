@@ -5,6 +5,7 @@ const navItems = [
   { to: '/admin', label: 'Dashboard', icon: '⬛', exact: true },
   { to: '/admin/orders', label: 'Porudžbine', icon: '📦' },
   { to: '/admin/products', label: 'Proizvodi', icon: '🧴' },
+  { to: '/admin/coupons', label: 'Kuponi', icon: '🎫' },
 ]
 
 export default function AdminLayout({ children }) {

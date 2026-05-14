@@ -7,6 +7,10 @@ export default function Checkout() {
   const { user, cart, setCart, setToast } = useStore()
   const navigate = useNavigate()
 
+  const [couponInput, setCouponInput] = useState('')
+  const [coupon, setCoupon] = useState(null) // { code, discount, isPercentage }
+  const [couponError, setCouponError] = useState('')
+  const [couponLoading, setCouponLoading] = useState(false)
   const [form, setForm] = useState({
     email: user?.email ?? '',
     firstName: user?.fullName?.split(' ')[0] ?? '',
@@ -18,14 +22,45 @@ export default function Checkout() {
     phone: user?.phoneNumber ?? '',
     paymentMethod: '0',
     couponCode: '',
-    instagram: '',
+    instagram: '',,
     note: '',
     addNote: false,
     createAccount: false,
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [couponOpen, setCouponOpen] = useState(false)
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase()
+    if (!code) return
+    setCouponError('')
+    setCouponLoading(true)
+    try {
+      const { data } = await api.post('/coupons/validate', JSON.stringify(code), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+      if (data.isValid) {
+        setCoupon({ code, discountAmount: data.discountAmount })
+        setForm(f => ({ ...f, couponCode: code }))
+        setCouponError('')
+      } else {
+        setCoupon(null)
+        setForm(f => ({ ...f, couponCode: '' }))
+        setCouponError(data.message || 'Nepostojeći ili istekli kupon.')
+      }
+    } catch {
+      setCouponError('Greška pri proveri kupona.')
+    } finally {
+      setCouponLoading(false)
+    }
+  }
+
+  const removeCoupon = () => {
+    setCoupon(null)
+    setCouponInput('')
+    setForm(f => ({ ...f, couponCode: '' }))
+    setCouponError('')
+  }
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
   const toggle = (key) => () => setForm((f) => ({ ...f, [key]: !f[key] }))
@@ -72,6 +107,8 @@ export default function Checkout() {
   const fmt = (n) =>
     Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const subtotal = cart.reduce((s, item) => s + Number(item.price) * item.quantity, 0)
+  const discountAmt = coupon ? coupon.discountAmount : 0
+  const grandTotal = Math.max(0, subtotal - discountAmt)
 
   if (!cart.length) {
     return (
@@ -251,41 +288,53 @@ export default function Checkout() {
 
             {/* Coupon */}
             <div className="co-coupon-block">
-              <button
-                type="button"
-                className="co-coupon-toggle"
-                onClick={() => setCouponOpen((o) => !o)}
-              >
-                <span>Dodaj kupone</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                  {couponOpen
-                    ? <polyline points="18 15 12 9 6 15" />
-                    : <polyline points="6 9 12 15 18 9" />}
-                </svg>
-              </button>
-              {couponOpen && (
-                <div className="co-coupon-row">
-                  <input
-                    className="co-coupon-input"
-                    placeholder="Kod kupona"
-                    value={form.couponCode}
-                    onChange={set('couponCode')}
-                  />
-                  <button type="button" className="co-coupon-apply">Primeni</button>
+              {coupon ? (
+                <div className="co-coupon-applied">
+                  <span className="co-coupon-tag">
+                    🎫 {coupon.code} &mdash; &minus;{fmt(coupon.discountAmount)} RSD
+                  </span>
+                  <button type="button" className="co-coupon-remove" onClick={removeCoupon}>&#x2715;</button>
                 </div>
+              ) : (
+                <>
+                  <div className="co-coupon-row">
+                    <input
+                      className="co-coupon-input"
+                      placeholder="Kod kupona"
+                      value={couponInput}
+                      onChange={e => { setCouponInput(e.target.value); setCouponError('') }}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), applyCoupon())}
+                    />
+                    <button
+                      type="button"
+                      className="co-coupon-apply"
+                      onClick={applyCoupon}
+                      disabled={couponLoading}
+                    >
+                      {couponLoading ? '…' : 'Primeni'}
+                    </button>
+                  </div>
+                  {couponError && <p className="co-coupon-error">{couponError}</p>}
+                </>
               )}
             </div>
 
             {/* Totals */}
             <div className="co-sum-divider" />
             <div className="co-total-row">
-              <span>Ukupno</span>
+              <span>Međuzbir</span>
               <span>{fmt(subtotal)} RSD</span>
             </div>
+            {coupon && (
+              <div className="co-total-row" style={{ color: '#c0392b' }}>
+                <span>Popust ({coupon.code})</span>
+                <span>&minus;{fmt(discountAmt)} RSD</span>
+              </div>
+            )}
             <div className="co-sum-divider" />
             <div className="co-grand-row">
               <span>Ukupno</span>
-              <strong className="co-grand-value">{fmt(subtotal)} RSD</strong>
+              <strong className="co-grand-value">{fmt(grandTotal)} RSD</strong>
             </div>
           </div>
         </div>

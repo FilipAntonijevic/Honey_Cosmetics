@@ -33,6 +33,39 @@ public class CouponsController(AppDbContext db) : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
+    [HttpGet]
+    public async Task<IActionResult> List()
+    {
+        var coupons = await db.Coupons
+            .Include(x => x.Usages)
+            .OrderByDescending(x => x.Id)
+            .Select(x => new
+            {
+                x.Id,
+                x.Code,
+                x.DiscountValue,
+                x.IsPercentage,
+                x.ExpiresAt,
+                x.FirstOrderOnly,
+                x.IsActive,
+                UsageCount = x.Usages.Count
+            })
+            .ToListAsync();
+        return Ok(coupons);
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var coupon = await db.Coupons.FindAsync(id);
+        if (coupon is null) return NotFound();
+        db.Coupons.Remove(coupon);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> Create(CouponRequest request)
     {

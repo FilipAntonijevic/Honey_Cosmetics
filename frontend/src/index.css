@@ -1812,6 +1812,39 @@ button, input, select { font-family: inherit; }
   transform: none;
 }
 .co-coupon-apply:hover { background: #8B6B47; color: #fff; transform: none; opacity: 1; }
+.co-coupon-applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  margin-top: 0.5rem;
+}
+.co-coupon-tag {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #15803d;
+}
+.co-coupon-remove {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+  line-height: 1;
+  transform: none;
+  border-radius: 0;
+}
+.co-coupon-remove:hover { color: #dc2626; opacity: 1; transform: none; }
+.co-coupon-error {
+  font-size: 0.78rem;
+  color: #dc2626;
+  margin: 0.4rem 0 0;
+}
 
 /* Totals */
 .co-sum-divider { height: 1px; background: #e8dcd0; margin: 0.9rem 0; }
