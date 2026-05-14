@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import AdminLayout from './components/AdminLayout'
@@ -22,6 +23,21 @@ import AdminProducts from './pages/AdminProducts'
 import AdminCoupons from './pages/AdminCoupons'
 import AdminCategories from './pages/AdminCategories'
 import AdminBestsellers from './pages/AdminBestsellers'
+import AdminLinks from './pages/AdminLinks'
+import Terms from './pages/Terms'
+import Privacy from './pages/Privacy'
+import Returns from './pages/Returns'
+
+// Scrolls the window to the top on every route change so users start each
+// page at the top, the same as a normal full-page navigation would.
+function ScrollToTop() {
+  const { pathname, search, hash } = useLocation()
+  useEffect(() => {
+    if (hash) return
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [pathname, search, hash])
+  return null
+}
 
 // Requires user to be logged in; admins are kicked to /admin
 function AuthRoute({ children }) {
@@ -62,6 +78,9 @@ function ClientRoutes() {
         <Route path="/collaboration" element={<Collaboration />} />
         <Route path="/contact" element={<StaticPage title="Kontakt">Pišite nam na hello@honeycosmetics.rs ili pozovite +381 60 000 000.</StaticPage>} />
         <Route path="/delivery-payment" element={<StaticPage title="Dostava i plaćanje">Plaćanje je moguće pouzećem ili direktnom bankovnom transakcijom. Dostava u celoj Srbiji.</StaticPage>} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/returns" element={<Returns />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
@@ -79,6 +98,7 @@ function AdminRoutes() {
           <Route path="categories" element={<AdminCategories />} />
           <Route path="bestsellers" element={<AdminBestsellers />} />
           <Route path="coupons" element={<AdminCoupons />} />
+          <Route path="links" element={<AdminLinks />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </AdminLayout>
@@ -99,6 +119,7 @@ export default function App() {
   return (
     <StoreProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <AppRoutes />
       </BrowserRouter>
     </StoreProvider>

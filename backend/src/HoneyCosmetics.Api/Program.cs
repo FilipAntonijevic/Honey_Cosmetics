@@ -176,6 +176,14 @@ using (var scope = app.Services.CreateScope())
         });
     }
 
+    //
+    // Seed Site Settings (single-row, holds public social/contact links)
+    //
+    if (!db.SiteSettings.Any())
+    {
+        db.SiteSettings.Add(new SiteSettings { Id = 1 });
+    }
+
     if (!db.ProductTypes.Any())
     {
         var defaultTypes = new[]

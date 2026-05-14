@@ -19,6 +19,21 @@ public class ProductsController(AppDbContext db) : ControllerBase
     }
 
     [AllowAnonymous]
+    [HttpGet("~/api/site/links")]
+    public async Task<ActionResult<SiteLinksResponse>> GetSiteLinks()
+    {
+        var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+        return Ok(new SiteLinksResponse(
+            s?.InstagramUrl ?? string.Empty,
+            s?.TikTokUrl ?? string.Empty,
+            s?.EmailAddress ?? string.Empty,
+            s?.PhoneNumber ?? string.Empty,
+            s?.ComplaintsEmail ?? string.Empty,
+            s?.WhatsAppNumber ?? string.Empty,
+            s?.ViberNumber ?? string.Empty));
+    }
+
+    [AllowAnonymous]
     [HttpGet("bestsellers")]
     public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetBestsellers()
     {

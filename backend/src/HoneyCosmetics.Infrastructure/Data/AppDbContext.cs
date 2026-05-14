@@ -18,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Cart> Carts => Set<Cart>();
     public DbSet<Address> Addresses => Set<Address>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<SiteSettings> SiteSettings => Set<SiteSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

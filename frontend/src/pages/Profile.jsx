@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
+import { DEFAULT_PHONE_PREFIX, cleanPhone, phoneOrDefault, placeCursorAtEndIfPrefix } from '../utils/phone'
 
 export default function Profile() {
   const { setToast, user, setUser } = useStore()
@@ -9,7 +10,7 @@ export default function Profile() {
     firstName: '',
     lastName: '',
     email: '',
-    phoneNumber: '',
+    phoneNumber: DEFAULT_PHONE_PREFIX,
     street: '',
     city: '',
     postalCode: '',
@@ -26,7 +27,7 @@ export default function Profile() {
           firstName: data.firstName ?? '',
           lastName: data.lastName ?? '',
           email: data.email ?? '',
-          phoneNumber: data.phoneNumber ?? '',
+          phoneNumber: phoneOrDefault(data.phoneNumber),
           street: data.street ?? '',
           city: data.city ?? '',
           postalCode: data.postalCode ?? '',
@@ -44,10 +45,11 @@ export default function Profile() {
     setError('')
     setSaving(true)
     try {
+      const cleanedPhone = cleanPhone(form.phoneNumber)
       await api.put('/auth/profile', {
         firstName: form.firstName,
         lastName: form.lastName,
-        phoneNumber: form.phoneNumber || null,
+        phoneNumber: cleanedPhone,
         street: form.street || null,
         city: form.city || null,
         postalCode: form.postalCode || null,
@@ -57,7 +59,7 @@ export default function Profile() {
       const updated = {
         ...user,
         fullName: `${form.firstName} ${form.lastName}`.trim(),
-        phoneNumber: form.phoneNumber || null,
+        phoneNumber: cleanedPhone,
         street: form.street || null,
         city: form.city || null,
         postalCode: form.postalCode || null,
@@ -123,6 +125,8 @@ export default function Profile() {
                   placeholder="+381 60 000 0000"
                   value={form.phoneNumber}
                   onChange={set('phoneNumber')}
+                  onFocus={placeCursorAtEndIfPrefix}
+                  onClick={placeCursorAtEndIfPrefix}
                 />
               </div>
             </section>

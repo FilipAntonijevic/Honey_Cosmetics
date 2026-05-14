@@ -8,6 +8,7 @@ const navItems = [
   { to: '/admin/categories', label: 'Kategorije', icon: '📁' },
   { to: '/admin/bestsellers', label: 'Bestsellers', icon: '★' },
   { to: '/admin/coupons', label: 'Kuponi', icon: '🎫' },
+  { to: '/admin/links', label: 'Linkovi', icon: '🔗' },
 ]
 
 export default function AdminLayout({ children }) {
@@ -23,7 +24,7 @@ export default function AdminLayout({ children }) {
     <div className="adm-shell">
       <aside className="adm-sidebar">
         <div className="adm-logo">
-          <span className="adm-logo-text">HONEY</span>
+          <img src="/logo.png" alt="Honey Nail Innovations" className="adm-logo-img" />
           <span className="adm-logo-sub">Admin Panel</span>
         </div>
 

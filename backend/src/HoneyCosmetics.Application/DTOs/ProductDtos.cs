@@ -39,3 +39,21 @@ public record CategoryUpsertRequest(
     [Required] int ProductTypeId);
 
 public record ProductTypeResponse(int Id, string Name);
+
+public record SiteLinksResponse(
+    string InstagramUrl,
+    string TikTokUrl,
+    string EmailAddress,
+    string PhoneNumber,
+    string ComplaintsEmail,
+    string WhatsAppNumber,
+    string ViberNumber);
+
+public record SiteLinksUpdateRequest(
+    string? InstagramUrl,
+    string? TikTokUrl,
+    string? EmailAddress,
+    string? PhoneNumber,
+    string? ComplaintsEmail,
+    string? WhatsAppNumber,
+    string? ViberNumber);

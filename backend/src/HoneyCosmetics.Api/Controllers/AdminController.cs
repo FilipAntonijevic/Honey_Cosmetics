@@ -262,6 +262,50 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         return NoContent();
     }
 
+    // ── Site links (footer social/contact links) ─────────────────────────────
+    [HttpGet("site/links")]
+    public async Task<ActionResult<SiteLinksResponse>> GetSiteLinks()
+    {
+        var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+        return Ok(new SiteLinksResponse(
+            s?.InstagramUrl ?? string.Empty,
+            s?.TikTokUrl ?? string.Empty,
+            s?.EmailAddress ?? string.Empty,
+            s?.PhoneNumber ?? string.Empty,
+            s?.ComplaintsEmail ?? string.Empty,
+            s?.WhatsAppNumber ?? string.Empty,
+            s?.ViberNumber ?? string.Empty));
+    }
+
+    [HttpPut("site/links")]
+    public async Task<ActionResult<SiteLinksResponse>> UpdateSiteLinks([FromBody] SiteLinksUpdateRequest request)
+    {
+        var s = await db.SiteSettings.FirstOrDefaultAsync();
+        if (s is null)
+        {
+            s = new SiteSettings { Id = 1 };
+            db.SiteSettings.Add(s);
+        }
+
+        s.InstagramUrl = (request.InstagramUrl ?? string.Empty).Trim();
+        s.TikTokUrl = (request.TikTokUrl ?? string.Empty).Trim();
+        s.EmailAddress = (request.EmailAddress ?? string.Empty).Trim();
+        s.PhoneNumber = (request.PhoneNumber ?? string.Empty).Trim();
+        s.ComplaintsEmail = (request.ComplaintsEmail ?? string.Empty).Trim();
+        s.WhatsAppNumber = (request.WhatsAppNumber ?? string.Empty).Trim();
+        s.ViberNumber = (request.ViberNumber ?? string.Empty).Trim();
+
+        await db.SaveChangesAsync();
+        return Ok(new SiteLinksResponse(
+            s.InstagramUrl,
+            s.TikTokUrl,
+            s.EmailAddress,
+            s.PhoneNumber,
+            s.ComplaintsEmail,
+            s.WhatsAppNumber,
+            s.ViberNumber));
+    }
+
     // ── Image upload ─────────────────────────────────────────────────────────
     [HttpPost("upload")]
     public async Task<IActionResult> Upload(IFormFile file)

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../context/StoreContext'
+import { DEFAULT_PHONE_PREFIX, cleanPhone, placeCursorAtEndIfPrefix } from '../utils/phone'
 
 export default function Account({ initialMode = 'login' }) {
   const location = useLocation()
@@ -16,7 +17,7 @@ export default function Account({ initialMode = 'login' }) {
     confirmPassword: '',
     firstName: '',
     lastName: '',
-    phoneNumber: '',
+    phoneNumber: DEFAULT_PHONE_PREFIX,
     country: 'Srbija',
     city: '',
     street: '',
@@ -66,7 +67,7 @@ export default function Account({ initialMode = 'login' }) {
           confirmPassword: form.confirmPassword,
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
-          phoneNumber: form.phoneNumber.trim() || undefined,
+          phoneNumber: cleanPhone(form.phoneNumber) ?? undefined,
           street: form.street.trim() || undefined,
           city: form.city.trim() || undefined,
           postalCode: form.postalCode.trim() || undefined,
@@ -170,6 +171,8 @@ export default function Account({ initialMode = 'login' }) {
                 placeholder="Telefon (opciono)"
                 value={form.phoneNumber}
                 onChange={set('phoneNumber')}
+                onFocus={placeCursorAtEndIfPrefix}
+                onClick={placeCursorAtEndIfPrefix}
                 autoComplete="tel"
               />
 

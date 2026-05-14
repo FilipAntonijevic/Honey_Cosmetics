@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import api from '../api'
+import { DEFAULT_PHONE_PREFIX, cleanPhone, placeCursorAtEndIfPrefix } from '../utils/phone'
 
-const EMPTY = { fullName: '', company: '', email: '', phone: '', message: '' }
+const EMPTY = { fullName: '', company: '', email: '', phone: DEFAULT_PHONE_PREFIX, message: '' }
 
 export default function Collaboration() {
   const [form, setForm] = useState(EMPTY)
@@ -20,7 +21,7 @@ export default function Collaboration() {
     }
     setSending(true)
     try {
-      await api.post('/contact/collaboration', form)
+      await api.post('/contact/collaboration', { ...form, phone: cleanPhone(form.phone) ?? '' })
       setSent(true)
       setForm(EMPTY)
     } catch {
@@ -66,7 +67,15 @@ export default function Collaboration() {
               </div>
               <div>
                 <label style={labelStyle}>Telefon</label>
-                <input style={inputStyle} type="tel" placeholder="+381 60 000 0000" value={form.phone} onChange={set('phone')} />
+                <input
+                  style={inputStyle}
+                  type="tel"
+                  placeholder="+381 60 000 0000"
+                  value={form.phone}
+                  onChange={set('phone')}
+                  onFocus={placeCursorAtEndIfPrefix}
+                  onClick={placeCursorAtEndIfPrefix}
+                />
               </div>
             </div>
             <div>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
+import { cleanPhone, phoneOrDefault, placeCursorAtEndIfPrefix } from '../utils/phone'
 
 export default function Checkout() {
   const { user, cart, setCart, setToast } = useStore()
@@ -19,7 +20,7 @@ export default function Checkout() {
     city: user?.city ?? '',
     state: user?.country ?? 'Srbija',
     postalCode: user?.postalCode ?? '',
-    phone: user?.phoneNumber ?? '',
+    phone: phoneOrDefault(user?.phoneNumber),
     paymentMethod: '0',
     couponCode: '',
     instagram: '',
@@ -74,10 +75,11 @@ export default function Checkout() {
     if (!cart.length) { setToast('Korpa je prazna.'); return }
     setSubmitting(true)
     try {
+      const phoneClean = cleanPhone(form.phone)
       if (user) {
         await api.post('/orders/checkout', {
           deliveryAddress: buildAddress(),
-          phone: form.phone,
+          phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
           couponCode: form.couponCode || null,
         })
@@ -87,7 +89,7 @@ export default function Checkout() {
         await api.post('/orders/guest-checkout', {
           items: cart.map((item) => ({ productId: item.id, quantity: item.quantity })),
           deliveryAddress: buildAddress(),
-          phone: form.phone || null,
+          phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
           couponCode: form.couponCode || null,
           guestName: `${form.firstName} ${form.lastName}`.trim() || null,
@@ -185,7 +187,16 @@ export default function Checkout() {
 
             <div className="co-row-2">
               <input className="co-input" placeholder="Poštanski broj (opciono)" value={form.postalCode} onChange={set('postalCode')} />
-              <input className="co-input" placeholder="Telefon" value={form.phone} onChange={set('phone')} />
+              <input
+                className="co-input"
+                type="tel"
+                placeholder="Telefon"
+                value={form.phone}
+                onChange={set('phone')}
+                onFocus={placeCursorAtEndIfPrefix}
+                onClick={placeCursorAtEndIfPrefix}
+                autoComplete="tel"
+              />
             </div>
           </section>
 
