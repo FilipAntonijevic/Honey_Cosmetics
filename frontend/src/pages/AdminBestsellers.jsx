@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../api'
+import { apiImageUrl } from '../lib/assets'
 
 export default function AdminBestsellers() {
   const [allProducts, setAllProducts] = useState([])
@@ -149,7 +150,7 @@ export default function AdminBestsellers() {
                   <li key={p.id} className="adm-best-item">
                     <span className="adm-best-pos">{i + 1}.</span>
                     {p.imageUrl ? (
-                      <img src={p.imageUrl} alt={p.name} className="adm-best-thumb" />
+                      <img src={apiImageUrl(p.imageUrl)} alt={p.name} className="adm-best-thumb" />
                     ) : (
                       <div className="adm-best-thumb adm-best-thumb-empty" />
                     )}
@@ -211,7 +212,7 @@ export default function AdminBestsellers() {
                 {availableProducts.map((p) => (
                   <li key={p.id} className="adm-best-item">
                     {p.imageUrl ? (
-                      <img src={p.imageUrl} alt={p.name} className="adm-best-thumb" />
+                      <img src={apiImageUrl(p.imageUrl)} alt={p.name} className="adm-best-thumb" />
                     ) : (
                       <div className="adm-best-thumb adm-best-thumb-empty" />
                     )}

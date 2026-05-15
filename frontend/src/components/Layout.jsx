@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
+import { apiImageUrl, publicUrl } from '../lib/assets'
 import ViberIcon from './icons/ViberIcon'
 import { useStore } from '../context/StoreContext'
 
@@ -311,7 +312,7 @@ export default function Layout({ children }) {
         <div className="main-header-band">
         <div className="main-header shell">
           <Link to="/" className="logo" aria-label="Honey Nail Innovations">
-            <img src="/logo.png" alt="Honey Nail Innovations" className="logo-img" />
+            <img src={publicUrl('/logo.png')} alt="Honey Nail Innovations" className="logo-img" />
           </Link>
 
           <form className="search-wrap" role="search" onSubmit={submitProductSearch}>
@@ -563,7 +564,7 @@ export default function Layout({ children }) {
                   {cart.map((item) => (
                     <li key={item.id} className="mini-cart-item">
                       {item.imageUrl && (
-                        <img src={item.imageUrl} alt={item.name} className="mini-cart-img" />
+                        <img src={apiImageUrl(item.imageUrl)} alt={item.name} className="mini-cart-img" />
                       )}
                       <div className="mini-cart-info">
                         <span className="mini-cart-name">{item.name}</span>
@@ -620,7 +621,7 @@ export default function Layout({ children }) {
       {isHome && (
       <section className="community-banner">
         <img
-          src="/sections/Samo-za-dugorocne-klijente.png"
+          src={publicUrl('/sections/Samo-za-dugorocne-klijente.png')}
           alt="Pridružite se našoj zajednici – Bestsellers, Novi proizvodi, Popusti, Specijalne ponude"
           className="community-banner-img"
           loading="lazy"
@@ -695,7 +696,7 @@ export default function Layout({ children }) {
         <div className="footer-inner shell">
           <div className="footer-brand">
             <div className="footer-logo">
-              <img src="/logo.png" alt="Honey Nail Innovations" className="footer-logo-img" />
+              <img src={publicUrl('/logo.png')} alt="Honey Nail Innovations" className="footer-logo-img" />
             </div>
             <p className="footer-copy">
               © {new Date().getFullYear()} Sva prava zadržana. Made by Webumi.

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
+import { apiImageUrl } from '../lib/assets'
 
 export default function ProductDetails() {
   const { id } = useParams()
@@ -16,7 +17,7 @@ export default function ProductDetails() {
 
   return (
     <section className="page shell detail">
-      <img src={product.imageUrl} alt={product.name} />
+      <img src={apiImageUrl(product.imageUrl)} alt={product.name} />
       <div>
         <h1>{product.name}</h1>
         <p className="detail-meta">{[product.productType, product.category].filter(Boolean).join(' · ')}</p>

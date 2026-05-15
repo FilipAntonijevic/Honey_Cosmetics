@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../context/StoreContext'
+import { publicUrl } from '../lib/assets'
 
 const MOBILE_ADM_MQ = '(max-width: 768px)'
 
@@ -103,7 +104,7 @@ export default function AdminLayout({ children }) {
       >
       <aside className="adm-sidebar">
         <div className="adm-logo">
-          <img src="/logo.png" alt="Honey Nail Innovations" className="adm-logo-img" />
+          <img src={publicUrl('/logo.png')} alt="Honey Nail Innovations" className="adm-logo-img" />
           <span className="adm-logo-sub">Admin Panel</span>
         </div>
 

@@ -1,10 +1,12 @@
+import { publicUrl } from '../../lib/assets'
+
 /**
  * Viber ikonica iz /viber.png (isti vizuelni obim kao WhatsApp u meniju).
  */
 export default function ViberIcon({ size = 25.1, className }) {
   return (
     <img
-      src="/viber.png"
+      src={publicUrl('/viber.png')}
       alt=""
       className={className}
       width={size}

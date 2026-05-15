@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../api'
+import { apiImageUrl } from '../lib/assets'
 
 const emptyForm = { name: '', imageUrl: '' }
 
@@ -208,7 +209,7 @@ export default function AdminCategories() {
                 <tr key={row.id} className="adm-table-row">
                   <td>
                     {row.imageUrl ? (
-                      <img src={row.imageUrl} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+                      <img src={apiImageUrl(row.imageUrl)} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
                     ) : (
                       <span style={{ color: '#9ca3af' }}>—</span>
                     )}
@@ -258,7 +259,7 @@ export default function AdminCategories() {
                     {uploading ? 'Upload…' : '↑ Upload'}
                   </button>
                 </div>
-                {form.imageUrl && <img src={form.imageUrl} alt="" className="adm-img-preview" />}
+                {form.imageUrl && <img src={apiImageUrl(form.imageUrl)} alt="" className="adm-img-preview" />}
               </div>
               <div className="adm-modal-footer">
                 <button type="button" className="adm-btn" onClick={closeForm}>Odustani</button>

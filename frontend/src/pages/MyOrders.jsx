@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../api'
+import { apiImageUrl } from '../lib/assets'
 
 const STATUS_LABEL = {
   Pending: 'Na čekanju',
@@ -52,7 +53,7 @@ export default function MyOrders() {
                 {order.items.map((item) => (
                   <div key={item.productId} className="order-item-row">
                     {item.imageUrl
-                      ? <img src={item.imageUrl} alt={item.productName} className="order-item-img" />
+                      ? <img src={apiImageUrl(item.imageUrl)} alt={item.productName} className="order-item-img" />
                       : <div className="order-item-img order-item-img--ph" />}
                     <div className="order-item-info">
                       <span className="order-item-name">{item.productName}</span>

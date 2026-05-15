@@ -1,9 +1,11 @@
+import { publicUrl } from '../lib/assets'
+
 export default function About() {
   return (
     <section className="about-page">
       <div className="about-hero">
         <img
-          src="/sections/o_nama.jpg"
+          src={publicUrl('/sections/o_nama.jpg')}
           alt="Honey Cosmetics — o nama"
           loading="lazy"
           className="about-hero-img"

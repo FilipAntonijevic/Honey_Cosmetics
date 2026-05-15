@@ -1,4 +1,5 @@
 import useSiteLinks from '../hooks/useSiteLinks'
+import { publicUrl } from '../lib/assets'
 
 export default function Delivery() {
   const { emailAddress } = useSiteLinks()
@@ -8,7 +9,7 @@ export default function Delivery() {
     <section className="about-page">
       <div className="about-hero">
         <img
-          src="/sections/dostava.jpg"
+          src={publicUrl('/sections/dostava.jpg')}
           alt="Honey Cosmetics — dostava"
           loading="lazy"
           className="about-hero-img"

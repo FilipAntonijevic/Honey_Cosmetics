@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
+import { apiImageUrl, publicUrl } from '../lib/assets'
 
 const HERO_IMAGES = [
-  '/hero/POCETNA.jpg',
-  '/hero/POCETNA2.png',
-  '/hero/POCETNA3.jpg',
-  '/hero/POCETNA-4.jpg',
-  '/hero/POCETNA5.png',
+  publicUrl('/hero/POCETNA.jpg'),
+  publicUrl('/hero/POCETNA2.png'),
+  publicUrl('/hero/POCETNA3.jpg'),
+  publicUrl('/hero/POCETNA-4.jpg'),
+  publicUrl('/hero/POCETNA5.png'),
 ]
 
 const HERO_INTERVAL_MS = 6000
@@ -320,7 +321,7 @@ function ProductCarousel({ products }) {
         >
           {loop.map((p, i) => (
             <article key={`${p.id}-${i}`} className="product-card">
-              <img src={p.imageUrl} alt={p.name} loading="lazy" />
+              <img src={apiImageUrl(p.imageUrl)} alt={p.name} loading="lazy" />
               <div className="product-card-body">
                 <h3>
                   <Link to={`/products/${p.id}`}>{p.name}</Link>
@@ -390,7 +391,7 @@ export default function Home() {
 
       <section className="feature-section feature-section--image-left">
         <div className="feature-section-img">
-          <img src="/sections/Hema.jpg" alt="HEMA & TPO Free" loading="lazy" />
+          <img src={publicUrl('/sections/Hema.jpg')} alt="HEMA & TPO Free" loading="lazy" />
           <span className="feature-section-img-badge">HEMA&amp;TPO FREE</span>
         </div>
         <div className="feature-section-body">
@@ -416,13 +417,13 @@ export default function Home() {
           <Link to="/shop?vrsta=Baze" className="feature-section-btn">O proizvodu</Link>
         </div>
         <div className="feature-section-img">
-          <img src="/sections/Hard_gel.png" alt="Honey Hard Gel" loading="lazy" />
+          <img src={publicUrl('/sections/Hard_gel.png')} alt="Honey Hard Gel" loading="lazy" />
         </div>
       </section>
 
       <section className="feature-section feature-section--image-left">
         <div className="feature-section-img">
-          <img src="/sections/Color_gel.jpg" alt="Color Gel Polish" loading="lazy" />
+          <img src={publicUrl('/sections/Color_gel.jpg')} alt="Color Gel Polish" loading="lazy" />
         </div>
         <div className="feature-section-body">
           <h2 className="feature-section-title">COLOR GEL POLISHES</h2>

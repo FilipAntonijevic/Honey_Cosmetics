@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import api from '../api'
 import { DEFAULT_PHONE_PREFIX, cleanPhone, placeCursorAtEndIfPrefix } from '../utils/phone'
+import { publicUrl } from '../lib/assets'
 
 const EMPTY = { fullName: '', company: '', email: '', phone: DEFAULT_PHONE_PREFIX, message: '' }
 
@@ -35,7 +36,7 @@ export default function Collaboration() {
     <section className="about-page">
       <div className="about-hero">
         <img
-          src="/sections/saradnja.jpg"
+          src={publicUrl('/sections/saradnja.jpg')}
           alt="Saradnja — Honey Cosmetics"
           loading="lazy"
           className="about-hero-img"

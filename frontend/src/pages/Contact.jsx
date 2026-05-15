@@ -2,6 +2,7 @@ import { useState } from 'react'
 import api from '../api'
 import useSiteLinks from '../hooks/useSiteLinks'
 import { cleanPhone } from '../utils/phone'
+import { publicUrl } from '../lib/assets'
 
 const EMPTY_FORM = {
   firstName: '',
@@ -82,7 +83,7 @@ export default function Contact() {
     <section className="about-page">
       <div className="about-hero">
         <img
-          src="/sections/kontakt.jpg"
+          src={publicUrl('/sections/kontakt.jpg')}
           alt="Honey Cosmetics — kontakt"
           loading="lazy"
           className="about-hero-img"
