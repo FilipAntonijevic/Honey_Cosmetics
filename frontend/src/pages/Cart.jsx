@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
-import { apiImageUrl } from '../lib/assets'
+import ApiImage from '../components/ApiImage'
 
 export default function Cart() {
   const { cart, removeFromCart, setCart, user } = useStore()
@@ -54,7 +54,7 @@ export default function Cart() {
                 <div className="cart-row-left">
                   <div className="cart-img-wrap">
                     {item.imageUrl
-                      ? <img src={apiImageUrl(item.imageUrl)} alt={item.name} className="cart-img" />
+                      ? <ApiImage src={item.imageUrl} alt={item.name} className="cart-img" />
                       : <div className="cart-img-ph" />}
                   </div>
                   <div className="cart-info">

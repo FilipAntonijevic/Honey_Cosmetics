@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
-import { apiImageUrl, publicUrl } from '../lib/assets'
+import ApiImage from './ApiImage'
+import { publicUrl } from '../lib/assets'
 import ViberIcon from './icons/ViberIcon'
 import { useStore } from '../context/StoreContext'
 
@@ -564,7 +565,7 @@ export default function Layout({ children }) {
                   {cart.map((item) => (
                     <li key={item.id} className="mini-cart-item">
                       {item.imageUrl && (
-                        <img src={apiImageUrl(item.imageUrl)} alt={item.name} className="mini-cart-img" />
+                        <ApiImage src={item.imageUrl} alt={item.name} className="mini-cart-img" />
                       )}
                       <div className="mini-cart-info">
                         <span className="mini-cart-name">{item.name}</span>

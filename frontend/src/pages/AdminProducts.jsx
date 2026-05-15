@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../api'
-import { apiImageUrl } from '../lib/assets'
+import ApiImage from '../components/ApiImage'
 
 const EMPTY_FORM = {
   name: '',
@@ -273,7 +273,7 @@ export default function AdminProducts() {
             <div key={product.id} className="adm-product-card">
               <div className="adm-product-img-wrap">
                 {product.imageUrl ? (
-                  <img src={apiImageUrl(product.imageUrl)} alt={product.name} className="adm-product-img" />
+                  <ApiImage src={product.imageUrl} alt={product.name} className="adm-product-img" />
                 ) : (
                   <div className="adm-product-img-empty">📷</div>
                 )}

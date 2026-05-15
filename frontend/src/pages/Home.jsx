@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
-import { apiImageUrl, publicUrl } from '../lib/assets'
+import ApiImage from '../components/ApiImage'
+import { publicUrl } from '../lib/assets'
 
 const HERO_IMAGES = [
   publicUrl('/hero/POCETNA.jpg'),
@@ -321,7 +322,7 @@ function ProductCarousel({ products }) {
         >
           {loop.map((p, i) => (
             <article key={`${p.id}-${i}`} className="product-card">
-              <img src={apiImageUrl(p.imageUrl)} alt={p.name} loading="lazy" />
+              <ApiImage src={p.imageUrl} alt={p.name} loading="lazy" />
               <div className="product-card-body">
                 <h3>
                   <Link to={`/products/${p.id}`}>{p.name}</Link>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
-import { apiImageUrl } from '../lib/assets'
+import ApiImage from '../components/ApiImage'
 
 function CategoryStrip({ categories, selectedId, onSelect }) {
   const trackRef = useRef(null)
@@ -62,7 +62,7 @@ function CategoryStrip({ categories, selectedId, onSelect }) {
             >
               <div className="cat-strip-img-wrap">
                 {c.imageUrl ? (
-                  <img src={apiImageUrl(c.imageUrl)} alt={c.name} loading="lazy" />
+                  <ApiImage src={c.imageUrl} alt={c.name} loading="lazy" />
                 ) : (
                   <div className="cat-strip-img-empty" />
                 )}
@@ -231,7 +231,7 @@ export default function Shop() {
       <div className="product-grid">
         {products.map((product) => (
           <article key={product.id} className="product-card">
-            <img src={apiImageUrl(product.imageUrl)} alt={product.name} loading="lazy" />
+            <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" />
             <div className="product-card-body">
               <h3>
                 <Link to={`/products/${product.id}`}>{product.name}</Link>

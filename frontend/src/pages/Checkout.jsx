@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
-import { apiImageUrl } from '../lib/assets'
+import ApiImage from '../components/ApiImage'
 import { cleanPhone, phoneOrDefault, placeCursorAtEndIfPrefix } from '../utils/phone'
 
 export default function Checkout() {
@@ -281,7 +281,7 @@ export default function Checkout() {
                 <div key={item.id} className="co-sum-item">
                   <div className="co-sum-img-wrap">
                     {item.imageUrl
-                      ? <img src={apiImageUrl(item.imageUrl)} alt={item.name} className="co-sum-img" />
+                      ? <ApiImage src={item.imageUrl} alt={item.name} className="co-sum-img" />
                       : <div className="co-sum-img-ph" />}
                     <span className="co-sum-qty">{item.quantity}</span>
                   </div>

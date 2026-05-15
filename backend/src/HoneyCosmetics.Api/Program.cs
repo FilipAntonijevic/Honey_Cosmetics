@@ -291,7 +291,23 @@ app.UseStaticFiles(new StaticFileOptions
 
     RequestPath = "/images",
 
-    ContentTypeProvider = provider
+    ContentTypeProvider = provider,
+
+    OnPrepareResponse = ctx =>
+    {
+        var origin = ctx.Context.Request.Headers.Origin.ToString();
+        var allowedOrigins = new[]
+        {
+            "http://localhost:5173",
+            "https://filipantonijevic.github.io",
+        };
+        if (!string.IsNullOrEmpty(origin)
+            && allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", origin);
+        }
+        ctx.Context.Response.Headers.Append("Cross-Origin-Resource-Policy", "cross-origin");
+    },
 });
 
 //
