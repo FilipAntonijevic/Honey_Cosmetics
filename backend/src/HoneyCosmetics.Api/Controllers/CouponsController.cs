@@ -17,20 +17,26 @@ public class CouponsController(AppDbContext db) : ControllerBase
     [HttpPost("validate")]
     public async Task<ActionResult<CouponValidationResponse>> Validate([FromBody] string code)
     {
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            return Ok(new CouponValidationResponse(
+                false,
+                "Molimo vas da se ulogujete da biste koristili kupon.",
+                0,
+                false));
+        }
+
         var coupon = await db.Coupons.FirstOrDefaultAsync(x => x.Code.ToUpper() == code.Trim().ToUpper() && x.IsActive);
         if (coupon is null || (coupon.ExpiresAt.HasValue && coupon.ExpiresAt <= DateTime.UtcNow))
         {
             return Ok(new CouponValidationResponse(false, "Izabrali ste nepostojeci kupon.", 0, false));
         }
 
-        if (User.Identity?.IsAuthenticated == true)
+        var userId = User.GetUserId();
+        var alreadyUsed = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
+        if (alreadyUsed)
         {
-            var userId = User.GetUserId();
-            var alreadyUsed = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
-            if (alreadyUsed)
-            {
-                return Ok(new CouponValidationResponse(false, "Kupon je već iskorišćen.", 0, false));
-            }
+            return Ok(new CouponValidationResponse(false, "Kupon je već iskorišćen.", 0, false));
         }
 
         return Ok(new CouponValidationResponse(true, "Kupon je validan.", coupon.DiscountValue, coupon.IsPercentage));

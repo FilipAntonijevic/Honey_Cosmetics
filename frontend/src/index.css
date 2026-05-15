@@ -19,6 +19,19 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Mobil: bez sivog/plavog flash-a pri dodiru */
+button,
+.cta,
+a,
+input,
+select,
+textarea,
+label,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  tap-highlight-color: transparent;
+}
 html {
   font-size: 150%;
   overflow-x: clip;
@@ -93,7 +106,16 @@ button, input, select { font-family: inherit; }
 .eyebrow { letter-spacing: .12em; text-transform: uppercase; font-size: .78rem; }
 .hero h1 { margin: .3rem 0 .6rem; font-size: clamp(1.8rem, 3.5vw, 3.4rem); line-height: 1.1; }
 .cta, button { border: none; background: var(--charcoal); color: #fff; padding: .8rem 1.2rem; border-radius: 999px; cursor: pointer; transition: transform .2s ease, opacity .2s ease; font-size: 0.733rem; }
-.cta:hover, button:hover { transform: translateY(-1px); opacity: .92; }
+@media (hover: hover) and (pointer: fine) {
+  .cta:hover, button:hover { transform: translateY(-1px); opacity: .92; }
+}
+@media (hover: none) {
+  .cta:active,
+  button:active {
+    transform: none;
+    opacity: 1;
+  }
+}
 
 .page { padding: 1.6rem 0 2.8rem; }
 
@@ -3532,6 +3554,18 @@ button, input, select { font-family: inherit; }
   font-size: 0.78rem;
   color: #dc2626;
   margin: 0.4rem 0 0;
+}
+.co-coupon-guest {
+  font-size: 0.82rem;
+  color: #6b6b6b;
+  margin: 0;
+  line-height: 1.45;
+}
+.co-coupon-guest-link {
+  color: #8B6B47;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* Totals */

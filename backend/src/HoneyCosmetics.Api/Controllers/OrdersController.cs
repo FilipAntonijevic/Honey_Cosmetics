@@ -164,24 +164,13 @@ public class OrdersController(
         if (missingIds.Count > 0)
             return BadRequest($"Products not found: {string.Join(", ", missingIds)}");
 
-        var subtotal = request.Items.Sum(i => i.Quantity * products[i.ProductId].Price);
-        decimal discount = 0;
-        Coupon? coupon = null;
-
         if (!string.IsNullOrWhiteSpace(request.CouponCode))
-        {
-            var code = request.CouponCode.Trim().ToUpperInvariant();
-            coupon = await db.Coupons.FirstOrDefaultAsync(x => x.Code.ToUpper() == code && x.IsActive);
-            if (coupon is null || (coupon.ExpiresAt.HasValue && coupon.ExpiresAt <= DateTime.UtcNow))
-                return BadRequest("Coupon is invalid or expired.");
+            return BadRequest("Molimo vas da se ulogujete da biste koristili kupon.");
 
-            if (coupon.FirstOrderOnly)
-                return BadRequest("Coupon available only for first order.");
+        var subtotal = request.Items.Sum(i => i.Quantity * products[i.ProductId].Price);
+        const decimal discount = 0;
 
-            discount = coupon.IsPercentage ? subtotal * (coupon.DiscountValue / 100m) : coupon.DiscountValue;
-        }
-
-        var total = Math.Max(0, subtotal - discount);
+        var total = subtotal;
 
         var order = new Order
         {
@@ -213,7 +202,7 @@ public class OrdersController(
         var guestName = order.GuestName ?? "Gost";
         // Build from products dict — Product nav property is not loaded on order.Items
         var orderItemsGuest = request.Items.Select(i => (products[i.ProductId].Name, i.Quantity, products[i.ProductId].Price)).ToList();
-        var couponCodeGuest = request.CouponCode?.Trim().ToUpperInvariant();
+        string? couponCodeGuest = null;
 
         // Confirmation to guest
         if (!string.IsNullOrWhiteSpace(order.GuestEmail))

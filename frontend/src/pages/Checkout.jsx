@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
@@ -32,7 +32,19 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    if (user) return
+    setCoupon(null)
+    setCouponInput('')
+    setCouponError('')
+    setForm((f) => ({ ...f, couponCode: '' }))
+  }, [user])
+
   const applyCoupon = async () => {
+    if (!user) {
+      setCouponError('Molimo vas da se ulogujete da biste koristili kupon.')
+      return
+    }
     const code = couponInput.trim().toUpperCase()
     if (!code) return
     setCouponError('')
@@ -92,7 +104,7 @@ export default function Checkout() {
           deliveryAddress: buildAddress(),
           phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
-          couponCode: form.couponCode || null,
+          couponCode: null,
           guestName: `${form.firstName} ${form.lastName}`.trim() || null,
           guestEmail: form.email || null,
         })
@@ -300,7 +312,14 @@ export default function Checkout() {
 
             {/* Coupon */}
             <div className="co-coupon-block">
-              {coupon ? (
+              {!user ? (
+                <p className="co-coupon-guest">
+                  Kuponi su dostupni samo ulogovanim korisnicima.{' '}
+                  <Link to="/login" state={{ from: '/checkout' }} className="co-coupon-guest-link">
+                    Ulogujte se
+                  </Link>
+                </p>
+              ) : coupon ? (
                 <div className="co-coupon-applied">
                   <span className="co-coupon-tag">
                     🎫 {coupon.code} &mdash; &minus;{fmt(discountAmt)} RSD
