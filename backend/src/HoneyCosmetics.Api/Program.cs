@@ -51,10 +51,22 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("frontend", policy =>
     {
+        var origins = new List<string>
+        {
+            "http://localhost:5173",
+            "https://filipantonijevic.github.io",
+        };
+
+        var configured = builder.Configuration.GetSection("CorsOrigins").Get<string[]>();
+        if (configured is { Length: > 0 })
+            origins.AddRange(configured);
+
+        var frontendUrl = builder.Configuration["FrontendUrl"];
+        if (!string.IsNullOrWhiteSpace(frontendUrl))
+            origins.Add(frontendUrl.Trim());
+
         policy
-            .WithOrigins(
-                builder.Configuration["FrontendUrl"]
-                ?? "http://localhost:5173")
+            .WithOrigins(origins.Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -118,46 +130,44 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 
     //
-    // Seed Admin User
+    // Hardcoded admin accounts — Admin:Accounts in appsettings (sync on every startup)
     //
-    if (!db.Users.Any(x => x.Role == UserRole.Admin))
+    foreach (var item in builder.Configuration.GetSection("Admin:Accounts").GetChildren())
     {
-        var adminEmail =
-            builder.Configuration["Admin:SeedEmail"]
-            ?? "filipdantonijevic@gmail.com";
+        var email = item["Email"]?.Trim().ToLowerInvariant();
+        var password = item["Password"];
+        if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+            continue;
 
-        var adminPassword =
-            builder.Configuration["Admin:SeedPassword"]
-            ?? "sifra1";
+        var firstName = string.IsNullOrWhiteSpace(item["FirstName"])
+            ? "Admin"
+            : item["FirstName"]!.Trim();
+        var lastName = string.IsNullOrWhiteSpace(item["LastName"])
+            ? "User"
+            : item["LastName"]!.Trim();
 
-        var admin = new User
+        var user = db.Users.FirstOrDefault(x => x.Email == email);
+        if (user is null)
         {
-            Email =
-                adminEmail
-                    .Trim()
-                    .ToLowerInvariant(),
+            user = new User
+            {
+                Email = email,
+                FirstName = firstName,
+                LastName = lastName,
+                Role = UserRole.Admin,
+                Country = "Srbija",
+                PhoneNumber = item["PhoneNumber"]?.Trim(),
+            };
+            db.Users.Add(user);
+        }
+        else
+        {
+            user.Role = UserRole.Admin;
+            user.FirstName = firstName;
+            user.LastName = lastName;
+        }
 
-            FirstName =
-                builder.Configuration["Admin:SeedFirstName"]
-                ?? "Filip",
-
-            LastName =
-                builder.Configuration["Admin:SeedLastName"]
-                ?? "Antonijevic",
-
-            Role = UserRole.Admin,
-
-            PhoneNumber = "+38160000000",
-
-            DefaultAddress =
-                "Bulevar oslobođenja 1, Novi Sad"
-        };
-
-        admin.PasswordHash =
-            BCrypt.Net.BCrypt.HashPassword(
-                adminPassword);
-
-        db.Users.Add(admin);
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
     }
 
     //

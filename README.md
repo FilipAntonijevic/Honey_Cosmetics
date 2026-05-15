@@ -23,23 +23,49 @@ Full-stack premium beauty e-commerce starter for **Honey Cosmetics**.
 - `backend/src/HoneyCosmetics.Infrastructure` - EF Core DbContext and services
 - `frontend` - React app
 
-## Local Run
-1. Start PostgreSQL (or `docker compose up -d`).
-2. Backend:
-   ```bash
-   cd backend/src/HoneyCosmetics.Api
-   dotnet run
-   ```
-3. Frontend:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
+## Local Run (full stack)
 
-Default seeded admin:
-- Email: `admin@honeycosmetics.local`
-- Password: value from `Admin:SeedPassword` config/environment variable
+**Terminal 1 — baza:**
+```bash
+cd Honey_Cosmetics
+docker compose up -d
+```
+
+**Terminal 2 — backend (API na http://localhost:5128):**
+```bash
+cd backend/src/HoneyCosmetics.Api
+dotnet run
+```
+
+**Terminal 3 — frontend (sajt na http://localhost:5173):**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Otvori **http://localhost:5173** u browseru. Frontend šalje `/api` zahteve na backend preko Vite proxy-ja.
+
+### Hardcodirani admin nalozi
+
+Lista je u **`backend/src/HoneyCosmetics.Api/appsettings.Development.json`** → `Admin:Accounts`.
+
+Pri svakom pokretanju API-ja ti nalozi se **sinhronizuju** (email, ime, uloga Admin, lozinka iz config-a).
+
+Podrazumevano (Development):
+- Email: `filipdantonijevic@gmail.com`
+- Lozinka: `sifra1`
+
+Dodaj još admina u isti niz:
+```json
+"Admin": {
+  "Accounts": [
+    { "Email": "drugi@example.com", "Password": "lozinka", "FirstName": "Ime", "LastName": "Prezime" }
+  ]
+}
+```
+
+**Napomena:** GitHub Pages hostuje samo frontend. Za login na live sajtu treba API u oblaku + `VITE_API_URL` na GitHubu.
 
 ## Environment
 - Backend template: `backend/src/HoneyCosmetics.Api/.env.example`

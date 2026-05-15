@@ -1,15 +1,23 @@
 import axios from 'axios'
 
 const BASE_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
+const IS_NGROK = BASE_URL.includes('ngrok')
 
 const api = axios.create({ baseURL: BASE_URL })
 
 // Separate instance for token refresh — avoids triggering the response interceptor recursively
 const refreshApi = axios.create({ baseURL: BASE_URL })
 
-api.interceptors.request.use((config) => {
+function applyRequestHeaders(config) {
+  if (IS_NGROK) config.headers['ngrok-skip-browser-warning'] = 'true'
   const token = localStorage.getItem('honey_access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+}
+
+api.interceptors.request.use(applyRequestHeaders)
+refreshApi.interceptors.request.use((config) => {
+  if (IS_NGROK) config.headers['ngrok-skip-browser-warning'] = 'true'
   return config
 })
 
