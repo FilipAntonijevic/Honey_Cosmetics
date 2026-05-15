@@ -13,6 +13,15 @@ const fromStorage = (key, fallback) => {
   }
 }
 
+const mapServerCartRows = (rows) =>
+  rows.map((item) => ({
+    id: item.productId,
+    name: item.name,
+    price: item.price,
+    imageUrl: item.imageUrl,
+    quantity: item.quantity,
+  }))
+
 export function StoreProvider({ children }) {
   const [user, setUser] = useState(fromStorage('honey_user', null))
   const [cart, setCart] = useState(fromStorage('honey_cart', []))
@@ -46,10 +55,7 @@ export function StoreProvider({ children }) {
           try {
             const { data: serverCart } = await api.get('/cart')
             if (serverCart.length > 0) {
-              setCart(serverCart.map(item => ({
-                id: item.productId, name: item.name, price: item.price,
-                imageUrl: item.imageUrl, quantity: item.quantity,
-              })))
+              setCart(mapServerCartRows(serverCart))
             } else {
               const localCart = fromStorage('honey_cart', [])
               localCart.forEach(item => {
@@ -62,6 +68,8 @@ export function StoreProvider({ children }) {
           localStorage.removeItem('honey_refresh_token')
           localStorage.removeItem('honey_user')
           setUser(null)
+          /* Server korpa ostala u memoriji browsera kao “gost”; očisti da ne “curi”. */
+          setCart([])
         }
       } else {
         // Guest: remove cart items that no longer exist in the DB
@@ -80,6 +88,7 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     const handleForcedLogout = () => {
       setUser(null)
+      setCart([])
       setToast('Sesija je istekla. Prijavite se ponovo.')
     }
     window.addEventListener('auth:logout', handleForcedLogout)
@@ -92,10 +101,15 @@ export function StoreProvider({ children }) {
     localStorage.setItem('honey_refresh_token', data.refreshToken)
     setUser(data.user)
     setToast('Uspešno ste prijavljeni.')
-    // Sync local cart to server after login
-    cart.forEach(item => {
-      api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {})
-    })
+    await Promise.all(
+      cart.map((item) =>
+        api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {}),
+      ),
+    )
+    try {
+      const { data: serverCart } = await api.get('/cart')
+      setCart(mapServerCartRows(serverCart ?? []))
+    } catch {}
     return data.user
   }, [cart])
 
@@ -105,10 +119,15 @@ export function StoreProvider({ children }) {
     localStorage.setItem('honey_refresh_token', data.refreshToken)
     setUser(data.user)
     setToast('Nalog je kreiran.')
-    // Sync local cart to server after registration
-    cart.forEach(item => {
-      api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {})
-    })
+    await Promise.all(
+      cart.map((item) =>
+        api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {}),
+      ),
+    )
+    try {
+      const { data: serverCart } = await api.get('/cart')
+      setCart(mapServerCartRows(serverCart ?? []))
+    } catch {}
     return data.user
   }, [cart])
 
@@ -121,6 +140,7 @@ export function StoreProvider({ children }) {
     localStorage.removeItem('honey_access_token')
     localStorage.removeItem('honey_refresh_token')
     setUser(null)
+    setCart([])
     setToast('Odjavljeni ste.')
   }, [])
 
