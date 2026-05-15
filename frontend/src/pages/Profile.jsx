@@ -77,12 +77,6 @@ export default function Profile() {
 
   return (
     <div className="profile-page shell">
-      <div className="profile-breadcrumb">
-        <Link to="/my-orders" className="profile-breadcrumb-link">Moje porudžbine</Link>
-        <span className="profile-breadcrumb-sep">·</span>
-        <span>Lični podaci</span>
-      </div>
-
       <h1 className="profile-title">Lični podaci</h1>
 
       {loading ? (

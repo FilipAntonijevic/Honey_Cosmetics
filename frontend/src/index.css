@@ -30,10 +30,15 @@ body {
   overflow-x: clip;
   max-width: 100%;
 }
-.site-shell,
+body.is-mini-cart-open {
+  overflow: hidden;
+}
+.site-shell {
+  max-width: 100%;
+}
 main {
   max-width: 100%;
-  overflow-x: clip;
+  padding-top: var(--site-header-h, 0px);
 }
 
 a { color: inherit; text-decoration: none; }
@@ -42,25 +47,41 @@ button, input, select { font-family: inherit; }
 .shell { width: min(1160px, 92%); margin: 0 auto; }
 .site-shell { min-height: 100vh; }
 .sticky-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: var(--z-sticky-header);
   background: #fff;
   box-shadow: 0 1px 0 #e8dcd0;
+  transform: translateY(0);
+  will-change: transform;
+  transition:
+    transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sticky-header { transition: none; }
 }
 .site-header-body {
   overflow: visible;
-  transition: max-height 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sticky-header.is-header-hidden {
+  transform: translateY(-100%);
   box-shadow: none;
+  pointer-events: none;
 }
 .sticky-header.is-header-hidden .site-header-body {
   overflow: hidden;
   pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) {
-  .site-header-body { transition: none; }
+.site-footer {
+  padding-bottom: max(2.5rem, env(safe-area-inset-bottom, 0px));
+}
+@media (max-width: 768px) {
+  main {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }
 /* header classes defined in HEADER section below */
 
@@ -1285,7 +1306,11 @@ button, input, select { font-family: inherit; }
 .links-strip a { color: #6b6b6b; transition: color 0.15s; }
 .links-strip a:hover { color: #3f2b22; }
 
-/* Main header */
+/* Main header — full-width white band behind .shell content */
+.main-header-band {
+  width: 100%;
+  background: #fff;
+}
 .main-header {
   position: relative;
   z-index: 2;
@@ -1293,7 +1318,6 @@ button, input, select { font-family: inherit; }
   align-items: center;
   gap: 0.9rem;
   padding: 1.1rem 0;
-  background: #fff;
   flex-wrap: wrap;
 }
 
@@ -3302,23 +3326,6 @@ button, input, select { font-family: inherit; }
 .profile-page {
   padding: 2.5rem 0 5rem;
 }
-.profile-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.78rem;
-  color: #a08060;
-  margin-bottom: 1.6rem;
-}
-.profile-breadcrumb-link {
-  color: #8B6B47;
-  border-bottom: 1px solid currentColor;
-  padding-bottom: 1px;
-  transition: color 0.15s;
-}
-.profile-breadcrumb-link:hover { color: #5c3d26; }
-.profile-breadcrumb-sep { opacity: 0.4; }
-
 .profile-title {
   font-size: 2rem;
   font-weight: 400;

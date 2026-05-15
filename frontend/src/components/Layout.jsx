@@ -162,63 +162,101 @@ export default function Layout({ children }) {
   }, [miniCartClosing])
 
   useEffect(() => {
+    document.body.classList.toggle('is-mini-cart-open', miniCartOpen)
     if (!miniCartOpen) return
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
     const onKey = (e) => {
       if (e.key === 'Escape') closeMiniCart()
     }
     document.addEventListener('keydown', onKey)
     return () => {
-      document.body.style.overflow = prevOverflow
+      document.body.classList.remove('is-mini-cart-open')
       document.removeEventListener('keydown', onKey)
     }
   }, [miniCartOpen])
 
+  const stickyHeaderRef = useRef(null)
   const headerBodyRef = useRef(null)
+  const headerHiddenRef = useRef(false)
   const [headerHidden, setHeaderHidden] = useState(false)
-  const [headerHeight, setHeaderHeight] = useState(0)
   const lastScrollY = useRef(0)
+  const scrollDownAccum = useRef(0)
+
+  const getScrollY = () =>
+    Math.max(
+      window.scrollY,
+      document.documentElement.scrollTop,
+      document.body.scrollTop,
+    )
+
+  const measureHeader = () => {
+    const el = headerBodyRef.current
+    if (!el) return
+    const h = el.offsetHeight
+    if (h > 48) document.documentElement.style.setProperty('--site-header-h', `${h}px`)
+  }
+
+  useEffect(() => {
+    headerHiddenRef.current = headerHidden
+    if (!headerHidden) requestAnimationFrame(measureHeader)
+  }, [headerHidden])
 
   useEffect(() => {
     const el = headerBodyRef.current
     if (!el) return
-    const measure = () => {
-      const h = el.scrollHeight
-      if (h > 48) setHeaderHeight(h)
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
+    measureHeader()
+    const ro = new ResizeObserver(() => measureHeader())
     ro.observe(el)
-    window.addEventListener('resize', measure)
+    window.addEventListener('resize', measureHeader)
     return () => {
       ro.disconnect()
-      window.removeEventListener('resize', measure)
+      window.removeEventListener('resize', measureHeader)
     }
   }, [])
 
   useEffect(() => {
-    lastScrollY.current = window.scrollY
+    lastScrollY.current = getScrollY()
+    scrollDownAccum.current = 0
+    headerHiddenRef.current = false
     setHeaderHidden(false)
     setUserMenuOpen(false)
     setPhoneMenuOpen(false)
     setCategoriesMenuOpen(false)
+    document.body.classList.remove('is-mini-cart-open')
+    requestAnimationFrame(measureHeader)
   }, [location.pathname])
 
   useEffect(() => {
+    return () => document.body.classList.remove('is-mini-cart-open')
+  }, [])
+
+  useEffect(() => {
+    const isAtBottom = (y) => {
+      const maxScroll =
+        document.documentElement.scrollHeight - window.innerHeight
+      return y >= maxScroll - 6
+    }
+
     const onScroll = () => {
-      const y = window.scrollY
+      const y = getScrollY()
       const delta = y - lastScrollY.current
 
-      if (y < 16) {
-        setHeaderHidden(false)
-      } else if (delta < -1) {
-        setHeaderHidden(false)
-      } else if (delta > 4 && y > 72) {
-        setHeaderHidden(true)
-        setUserMenuOpen(false)
-        setPhoneMenuOpen(false)
-        setCategoriesMenuOpen(false)
+      if (y <= 8) {
+        if (headerHiddenRef.current) setHeaderHidden(false)
+        scrollDownAccum.current = 0
+      } else if (delta < 0) {
+        scrollDownAccum.current = 0
+        if (headerHiddenRef.current && (!isAtBottom(y) || delta <= -12)) {
+          setHeaderHidden(false)
+        }
+      } else if (delta > 0) {
+        scrollDownAccum.current += delta
+        if (!headerHiddenRef.current && scrollDownAccum.current >= 12 && y > 48) {
+          setHeaderHidden(true)
+          setUserMenuOpen(false)
+          setPhoneMenuOpen(false)
+          setCategoriesMenuOpen(false)
+          scrollDownAccum.current = 0
+        }
       }
 
       lastScrollY.current = y
@@ -230,14 +268,11 @@ export default function Layout({ children }) {
 
   return (
     <div className="site-shell">
-      <header className={`sticky-header${headerHidden ? ' is-header-hidden' : ''}`}>
-        <div
-          ref={headerBodyRef}
-          className="site-header-body"
-          style={{
-            maxHeight: headerHidden ? 0 : headerHeight > 0 ? `${headerHeight}px` : undefined,
-          }}
-        >
+      <header
+        ref={stickyHeaderRef}
+        className={`sticky-header${headerHidden ? ' is-header-hidden' : ''}`}
+      >
+        <div ref={headerBodyRef} className="site-header-body">
 
         {/* Promo ticker */}
         <div className="top-strip">
@@ -262,7 +297,8 @@ export default function Layout({ children }) {
           <Link to="/shop?bestsellers=1">Bestsellers</Link>
         </div>
 
-        {/* Main header row */}
+        {/* Main header row — full-width white band, content in .shell */}
+        <div className="main-header-band">
         <div className="main-header shell">
           <Link to="/" className="logo" aria-label="Honey Nail Innovations">
             <img src="/logo.png" alt="Honey Nail Innovations" className="logo-img" />
@@ -466,6 +502,7 @@ export default function Layout({ children }) {
               )}
             </div>
           </div>
+        </div>
         </div>
 
         {/* Category navbar — samo desktop */}
