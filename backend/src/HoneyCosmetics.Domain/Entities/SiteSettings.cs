@@ -15,4 +15,10 @@ public class SiteSettings
     public string ComplaintsEmail { get; set; } = string.Empty;
     public string WhatsAppNumber { get; set; } = string.Empty;
     public string ViberNumber { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Inbox where order/shipment notifications are delivered. When empty,
+    /// the system falls back to <c>SendGrid:AdminEmail</c> from appsettings.
+    /// </summary>
+    public string NotificationsEmail { get; set; } = string.Empty;
 }

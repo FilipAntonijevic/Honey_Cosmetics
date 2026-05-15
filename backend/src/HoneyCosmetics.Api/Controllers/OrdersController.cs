@@ -127,7 +127,8 @@ public class OrdersController(
         }
         catch (Exception ex) { logger.LogError(ex, "[Order {OrderId}] User email FAILED: {Msg}", order.Id, ex.Message); }
 
-        logger.LogInformation("[Order {OrderId}] Sending notification to admin {AdminEmail}", order.Id, settings.AdminEmail);
+        var notificationsEmail = await ResolveNotificationsEmailAsync();
+        logger.LogInformation("[Order {OrderId}] Sending notification to admin {AdminEmail}", order.Id, notificationsEmail);
         // Notification to admin
         try
         {
@@ -135,7 +136,7 @@ public class OrdersController(
                 user.FullName, user.Email, order.Id, orderItems, order.Subtotal, order.Discount,
                 couponCode, order.Total, order.DeliveryAddress, order.Phone,
                 order.PaymentMethod.ToString(), order.CreatedAt);
-            await emailService.SendAsync(settings.AdminEmail, $"Nova porudžbina #{order.Id} — {user.FullName}", body);
+            await emailService.SendAsync(notificationsEmail, $"Nova porudžbina #{order.Id} — {user.FullName}", body);
             logger.LogInformation("[Order {OrderId}] Admin email sent OK", order.Id);
         }
         catch (Exception ex) { logger.LogError(ex, "[Order {OrderId}] Admin email FAILED: {Msg}", order.Id, ex.Message); }
@@ -238,11 +239,12 @@ public class OrdersController(
             catch (Exception ex) { logger.LogError(ex, "Failed to send guest confirmation email for order {OrderId}", order.Id); }
         }
 
+        var notificationsEmailGuest = await ResolveNotificationsEmailAsync();
         // Notification to admin
         try
         {
             await emailService.SendAsync(
-                settings.AdminEmail,
+                notificationsEmailGuest,
                 $"Nova gost porudžbina #{order.Id} — {guestName}",
                 BuildAdminNotificationEmail(
                     guestName,
@@ -305,6 +307,15 @@ public class OrdersController(
     private static OrderResponse MapOrder(Order order) =>
         new(order.Id, order.DeliveryAddress, order.Phone, order.PaymentMethod, order.Status.ToString(), order.Subtotal, order.Discount, order.Total, order.CreatedAt,
             order.Items.Select(x => new OrderItemResponse(x.ProductId, x.Product?.Name ?? string.Empty, x.Product?.ImageUrl, x.Quantity, x.UnitPrice)).ToList());
+
+    // Resolves the inbox where order/shipment notifications should be delivered.
+    // Falls back to appsettings SendGrid:AdminEmail when SiteSettings has no value.
+    private async Task<string> ResolveNotificationsEmailAsync()
+    {
+        var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+        var fromDb = (s?.NotificationsEmail ?? string.Empty).Trim();
+        return string.IsNullOrEmpty(fromDb) ? sendGridOptions.Value.AdminEmail : fromDb;
+    }
 
     private static string ItemsTableHtml(List<(string Name, int Qty, decimal Price)> items)
     {

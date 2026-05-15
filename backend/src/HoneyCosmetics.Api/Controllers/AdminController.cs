@@ -274,7 +274,8 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
             s?.PhoneNumber ?? string.Empty,
             s?.ComplaintsEmail ?? string.Empty,
             s?.WhatsAppNumber ?? string.Empty,
-            s?.ViberNumber ?? string.Empty));
+            s?.ViberNumber ?? string.Empty,
+            s?.NotificationsEmail ?? string.Empty));
     }
 
     [HttpPut("site/links")]
@@ -294,6 +295,7 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         s.ComplaintsEmail = (request.ComplaintsEmail ?? string.Empty).Trim();
         s.WhatsAppNumber = (request.WhatsAppNumber ?? string.Empty).Trim();
         s.ViberNumber = (request.ViberNumber ?? string.Empty).Trim();
+        s.NotificationsEmail = (request.NotificationsEmail ?? string.Empty).Trim();
 
         await db.SaveChangesAsync();
         return Ok(new SiteLinksResponse(
@@ -303,7 +305,8 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
             s.PhoneNumber,
             s.ComplaintsEmail,
             s.WhatsAppNumber,
-            s.ViberNumber));
+            s.ViberNumber,
+            s.NotificationsEmail));
     }
 
     // ── Image upload ─────────────────────────────────────────────────────────

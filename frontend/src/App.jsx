@@ -15,6 +15,9 @@ import ResetPassword from './pages/ResetPassword'
 import MyOrders from './pages/MyOrders'
 import Profile from './pages/Profile'
 import StaticPage from './pages/StaticPage'
+import About from './pages/About'
+import Contact from './pages/Contact'
+import Delivery from './pages/Delivery'
 import Collaboration from './pages/Collaboration'
 import Wishlist from './pages/Wishlist'
 import AdminDashboard from './pages/AdminDashboard'
@@ -74,10 +77,10 @@ function ClientRoutes() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/about" element={<StaticPage title="O nama">Honey Cosmetics je premium beauty brend fokusiran na elegantan minimalizam i kvalitet.</StaticPage>} />
+        <Route path="/about" element={<About />} />
         <Route path="/collaboration" element={<Collaboration />} />
-        <Route path="/contact" element={<StaticPage title="Kontakt">Pišite nam na hello@honeycosmetics.rs ili pozovite +381 60 000 000.</StaticPage>} />
-        <Route path="/delivery-payment" element={<StaticPage title="Dostava i plaćanje">Plaćanje je moguće pouzećem ili direktnom bankovnom transakcijom. Dostava u celoj Srbiji.</StaticPage>} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/delivery-payment" element={<Delivery />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/returns" element={<Returns />} />

@@ -7,6 +7,7 @@ const EMPTY = {
   emailAddress: '',
   phoneNumber: '',
   complaintsEmail: '',
+  notificationsEmail: '',
   whatsAppNumber: '',
   viberNumber: '',
 }
@@ -34,6 +35,7 @@ export default function AdminLinks() {
           emailAddress: data?.emailAddress ?? '',
           phoneNumber: data?.phoneNumber ?? '',
           complaintsEmail: data?.complaintsEmail ?? '',
+          notificationsEmail: data?.notificationsEmail ?? '',
           whatsAppNumber: data?.whatsAppNumber ?? '',
           viberNumber: data?.viberNumber ?? '',
         }
@@ -62,6 +64,7 @@ export default function AdminLinks() {
     form.emailAddress !== initial.emailAddress ||
     form.phoneNumber !== initial.phoneNumber ||
     form.complaintsEmail !== initial.complaintsEmail ||
+    form.notificationsEmail !== initial.notificationsEmail ||
     form.whatsAppNumber !== initial.whatsAppNumber ||
     form.viberNumber !== initial.viberNumber
 
@@ -75,6 +78,7 @@ export default function AdminLinks() {
     const em = form.emailAddress.trim()
     const ph = form.phoneNumber.trim()
     const ce = form.complaintsEmail.trim()
+    const ne = form.notificationsEmail.trim()
     const wa = form.whatsAppNumber.trim()
     const vb = form.viberNumber.trim()
 
@@ -94,6 +98,10 @@ export default function AdminLinks() {
       setError('Email za reklamacije mora sadržati @.')
       return
     }
+    if (ne && !isLikelyEmail(ne)) {
+      setError('Email za notifikacije mora sadržati @.')
+      return
+    }
 
     setSaving(true)
     try {
@@ -103,6 +111,7 @@ export default function AdminLinks() {
         emailAddress: em,
         phoneNumber: ph,
         complaintsEmail: ce,
+        notificationsEmail: ne,
         whatsAppNumber: wa,
         viberNumber: vb,
       })
@@ -112,6 +121,7 @@ export default function AdminLinks() {
         emailAddress: data?.emailAddress ?? '',
         phoneNumber: data?.phoneNumber ?? '',
         complaintsEmail: data?.complaintsEmail ?? '',
+        notificationsEmail: data?.notificationsEmail ?? '',
         whatsAppNumber: data?.whatsAppNumber ?? '',
         viberNumber: data?.viberNumber ?? '',
       }
@@ -127,7 +137,7 @@ export default function AdminLinks() {
 
   if (loading) {
     return (
-      <div className="adm-page">
+      <div className="adm-page adm-page-links">
         <div className="adm-page-header"><h1>Linkovi</h1></div>
         <p>Učitavanje…</p>
       </div>
@@ -135,12 +145,43 @@ export default function AdminLinks() {
   }
 
   return (
-    <div className="adm-page">
+    <div className="adm-page adm-page-links">
       <div className="adm-page-header">
         <h1>Linkovi</h1>
       </div>
 
       <form className="adm-links-form" onSubmit={submit}>
+        <p className="adm-links-section-heading">Email adrese</p>
+
+        <LinkField
+          icon={<OrdersInboxIcon />}
+          label="Porudžbine i notifikacije (inbox)"
+          placeholder="npr. narudzbine@honey-cosmetic.com"
+          value={form.notificationsEmail}
+          onChange={set('notificationsEmail')}
+          type="text"
+        />
+
+        <LinkField
+          icon={<MailIcon />}
+          label="Info — kontakt za kupce na sajtu"
+          placeholder="info@honey-cosmetic.com"
+          value={form.emailAddress}
+          onChange={set('emailAddress')}
+          type="text"
+        />
+
+        <LinkField
+          icon={<MailIcon />}
+          label="Reklamacije"
+          placeholder="reklamacije@honey-cosmetic.com"
+          value={form.complaintsEmail}
+          onChange={set('complaintsEmail')}
+          type="text"
+        />
+
+        <p className="adm-links-section-heading adm-links-section-heading--spaced">Društvene mreže i telefon</p>
+
         <LinkField
           icon={<InstagramIcon />}
           label="Instagram"
@@ -157,15 +198,6 @@ export default function AdminLinks() {
           value={form.tikTokUrl}
           onChange={set('tikTokUrl')}
           type="url"
-        />
-
-        <LinkField
-          icon={<MailIcon />}
-          label="Email"
-          placeholder="info@honey-cosmetic.com"
-          value={form.emailAddress}
-          onChange={set('emailAddress')}
-          type="text"
         />
 
         <LinkField
@@ -192,15 +224,6 @@ export default function AdminLinks() {
           placeholder="+381606340344"
           value={form.viberNumber}
           onChange={set('viberNumber')}
-          type="text"
-        />
-
-        <LinkField
-          icon={<ComplaintsIcon />}
-          label="Email za reklamacije"
-          placeholder="reklamacije@honey-cosmetic.com"
-          value={form.complaintsEmail}
-          onChange={set('complaintsEmail')}
           type="text"
         />
 
@@ -267,6 +290,16 @@ function MailIcon() {
   )
 }
 
+/** Porudžbine — inbox ikonica (vizuelno drugačija od prostog konverta) */
+function OrdersInboxIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+      <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+  )
+}
+
 function PhoneIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -287,17 +320,6 @@ function ViberIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M11.398.002c-.32 0-1.246 0-1.49.026C7.21.226 5.32.945 3.65 2.486 1.91 4.083.94 6.06.62 8.41c-.1.74-.13 1.49-.14 2.237-.01 1.92-.01 3.83.04 5.75.05 1.84.62 3.5 1.89 4.87 1.13 1.23 2.54 1.93 4.18 2.18.42.06.85.1 1.28.13.05 0 .07.02.07.07v.31c.01.69-.07.6.46.59.04 0 .08-.02.12-.04.59-.39 1.18-.78 1.77-1.17l1.13-.75c.05-.03.1-.04.16-.04 1.07-.03 2.15-.04 3.21-.16 1.7-.19 3.16-.85 4.31-2.14 1.05-1.17 1.6-2.56 1.83-4.1.16-1.06.18-2.13.18-3.21V8.59c-.01-.95-.07-1.89-.27-2.82-.46-2.17-1.6-3.86-3.6-4.94-1.18-.63-2.47-.93-3.79-.99-1.13-.05-2.26-.04-3.38-.04zm.06 2.16c1.16 0 2.32 0 3.48.07 1.19.07 2.34.34 3.34 1.03 1.39.96 2.18 2.34 2.5 3.96.21 1.07.25 2.16.25 3.25v3.36c-.01.86-.07 1.71-.27 2.55-.41 1.69-1.43 2.85-3.05 3.5-.85.34-1.74.47-2.65.5-1.04.04-2.08.05-3.13.07-.13 0-.24.04-.34.11l-2.31 1.59c-.03.02-.06.05-.09.06-.05.01-.08-.02-.08-.07v-.96c0-.27-.04-.31-.31-.34-.41-.04-.83-.07-1.24-.12-1.61-.21-2.92-.92-3.83-2.31-.6-.92-.88-1.94-.98-3.02-.07-.79-.07-1.59-.08-2.39 0-1.32-.01-2.64.04-3.95.04-1.16.21-2.3.71-3.37.74-1.59 1.97-2.6 3.67-3.05.83-.22 1.68-.31 2.54-.34.61-.02 1.22-.04 1.83-.04zM12.36 4.55c-.13 0-.2.07-.2.2v.4c0 .12.07.19.19.2.51.05 1.01.13 1.5.27 1.42.42 2.55 1.22 3.4 2.43.68.97 1.04 2.06 1.13 3.24.02.27.07.32.34.32h.34c.18-.01.27-.1.27-.28-.04-.74-.16-1.46-.39-2.16-.52-1.59-1.49-2.84-2.91-3.74-.96-.61-2.03-.94-3.16-1.06-.17-.02-.34-.02-.51-.02zm.32 1.78c-.18-.01-.27.06-.28.24v.4c0 .14.06.21.2.23.46.04.91.16 1.32.36 1.07.53 1.78 1.35 2.13 2.49.13.42.18.85.21 1.28.01.16.08.23.24.24h.4c.18 0 .28-.09.27-.27-.02-.49-.09-.97-.23-1.45-.38-1.33-1.18-2.34-2.36-3.07-.55-.34-1.15-.55-1.78-.65-.04 0-.08-.01-.12-.01zM12.99 8.1c-.16 0-.24.07-.24.24v.43c0 .14.08.22.22.23.32.03.61.16.83.4.21.23.32.5.34.81.01.16.09.24.25.24h.43c.16 0 .24-.08.23-.24-.01-.79-.61-1.7-1.42-1.95-.21-.07-.43-.1-.65-.16zM9.62 7.06c-.21-.01-.42.08-.6.21-.45.34-.85.74-1.17 1.2-.16.23-.15.51.04.71.32.34.66.66 1 .98.07.07.13.15.16.24.07.18 0 .35-.13.5l-.34.4c-.1.13-.18.27-.19.43-.01.19.07.36.18.51.5.7 1.13 1.27 1.86 1.71.46.28.96.46 1.49.59.24.06.43.01.6-.18l.46-.46c.16-.16.36-.16.55-.06.18.1.36.21.55.31.32.18.65.36.97.55.16.1.21.27.13.45-.04.09-.1.18-.16.25-.36.4-.74.79-1.1 1.19-.21.23-.5.31-.79.21-.7-.21-1.39-.46-2.05-.78-1.39-.66-2.61-1.55-3.59-2.74-.71-.86-1.29-1.8-1.69-2.85-.21-.55-.39-1.11-.49-1.69-.04-.27.04-.5.21-.71l1.13-1.13c.13-.13.27-.18.4-.06.07.05.13.13.18.21.18.32.36.65.55.97.13.21.27.42.4.62.07.13.07.27-.03.39l-.43.46zm10.36 5.81c-.21-.01-.39.13-.49.32-.55.94-1.27 1.69-2.21 2.21-.97.55-1.99.78-3.09.75-.21-.01-.39.11-.43.32-.07.34.15.55.5.55 1.21 0 2.39-.27 3.45-.84 1.09-.59 1.95-1.41 2.62-2.44.13-.21.05-.46-.18-.62-.07-.04-.1-.06-.17-.05z"/>
-    </svg>
-  )
-}
-
-function ComplaintsIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-      <polyline points="22,6 12,13 2,6"/>
-      <path d="M12 11v3"/>
-      <circle cx="12" cy="17" r="0.6" fill="currentColor"/>
     </svg>
   )
 }

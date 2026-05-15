@@ -221,16 +221,18 @@ export default function Shop() {
         {products.map((product) => (
           <article key={product.id} className="product-card">
             <img src={product.imageUrl} alt={product.name} loading="lazy" />
-            <h3>
-              <Link to={`/products/${product.id}`}>{product.name}</Link>
-            </h3>
-            <p>{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
-            <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
-            <div className="card-actions">
-              <button onClick={() => addToCart(product)}>Dodaj u korpu</button>
-              <button onClick={() => toggleWishlist(product)} className="ghost">
-                Wishlist
-              </button>
+            <div className="product-card-body">
+              <h3>
+                <Link to={`/products/${product.id}`}>{product.name}</Link>
+              </h3>
+              <p>{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
+              <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
+              <div className="card-actions">
+                <button onClick={() => addToCart(product)}>Dodaj u korpu</button>
+                <button onClick={() => toggleWishlist(product)} className="ghost">
+                  Wishlist
+                </button>
+              </div>
             </div>
           </article>
         ))}
@@ -239,18 +241,24 @@ export default function Shop() {
   }, [loading, products, addToCart, toggleWishlist, bestsellersMode])
 
   return (
-    <section className="page shell">
-      <h1>{headerTitle}</h1>
+    <section className="page shop-page">
+      <div className="shop-title-band">
+        <div className="shop-title-inner shell">
+          <h1>{headerTitle}</h1>
+        </div>
+      </div>
 
-      {!bestsellersMode && selectedType && categories.length > 0 && (
-        <CategoryStrip
-          categories={categories}
-          selectedId={categoryIdParam}
-          onSelect={onSelectCategory}
-        />
-      )}
+      <div className="shop-page-content shell">
+        {!bestsellersMode && selectedType && categories.length > 0 && (
+          <CategoryStrip
+            categories={categories}
+            selectedId={categoryIdParam}
+            onSelect={onSelectCategory}
+          />
+        )}
 
-      {content}
+        {content}
+      </div>
     </section>
   )
 }

@@ -11,11 +11,13 @@ export default function Wishlist() {
           {wishlist.map((item) => (
             <article className="product-card" key={item.id}>
               <img src={item.imageUrl} alt={item.name} />
-              <h3>{item.name}</h3>
-              <strong>{Number(item.price).toLocaleString('sr-RS')} RSD</strong>
-              <div className="card-actions">
-                <button onClick={() => addToCart(item)}>Dodaj u korpu</button>
-                <button className="ghost" onClick={() => toggleWishlist(item)}>Ukloni</button>
+              <div className="product-card-body">
+                <h3>{item.name}</h3>
+                <strong>{Number(item.price).toLocaleString('sr-RS')} RSD</strong>
+                <div className="card-actions">
+                  <button onClick={() => addToCart(item)}>Dodaj u korpu</button>
+                  <button className="ghost" onClick={() => toggleWishlist(item)}>Ukloni</button>
+                </div>
               </div>
             </article>
           ))}

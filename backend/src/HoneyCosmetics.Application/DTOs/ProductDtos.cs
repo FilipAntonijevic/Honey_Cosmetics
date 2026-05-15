@@ -47,7 +47,8 @@ public record SiteLinksResponse(
     string PhoneNumber,
     string ComplaintsEmail,
     string WhatsAppNumber,
-    string ViberNumber);
+    string ViberNumber,
+    string NotificationsEmail);
 
 public record SiteLinksUpdateRequest(
     string? InstagramUrl,
@@ -56,4 +57,5 @@ public record SiteLinksUpdateRequest(
     string? PhoneNumber,
     string? ComplaintsEmail,
     string? WhatsAppNumber,
-    string? ViberNumber);
+    string? ViberNumber,
+    string? NotificationsEmail);

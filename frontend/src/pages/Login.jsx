@@ -1,7 +1,12 @@
-import { useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../context/StoreContext'
-import { DEFAULT_PHONE_PREFIX, cleanPhone, placeCursorAtEndIfPrefix } from '../utils/phone'
+import {
+  DEFAULT_PHONE_PREFIX,
+  cleanPhone,
+  extensionFromStored,
+  storedFromExtensionInput,
+} from '../utils/phone'
 
 export default function Account({ initialMode = 'login' }) {
   const location = useLocation()
@@ -9,6 +14,8 @@ export default function Account({ initialMode = 'login' }) {
   const { login, register, user, initializing } = useStore()
 
   const [mode, setMode] = useState(initialMode)
+  /** Za /login blokira autofill tačaka dok korisnik ne klikne/fokusira polje (read-only trik). */
+  const [loginPwInteractable, setLoginPwInteractable] = useState(() => initialMode === 'register')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({
@@ -24,6 +31,27 @@ export default function Account({ initialMode = 'login' }) {
     postalCode: '',
   })
 
+  // Svaka nova poseta: prazni lozinke; Chromium često naknadno ubrizga autofill — readOnly na login-u + ponovno čišćenje.
+  useLayoutEffect(() => {
+    setLoginPwInteractable(initialMode === 'register')
+    setForm((f) => ({
+      ...f,
+      password: '',
+      confirmPassword: '',
+    }))
+    const delays = [0, 50, 120, 250, 500, 900, 1400]
+    const ids = delays.map((ms) =>
+      window.setTimeout(() => {
+        setForm((f) => ({
+          ...f,
+          password: '',
+          confirmPassword: '',
+        }))
+      }, ms),
+    )
+    return () => ids.forEach(clearTimeout)
+  }, [location.key, initialMode])
+
   if (initializing) return null
 
   const from = location.state?.from ?? '/'
@@ -31,9 +59,27 @@ export default function Account({ initialMode = 'login' }) {
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
+  const phoneExtension = extensionFromStored(form.phoneNumber)
+  const phoneExtensionTrimmed = phoneExtension.trim()
+
+  const setPhoneExtension = (e) => {
+    const nextStored = storedFromExtensionInput(e.target.value)
+    setForm((f) => ({ ...f, phoneNumber: nextStored }))
+  }
+
   const switchMode = (next) => {
     setMode(next)
     setError('')
+    if (next === 'login') {
+      setForm((f) => ({ ...f, password: '', confirmPassword: '' }))
+      setLoginPwInteractable(false)
+    } else {
+      setLoginPwInteractable(true)
+    }
+  }
+
+  const unlockLoginPasswordField = () => {
+    if (mode === 'login') setLoginPwInteractable(true)
   }
 
   const submit = async (e) => {
@@ -106,7 +152,11 @@ export default function Account({ initialMode = 'login' }) {
           {isRegister ? 'Postanite deo Honey zajednice' : 'Prijavite se u vaš Honey nalog'}
         </p>
 
-        <form className="auth-form" onSubmit={submit}>
+        <form
+          className="auth-form"
+          onSubmit={submit}
+          autoComplete={isRegister ? 'on' : 'off'}
+        >
           {/* Name row — register only */}
           <div className={`auth-slide${isRegister ? ' open' : ''}`}>
             <div className="auth-slide-inner">
@@ -143,38 +193,77 @@ export default function Account({ initialMode = 'login' }) {
             required
             autoComplete="email"
           />
-          <input
-            type="password"
-            className="auth-input"
-            placeholder={isRegister ? 'Lozinka *' : 'Lozinka'}
-            value={form.password}
-            onChange={set('password')}
-            required
-            autoComplete={isRegister ? 'new-password' : 'current-password'}
-          />
+          <div
+            className="auth-input-wrap auth-input-wrap--password"
+            role="presentation"
+            onMouseDownCapture={unlockLoginPasswordField}
+            onPointerDownCapture={unlockLoginPasswordField}
+          >
+            <input
+              key={`auth-password-${location.key}-${mode}`}
+              type="password"
+              className="auth-input auth-input-has-visual-ph"
+              placeholder=""
+              readOnly={isRegister ? false : !loginPwInteractable}
+              value={form.password}
+              onChange={set('password')}
+              onFocus={unlockLoginPasswordField}
+              required
+              spellCheck={false}
+              autoCorrect="off"
+              name={isRegister ? 'new-password' : `login-pw-${location.key}`}
+              autoComplete={isRegister ? 'new-password' : 'off'}
+              aria-label={isRegister ? 'Sifra (obavezno)' : 'Sifra'}
+            />
+            {!form.password && (
+              <span className="auth-input-visual-ph" aria-hidden="true">
+                {isRegister ? 'Sifra *' : 'Sifra'}
+              </span>
+            )}
+          </div>
 
           {/* Extra register fields */}
           <div className={`auth-slide${isRegister ? ' open' : ''}`}>
             <div className="auth-slide-inner">
-              <input
-                type="password"
-                className="auth-input"
-                placeholder="Potvrdi lozinku *"
-                value={form.confirmPassword}
-                onChange={set('confirmPassword')}
-                required={isRegister}
-                autoComplete="new-password"
-              />
-              <input
-                type="tel"
-                className="auth-input"
-                placeholder="Telefon (opciono)"
-                value={form.phoneNumber}
-                onChange={set('phoneNumber')}
-                onFocus={placeCursorAtEndIfPrefix}
-                onClick={placeCursorAtEndIfPrefix}
-                autoComplete="tel"
-              />
+              <div className="auth-input-wrap auth-input-wrap--password">
+                <input
+                  key={`auth-confirm-${location.key}`}
+                  type="password"
+                  className="auth-input auth-input-has-visual-ph"
+                  placeholder=""
+                  value={form.confirmPassword}
+                  onChange={set('confirmPassword')}
+                  required={isRegister}
+                  name="confirm-password"
+                  autoComplete="new-password"
+                  aria-label="Potvrda šifre (obavezno)"
+                />
+                {!form.confirmPassword && (
+                  <span className="auth-input-visual-ph" aria-hidden="true">
+                    Potvrdi šifru *
+                  </span>
+                )}
+              </div>
+              <div className="auth-tel-compose" role="group" aria-label="Telefon opciono, nastavak posle pozivnog za Srbiju">
+                <span className="auth-tel-prefix">+381&nbsp;</span>
+                <div className="auth-tel-extension-wrap">
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    className="auth-input auth-input-tel-extension"
+                    placeholder=""
+                    value={phoneExtension}
+                    onChange={setPhoneExtension}
+                    autoComplete="tel-national"
+                    aria-label="Broj telefona nakon pozivnog +381 (opciono)"
+                  />
+                  {!phoneExtensionTrimmed && (
+                    <span className="auth-input-visual-ph auth-input-visual-ph-tel" aria-hidden="true">
+                      Broj telefona
+                    </span>
+                  )}
+                </div>
+              </div>
 
               {/* Address — always shown inline, all optional */}
               <div className="auth-addr-section">

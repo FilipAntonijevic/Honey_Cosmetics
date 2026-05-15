@@ -7,6 +7,9 @@ const EMPTY = {
   emailAddress: '',
   phoneNumber: '',
   complaintsEmail: '',
+  notificationsEmail: '',
+  whatsAppNumber: '',
+  viberNumber: '',
 }
 
 /**
@@ -30,6 +33,9 @@ export default function useSiteLinks() {
           emailAddress: data?.emailAddress ?? '',
           phoneNumber: data?.phoneNumber ?? '',
           complaintsEmail: data?.complaintsEmail ?? '',
+          notificationsEmail: data?.notificationsEmail ?? '',
+          whatsAppNumber: data?.whatsAppNumber ?? '',
+          viberNumber: data?.viberNumber ?? '',
         })
       })
       .catch(() => {

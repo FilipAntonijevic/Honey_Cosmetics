@@ -30,7 +30,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
             s?.PhoneNumber ?? string.Empty,
             s?.ComplaintsEmail ?? string.Empty,
             s?.WhatsAppNumber ?? string.Empty,
-            s?.ViberNumber ?? string.Empty));
+            s?.ViberNumber ?? string.Empty,
+            s?.NotificationsEmail ?? string.Empty));
     }
 
     [AllowAnonymous]
