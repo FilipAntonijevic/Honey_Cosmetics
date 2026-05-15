@@ -152,17 +152,27 @@ export default function Layout({ children }) {
       setMiniCartClosing(false)
       return
     }
-    const finish = (e) => {
-      if (e.target !== el || e.propertyName !== 'transform') return
+    let done = false
+    const finishClose = () => {
+      if (done) return
+      done = true
       setMiniCartOpen(false)
       setMiniCartClosing(false)
     }
-    el.addEventListener('animationend', finish)
-    return () => el.removeEventListener('animationend', finish)
+    const onAnimationEnd = (e) => {
+      if (e.target !== el) return
+      if (e.animationName === 'mini-cart-slide-out') finishClose()
+    }
+    el.addEventListener('animationend', onAnimationEnd)
+    const t = window.setTimeout(finishClose, 320)
+    return () => {
+      clearTimeout(t)
+      el.removeEventListener('animationend', onAnimationEnd)
+    }
   }, [miniCartClosing])
 
   useEffect(() => {
-    document.body.classList.toggle('is-mini-cart-open', miniCartOpen)
+    document.body.classList.toggle('is-mini-cart-open', miniCartOpen && !miniCartClosing)
     if (!miniCartOpen) return
     const onKey = (e) => {
       if (e.key === 'Escape') closeMiniCart()
@@ -516,15 +526,17 @@ export default function Layout({ children }) {
         </div>
       </header>
 
-      {miniCartOpen && (
+      {(miniCartOpen || miniCartClosing) && (
         <>
-          <button
-            type="button"
-            className="mini-cart-backdrop"
-            aria-label="Zatvori korpu"
-            onClick={closeMiniCart}
-            tabIndex={-1}
-          />
+          {miniCartOpen && !miniCartClosing && (
+            <button
+              type="button"
+              className="mini-cart-backdrop"
+              aria-label="Zatvori korpu"
+              onClick={closeMiniCart}
+              tabIndex={-1}
+            />
+          )}
           <aside
             ref={miniCartDrawerRef}
             className={`mini-cart-drawer${miniCartClosing ? ' mini-cart-drawer--closing' : ''}`}

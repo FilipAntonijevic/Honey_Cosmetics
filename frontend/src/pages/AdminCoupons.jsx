@@ -68,7 +68,7 @@ export default function AdminCoupons() {
     c.isPercentage ? `${c.discountValue}%` : `${Number(c.discountValue).toLocaleString('sr-RS')} RSD`
 
   return (
-    <div className="adm-content">
+    <div className="adm-page">
       <div className="adm-page-header">
         <div>
           <h1 className="adm-page-title">Kuponi</h1>
@@ -129,7 +129,7 @@ export default function AdminCoupons() {
       ) : coupons.length === 0 ? (
         <p className="adm-empty">Nema kupona.</p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="adm-table-wrap adm-table-wrap--coupons">
           <table className="adm-table">
             <thead>
               <tr>

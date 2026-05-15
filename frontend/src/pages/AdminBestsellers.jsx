@@ -115,7 +115,7 @@ export default function AdminBestsellers() {
             Izaberi proizvode i njihov redosled za prikaz u sekciji Bestsellers.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div className="adm-page-header-actions">
           <button type="button" className="adm-btn" onClick={reset} disabled={!dirty || saving}>
             Poništi
           </button>
