@@ -81,6 +81,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
         return Ok(list);
     }
 
+    [AllowAnonymous]
     [HttpGet]
     public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetAll([FromQuery] ProductQuery query)
     {
@@ -89,7 +90,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             var term = query.Search.Trim().ToLowerInvariant();
-            products = products.Where(x => x.Name.ToLower().Contains(term) || x.Description.ToLower().Contains(term));
+            products = products.Where(x => x.Name.ToLower().Contains(term));
         }
 
         if (query.CategoryId.HasValue)

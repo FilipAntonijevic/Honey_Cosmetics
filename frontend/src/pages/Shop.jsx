@@ -100,9 +100,11 @@ export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToCart, toggleWishlist } = useStore()
 
-  const bestsellersMode = ['1', 'true'].includes(searchParams.get('bestsellers') ?? '')
-  const vrstaName = bestsellersMode ? null : (searchParams.get('vrsta') ?? searchParams.get('category'))
-  const categoryIdParam = bestsellersMode ? null : searchParams.get('categoryId')
+  const searchTerm = (searchParams.get('search') ?? '').trim()
+  const isSearchMode = searchTerm.length > 0
+  const bestsellersMode = !isSearchMode && ['1', 'true'].includes(searchParams.get('bestsellers') ?? '')
+  const vrstaName = bestsellersMode || isSearchMode ? null : (searchParams.get('vrsta') ?? searchParams.get('category'))
+  const categoryIdParam = bestsellersMode || isSearchMode ? null : searchParams.get('categoryId')
   const sort = searchParams.get('sort') ?? 'newest'
 
   // Učitaj liste vrsta jednom (radi mapiranja name -> id).
@@ -152,9 +154,14 @@ export default function Shop() {
           return
         }
 
+        if (isSearchMode) {
+          const { data } = await api.get('/products', { params: { search: searchTerm } })
+          if (!cancelled) setProducts(Array.isArray(data) ? data : [])
+          return
+        }
+
         const params = {
           sort: sort === 'newest' ? undefined : sort,
-          search: searchParams.get('search') ?? undefined,
         }
         if (categoryIdParam) params.categoryId = categoryIdParam
 
@@ -173,7 +180,7 @@ export default function Shop() {
     return () => {
       cancelled = true
     }
-  }, [searchParams, sort, vrstaName, categoryIdParam, bestsellersMode])
+  }, [searchParams, sort, vrstaName, categoryIdParam, bestsellersMode, isSearchMode, searchTerm])
 
   const onSelectCategory = (id) => {
     const next = new URLSearchParams(searchParams)
@@ -186,6 +193,7 @@ export default function Shop() {
   }
 
   const headerTitle = useMemo(() => {
+    if (isSearchMode) return `Pretraga: „${searchTerm}"`
     if (bestsellersMode) return 'Bestsellers'
     if (!vrstaName) return 'Shop'
     if (categoryIdParam) {
@@ -193,7 +201,7 @@ export default function Shop() {
       if (cat) return `${vrstaName} — ${cat.name}`
     }
     return vrstaName
-  }, [bestsellersMode, vrstaName, categoryIdParam, categories])
+  }, [isSearchMode, searchTerm, bestsellersMode, vrstaName, categoryIdParam, categories])
 
   const content = useMemo(() => {
     if (loading) {
@@ -209,9 +217,11 @@ export default function Shop() {
     if (!products.length) {
       return (
         <p>
-          {bestsellersMode
-            ? 'Trenutno nema proizvoda u sekciji Bestsellers.'
-            : 'Nema rezultata za izabrane filtere.'}
+          {isSearchMode
+            ? `Nema proizvoda čiji naziv sadrži „${searchTerm}".`
+            : bestsellersMode
+              ? 'Trenutno nema proizvoda u sekciji Bestsellers.'
+              : 'Nema rezultata za izabrane filtere.'}
         </p>
       )
     }
@@ -238,7 +248,7 @@ export default function Shop() {
         ))}
       </div>
     )
-  }, [loading, products, addToCart, toggleWishlist, bestsellersMode])
+  }, [loading, products, addToCart, toggleWishlist, bestsellersMode, isSearchMode, searchTerm])
 
   return (
     <section className="page shop-page">
@@ -249,7 +259,7 @@ export default function Shop() {
       </div>
 
       <div className="shop-page-content shell">
-        {!bestsellersMode && selectedType && categories.length > 0 && (
+        {!isSearchMode && !bestsellersMode && selectedType && categories.length > 0 && (
           <CategoryStrip
             categories={categories}
             selectedId={categoryIdParam}

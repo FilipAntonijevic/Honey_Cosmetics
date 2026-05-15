@@ -169,17 +169,20 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
 }
 
 /**
- * Endless product strip.
- * The product list is rendered three times so the user can scroll forever in
- * either direction. When the scroll position drifts into the first or third
- * copy we instantly jump back by one list-width while the products are
- * visually identical, so the loop is seamless.
+ * Endless product strip (isto kao hero).
+ * Tri kopije liste; pomeramo translateX i na transitionend tiho skačemo
+ * nazad u srednju kopiju — bez vidljivog povratka na početak.
  */
 function ProductCarousel({ products }) {
   const trackRef = useRef(null)
+  const singleWidthRef = useRef(0)
+  const offsetRef = useRef(0)
+  const touchStartX = useRef(null)
+  const touchStartY = useRef(null)
+  const [offset, setOffset] = useState(0)
+  const [withTransition, setWithTransition] = useState(true)
+  const [ready, setReady] = useState(false)
   const [paused, setPaused] = useState(false)
-  const positionedRef = useRef(false)
-  const isAdjustingRef = useRef(false)
   const { addToCart, toggleWishlist } = useStore()
 
   const itemsCount = products.length
@@ -188,92 +191,95 @@ function ProductCarousel({ products }) {
     return [...products, ...products, ...products]
   }, [products, itemsCount])
 
-  const singleListWidth = () => {
-    const el = trackRef.current
-    if (!el) return 0
-    return el.scrollWidth / 3
-  }
-
-  const cardStep = () => {
-    const el = trackRef.current
-    if (!el) return 280
-    const card = el.querySelector('.pop-card')
+  const cardStep = useCallback(() => {
+    const track = trackRef.current
+    if (!track) return 280
+    const card = track.querySelector('.product-card')
     if (!card) return 280
-    const gap = parseFloat(getComputedStyle(el).gap || '20')
+    const gap = parseFloat(getComputedStyle(track).gap || '16')
     return card.offsetWidth + gap
+  }, [])
+
+  const measureAndCenter = useCallback(() => {
+    const track = trackRef.current
+    if (!track || itemsCount === 0) return
+    const sw = track.scrollWidth / 3
+    if (sw <= 0) {
+      requestAnimationFrame(measureAndCenter)
+      return
+    }
+    singleWidthRef.current = sw
+    setWithTransition(false)
+    setOffset(sw)
+    offsetRef.current = sw
+    setReady(true)
+  }, [itemsCount])
+
+  useEffect(() => {
+    setReady(false)
+    measureAndCenter()
+    const track = trackRef.current
+    if (!track) return undefined
+    const ro = new ResizeObserver(() => measureAndCenter())
+    ro.observe(track)
+    window.addEventListener('resize', measureAndCenter)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measureAndCenter)
+    }
+  }, [measureAndCenter, products])
+
+  useEffect(() => {
+    offsetRef.current = offset
+  }, [offset])
+
+  useEffect(() => {
+    if (withTransition) return
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setWithTransition(true))
+    })
+    return () => cancelAnimationFrame(id)
+  }, [withTransition])
+
+  const shift = useCallback((direction) => {
+    setWithTransition(true)
+    setOffset((o) => o + direction * cardStep())
+  }, [cardStep])
+
+  const onTransitionEnd = (e) => {
+    if (e.target !== trackRef.current || e.propertyName !== 'transform') return
+    const sw = singleWidthRef.current
+    if (!sw) return
+    const o = offsetRef.current
+    if (o >= 2 * sw - 1) {
+      setWithTransition(false)
+      setOffset(o - sw)
+    } else if (o < sw) {
+      setWithTransition(false)
+      setOffset(o + sw)
+    }
   }
 
-  // Position the strip at the start of the middle copy on (re)mount
   useEffect(() => {
-    const el = trackRef.current
-    if (!el || itemsCount === 0) return
-    positionedRef.current = false
-    const setInitial = () => {
-      const sw = singleListWidth()
-      if (sw === 0) {
-        requestAnimationFrame(setInitial)
-        return
-      }
-      isAdjustingRef.current = true
-      el.scrollLeft = sw
-      requestAnimationFrame(() => {
-        isAdjustingRef.current = false
-        positionedRef.current = true
-      })
-    }
-    requestAnimationFrame(setInitial)
-  }, [itemsCount])
+    if (paused || !ready || itemsCount === 0) return
+    const id = setTimeout(() => shift(1), PRODUCT_INTERVAL_MS)
+    return () => clearTimeout(id)
+  }, [offset, paused, ready, itemsCount, shift])
 
-  // Wrap the scroll position back into the middle copy when we drift out
-  useEffect(() => {
-    const el = trackRef.current
-    if (!el) return
-    let idleTimer
-    const checkLoop = () => {
-      if (!positionedRef.current) return
-      const sw = singleListWidth()
-      if (sw === 0) return
-      if (el.scrollLeft >= 2 * sw) {
-        isAdjustingRef.current = true
-        el.scrollLeft -= sw
-        requestAnimationFrame(() => {
-          isAdjustingRef.current = false
-        })
-      } else if (el.scrollLeft < sw) {
-        isAdjustingRef.current = true
-        el.scrollLeft += sw
-        requestAnimationFrame(() => {
-          isAdjustingRef.current = false
-        })
-      }
+  const onTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+  }
+  const onTouchEnd = (e) => {
+    if (touchStartX.current == null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    const dy = e.changedTouches[0].clientY - touchStartY.current
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) shift(-1)
+      else shift(1)
     }
-    const onScroll = () => {
-      if (isAdjustingRef.current) return
-      clearTimeout(idleTimer)
-      idleTimer = setTimeout(checkLoop, 80)
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      clearTimeout(idleTimer)
-      el.removeEventListener('scroll', onScroll)
-    }
-  }, [itemsCount])
-
-  // Auto-rotate
-  useEffect(() => {
-    if (paused || itemsCount === 0) return
-    const id = setInterval(() => {
-      const el = trackRef.current
-      if (!el) return
-      el.scrollBy({ left: cardStep(), behavior: 'smooth' })
-    }, PRODUCT_INTERVAL_MS)
-    return () => clearInterval(id)
-  }, [paused, itemsCount])
-
-  const scrollByCards = (direction) => {
-    const el = trackRef.current
-    if (!el) return
-    el.scrollBy({ left: direction * cardStep(), behavior: 'smooth' })
+    touchStartX.current = null
+    touchStartY.current = null
   }
 
   if (!itemsCount) return null
@@ -283,11 +289,15 @@ function ProductCarousel({ products }) {
       className="pop-strip-wrap"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
       <button
         type="button"
         className="pop-arrow left"
-        onClick={() => scrollByCards(-1)}
+        onClick={() => shift(-1)}
         aria-label="Pomeri levo"
       >
         <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -295,43 +305,44 @@ function ProductCarousel({ products }) {
         </svg>
       </button>
 
-      <div className="pop-strip" ref={trackRef}>
-        {loop.map((p, i) => (
-          <article key={`${p.id}-${i}`} className="pop-card">
-            <Link to={`/products/${p.id}`} className="pop-card-img-wrap">
-              {p.imageUrl ? (
-                <img src={p.imageUrl} alt={p.name} loading="lazy" />
-              ) : (
-                <div className="pop-card-img-empty" />
-              )}
-            </Link>
-            <div className="pop-card-body">
-              <h3 className="pop-card-name">
-                <Link to={`/products/${p.id}`}>{p.name}</Link>
-              </h3>
-              {(p.productType || p.category) && (
-                <p className="pop-card-meta">
-                  {[p.productType, p.category].filter(Boolean).join(' · ')}
-                </p>
-              )}
-              <strong className="pop-card-price">
-                {Number(p.price).toLocaleString('sr-RS')} RSD
-              </strong>
-              <div className="pop-card-actions">
-                <button type="button" onClick={() => addToCart(p)}>Dodaj u korpu</button>
-                <button type="button" className="ghost" onClick={() => toggleWishlist(p)}>
-                  Wishlist
-                </button>
+      <div className="pop-strip-viewport" aria-hidden={!ready}>
+        <div
+          ref={trackRef}
+          className="pop-strip"
+          style={{
+            transform: `translateX(-${offset}px)`,
+            transition: withTransition
+              ? 'transform 0.55s cubic-bezier(0.4, 0, 0.2, 1)'
+              : 'none',
+            visibility: ready ? 'visible' : 'hidden',
+          }}
+          onTransitionEnd={onTransitionEnd}
+        >
+          {loop.map((p, i) => (
+            <article key={`${p.id}-${i}`} className="product-card">
+              <img src={p.imageUrl} alt={p.name} loading="lazy" />
+              <div className="product-card-body">
+                <h3>
+                  <Link to={`/products/${p.id}`}>{p.name}</Link>
+                </h3>
+                <p>{[p.productType, p.category].filter(Boolean).join(' · ')}</p>
+                <strong>{Number(p.price).toLocaleString('sr-RS')} RSD</strong>
+                <div className="card-actions">
+                  <button type="button" onClick={() => addToCart(p)}>Dodaj u korpu</button>
+                  <button type="button" className="ghost" onClick={() => toggleWishlist(p)}>
+                    Wishlist
+                  </button>
+                </div>
               </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          ))}
+        </div>
       </div>
 
       <button
         type="button"
         className="pop-arrow right"
-        onClick={() => scrollByCards(1)}
+        onClick={() => shift(1)}
         aria-label="Pomeri desno"
       >
         <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -341,6 +352,7 @@ function ProductCarousel({ products }) {
     </div>
   )
 }
+
 
 export default function Home() {
   const [bestsellers, setBestsellers] = useState([])
@@ -365,10 +377,12 @@ export default function Home() {
       <HeroCarousel images={HERO_IMAGES} />
 
       {bestsellers.length > 0 && (
-        <section className="shell section-gap">
-          <div className="pop-head">
-            <h2 className="pop-title">Popularni proizvodi</h2>
-            <Link to="/shop?bestsellers=1" className="pop-head-link">Vidi sve →</Link>
+        <section className="section-gap pop-section">
+          <div className="shell pop-section-head">
+            <div className="pop-head">
+              <h2 className="pop-title">Popularni proizvodi</h2>
+              <Link to="/shop?bestsellers=1" className="pop-head-link">Vidi sve →</Link>
+            </div>
           </div>
           <ProductCarousel products={bestsellers} />
         </section>

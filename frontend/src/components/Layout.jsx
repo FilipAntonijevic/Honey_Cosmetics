@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
+import ViberIcon from './icons/ViberIcon'
 import { useStore } from '../context/StoreContext'
 
 const EMPTY_LINKS = {
@@ -35,16 +36,40 @@ const buildViberHref = (raw) => {
 }
 
 export default function Layout({ children }) {
-  const { cart, wishlist, user, logout, toast } = useStore()
+  const { cart, wishlist, user, logout, toast, removeFromCart } = useStore()
   const [vrste, setVrste] = useState([])
   const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const cartTotal = cart.reduce((s, item) => s + Number(item.price) * item.quantity, 0)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false)
+  const [categoriesMenuOpen, setCategoriesMenuOpen] = useState(false)
+  const [miniCartOpen, setMiniCartOpen] = useState(false)
+  const [miniCartClosing, setMiniCartClosing] = useState(false)
+  const miniCartDrawerRef = useRef(null)
   const userMenuRef = useRef(null)
   const phoneMenuRef = useRef(null)
+  const categoriesMenuRef = useRef(null)
   const location = useLocation()
+  const navigate = useNavigate()
   const isHome = location.pathname === '/'
+  const [searchInput, setSearchInput] = useState('')
+
+  useEffect(() => {
+    if (location.pathname === '/shop') {
+      setSearchInput(new URLSearchParams(location.search).get('search') ?? '')
+    }
+  }, [location.pathname, location.search])
+
+  const submitProductSearch = (e) => {
+    e.preventDefault()
+    const q = searchInput.trim()
+    if (!q) {
+      navigate('/shop')
+      return
+    }
+    navigate(`/shop?search=${encodeURIComponent(q)}`)
+  }
 
   useEffect(() => {
     api
@@ -99,9 +124,120 @@ export default function Layout({ children }) {
     return () => document.removeEventListener('mousedown', close)
   }, [phoneMenuOpen])
 
+  useEffect(() => {
+    if (!categoriesMenuOpen) return
+    const close = (e) => {
+      if (categoriesMenuRef.current && !categoriesMenuRef.current.contains(e.target)) {
+        setCategoriesMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [categoriesMenuOpen])
+
+  const closeMiniCart = () => {
+    if (miniCartClosing) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setMiniCartOpen(false)
+      return
+    }
+    setMiniCartClosing(true)
+  }
+
+  useEffect(() => {
+    if (!miniCartClosing) return
+    const el = miniCartDrawerRef.current
+    if (!el) {
+      setMiniCartOpen(false)
+      setMiniCartClosing(false)
+      return
+    }
+    const finish = (e) => {
+      if (e.target !== el || e.propertyName !== 'transform') return
+      setMiniCartOpen(false)
+      setMiniCartClosing(false)
+    }
+    el.addEventListener('animationend', finish)
+    return () => el.removeEventListener('animationend', finish)
+  }, [miniCartClosing])
+
+  useEffect(() => {
+    if (!miniCartOpen) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeMiniCart()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [miniCartOpen])
+
+  const headerBodyRef = useRef(null)
+  const [headerHidden, setHeaderHidden] = useState(false)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const lastScrollY = useRef(0)
+
+  useEffect(() => {
+    const el = headerBodyRef.current
+    if (!el) return
+    const measure = () => {
+      const h = el.scrollHeight
+      if (h > 48) setHeaderHeight(h)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    window.addEventListener('resize', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [])
+
+  useEffect(() => {
+    lastScrollY.current = window.scrollY
+    setHeaderHidden(false)
+    setUserMenuOpen(false)
+    setPhoneMenuOpen(false)
+    setCategoriesMenuOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY
+      const delta = y - lastScrollY.current
+
+      if (y < 16) {
+        setHeaderHidden(false)
+      } else if (delta < -1) {
+        setHeaderHidden(false)
+      } else if (delta > 4 && y > 72) {
+        setHeaderHidden(true)
+        setUserMenuOpen(false)
+        setPhoneMenuOpen(false)
+        setCategoriesMenuOpen(false)
+      }
+
+      lastScrollY.current = y
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
     <div className="site-shell">
-      <header className="sticky-header">
+      <header className={`sticky-header${headerHidden ? ' is-header-hidden' : ''}`}>
+        <div
+          ref={headerBodyRef}
+          className="site-header-body"
+          style={{
+            maxHeight: headerHidden ? 0 : headerHeight > 0 ? `${headerHeight}px` : undefined,
+          }}
+        >
 
         {/* Promo ticker */}
         <div className="top-strip">
@@ -132,12 +268,23 @@ export default function Layout({ children }) {
             <img src="/logo.png" alt="Honey Nail Innovations" className="logo-img" />
           </Link>
 
-          <div className="search-wrap">
-            <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input className="search" placeholder="Pretraži proizvode..." />
-          </div>
+          <form className="search-wrap" role="search" onSubmit={submitProductSearch}>
+            <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input
+              className="search"
+              type="search"
+              name="q"
+              placeholder="Pretraži proizvode..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              aria-label="Pretraži proizvode po nazivu"
+              enterKeyHint="search"
+              autoComplete="off"
+            />
+          </form>
 
-          <div className="icons">
+          <div className="header-toolbar">
+            <div className="icons">
             <Link to="/wishlist" className="icon-btn" title="Wishlist">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               {wishlist.length > 0 && <span className="icon-badge">{wishlist.length}</span>}
@@ -227,7 +374,7 @@ export default function Layout({ children }) {
                       role="menuitem"
                     >
                       <span className="phone-menu-icon phone-menu-icon--whatsapp">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.81 11.81 0 0 1 8.413 3.488 11.824 11.824 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 0 0 1.51 5.26l-.999 3.648 3.978-.607zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.149-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.81 11.81 0 0 1 8.413 3.488 11.824 11.824 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 0 0 1.51 5.26l-.999 3.648 3.978-.607zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.149-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
                       </span>
                       <span className="phone-menu-text">
                         <span className="phone-menu-label">WhatsApp</span>
@@ -244,7 +391,7 @@ export default function Layout({ children }) {
                       role="menuitem"
                     >
                       <span className="phone-menu-icon phone-menu-icon--viber">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.4.002C9.473.029 5.351.21 3.108 2.27 1.474 3.91.901 6.34.838 9.34c-.06 3 .06 7.54 4.467 8.78v1.89s-.03.76.47.92c.62.18.96-.4 1.55-1.03l1.13-1.27c2.81.24 5.04-.31 5.29-.39 1.04-.21 7.03-1.59 7.5-7.36.49-5.97-1.65-9.7-4.66-11.32-.91-.5-3.55-1.66-7.35-1.55h-.07l.07-.01-.83.02zm.04 2.13c3.22-.05 5.83.32 6.42.6.94.45 2.45 1.5 2.93 5.5.43 3.59-.74 6.22-3.05 7.27-.32.14-2.31.66-4.85.42 0 0-.27-.26-.39-.39l-.07-.07c-.45-.46-1.4-1.41-2.45-2.07-.34-.21-.45-.31-1.07-.62-.59-.29-.74-.65-.84-.85-.21-.43-.53-1.51-.53-2.78.07-2.13.49-3.55 2.13-4.6 1.4-.9 3.18-.8 4.51-.05.51.29.81.55.84.59zm-.13 1.39c-.04-.01-.07-.02-.11-.03-.21-.07-.42-.13-.65-.12-.31.03-.55.21-.61.5-.04.21.04.43.21.6.31.31.65.6.96.91.04.04.07.08.07.13 0 .27-.07.55-.27.79-.43.49-1.4 1.46-1.46 1.52-.21.21-.27.43-.27.65v.13c0 .27.21.55.43.77.21.21.4.27.55.4.21.13.27.21.4.4l.04.04c.27.27.65.65 1.07 1.07.27.27.55.55.91.79.43.27.86.49 1.36.66.27.13.55.21.86.21.43 0 .77-.13 1.07-.43.21-.21.43-.43.61-.7.21-.4.21-.86 0-1.17-.13-.21-.43-.4-.65-.55-.13-.07-.21-.13-.27-.13-.13-.07-.27-.13-.4-.21-.27-.13-.55-.21-.79-.27-.27-.04-.55.04-.79.31-.13.13-.27.27-.43.4-.04.04-.13.07-.21.07-.13 0-.27-.07-.4-.13-.27-.13-.49-.31-.7-.49-.4-.4-.79-.79-1.16-1.24-.13-.13-.21-.31-.27-.49-.04-.13.04-.27.13-.34.13-.13.27-.27.4-.4.07-.07.13-.13.13-.27.04-.21.04-.43.04-.65 0-.13-.04-.27-.07-.4-.07-.27-.21-.55-.34-.79-.13-.27-.27-.55-.34-.86-.07-.34-.27-.61-.55-.79-.04-.04-.13-.07-.21-.13zm1.42.86c.32.04.59.18.85.39.27.21.46.51.55.84.07.21.07.43.07.65.04.18.04.4-.07.55-.07.13-.27.07-.34-.04-.04-.13 0-.27 0-.4 0-.31-.04-.65-.27-.91-.21-.27-.49-.43-.79-.43-.13 0-.27.07-.4-.04-.07-.13-.04-.34.13-.4.13-.07.27-.07.4-.07.04 0 .07-.01.11-.02h.13c-.04 0-.13 0-.17.02zm.08 1.49c.25-.03.5.1.66.31.18.21.21.49.21.77 0 .13 0 .27-.13.34-.13.07-.27 0-.27-.13-.04-.13 0-.27-.04-.4-.04-.21-.18-.39-.4-.43-.13-.04-.27 0-.27-.13-.04-.13.07-.21.13-.27.04-.04.08-.05.11-.06z"/></svg>
+                        <ViberIcon size={35.7} />
                       </span>
                       <span className="phone-menu-text">
                         <span className="phone-menu-label">Viber</span>
@@ -260,22 +407,163 @@ export default function Layout({ children }) {
               )}
             </div>
 
-            <Link to="/cart" className="icon-btn cart-icon-btn" title="Korpa">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-              {cartCount > 0 && <span className="icon-badge">{cartCount}</span>}
-            </Link>
+            <div className="mini-cart-wrap">
+              <button
+                type="button"
+                className="icon-btn cart-icon-btn"
+                title="Korpa"
+                onClick={() => setMiniCartOpen(true)}
+                aria-expanded={miniCartOpen}
+                aria-haspopup="dialog"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                {cartCount > 0 && <span className="icon-badge">{cartCount}</span>}
+              </button>
+            </div>
+          </div>
+
+            <div className="categories-menu-wrap" ref={categoriesMenuRef}>
+              <button
+                type="button"
+                className="categories-menu-btn"
+                aria-label="Vrste proizvoda"
+                aria-expanded={categoriesMenuOpen}
+                onClick={() => {
+                  setCategoriesMenuOpen((o) => !o)
+                  setUserMenuOpen(false)
+                  setPhoneMenuOpen(false)
+                  setMiniCartOpen(false)
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <line x1="4" y1="7" x2="20" y2="7" />
+                  <line x1="4" y1="12" x2="20" y2="12" />
+                  <line x1="4" y1="17" x2="20" y2="17" />
+                </svg>
+              </button>
+              {categoriesMenuOpen && (
+                <div className="categories-dropdown" role="menu">
+                  {vrste.map((cat) => (
+                    <Link
+                      key={cat}
+                      to={`/shop?vrsta=${encodeURIComponent(cat)}`}
+                      className="categories-dropdown-item"
+                      role="menuitem"
+                      onClick={() => setCategoriesMenuOpen(false)}
+                    >
+                      {cat}
+                    </Link>
+                  ))}
+                  <Link
+                    to="/shop?bestsellers=1"
+                    className="categories-dropdown-item categories-dropdown-item--muted"
+                    role="menuitem"
+                    onClick={() => setCategoriesMenuOpen(false)}
+                  >
+                    Bestsellers
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Category navbar */}
-        <nav className="category-nav">
+        {/* Category navbar — samo desktop */}
+        <nav className="category-nav category-nav--desktop" aria-label="Vrste proizvoda">
           {vrste.map((cat) => (
-            <NavLink key={cat} to={`/shop?vrsta=${encodeURIComponent(cat)}`} className="cat-link">
+            <Link key={cat} to={`/shop?vrsta=${encodeURIComponent(cat)}`} className="cat-link">
               {cat.toUpperCase()}
-            </NavLink>
+            </Link>
           ))}
         </nav>
+        </div>
       </header>
+
+      {miniCartOpen && (
+        <>
+          <button
+            type="button"
+            className="mini-cart-backdrop"
+            aria-label="Zatvori korpu"
+            onClick={closeMiniCart}
+            tabIndex={-1}
+          />
+          <aside
+            ref={miniCartDrawerRef}
+            className={`mini-cart-drawer${miniCartClosing ? ' mini-cart-drawer--closing' : ''}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Korpa"
+          >
+            <div className="mini-cart-drawer-top">
+              <button
+                type="button"
+                className="mini-cart-close"
+                onClick={closeMiniCart}
+                aria-label="Zatvori korpu"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="mini-cart-drawer-body">
+              {cart.length === 0 ? (
+                <p className="mini-cart-empty">Korpa je prazna.</p>
+              ) : (
+                <ul className="mini-cart-list">
+                  {cart.map((item) => (
+                    <li key={item.id} className="mini-cart-item">
+                      {item.imageUrl && (
+                        <img src={item.imageUrl} alt={item.name} className="mini-cart-img" />
+                      )}
+                      <div className="mini-cart-info">
+                        <span className="mini-cart-name">{item.name}</span>
+                        <span className="mini-cart-qty-price">
+                          {item.quantity} × {Number(item.price).toLocaleString('sr-RS')} RSD
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="mini-cart-remove"
+                        onClick={() => removeFromCart(item.id)}
+                        aria-label={`Ukloni ${item.name}`}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {cart.length > 0 && (
+              <div className="mini-cart-drawer-footer">
+                <div className="mini-cart-divider" />
+                <p className="mini-cart-total">
+                  Ukupno: <strong>{cartTotal.toLocaleString('sr-RS')} RSD</strong>
+                </p>
+                <div className="mini-cart-divider" />
+                <div className="mini-cart-actions">
+                  <Link
+                    to="/cart"
+                    className="mini-cart-btn mini-cart-btn--outline"
+                    onClick={() => setMiniCartOpen(false)}
+                  >
+                    Pregled korpe
+                  </Link>
+                  <Link
+                    to="/checkout"
+                    className="mini-cart-btn mini-cart-btn--fill"
+                    onClick={() => setMiniCartOpen(false)}
+                  >
+                    Plaćanje
+                  </Link>
+                </div>
+              </div>
+            )}
+          </aside>
+        </>
+      )}
 
       <main>{children}</main>
 
@@ -360,7 +648,9 @@ export default function Layout({ children }) {
             <div className="footer-logo">
               <img src="/logo.png" alt="Honey Nail Innovations" className="footer-logo-img" />
             </div>
-            <p className="footer-copy">© {new Date().getFullYear()} Honey Cosmetics<br />Premium beauty experience.</p>
+            <p className="footer-copy">
+              © {new Date().getFullYear()} Sva prava zadržana. Made by Webumi.
+            </p>
           </div>
 
           <div className="footer-col">
@@ -377,7 +667,7 @@ export default function Layout({ children }) {
             <Link to="/contact">Kontakt</Link>
           </div>
 
-          <div className="footer-col">
+          <div className="footer-col footer-col--legal">
             <div className="footer-col-title">Legal</div>
             <Link to="/terms">Uslovi korišćenja</Link>
             <Link to="/privacy">Politika privatnosti</Link>

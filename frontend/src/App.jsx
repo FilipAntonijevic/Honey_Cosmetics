@@ -42,6 +42,53 @@ function ScrollToTop() {
   return null
 }
 
+/** Klik na link ka stranici na kojoj već jesi → skrol na vrh (logo, meni, footer). */
+function SamePageScrollToTop() {
+  const location = useLocation()
+
+  useEffect(() => {
+    const onClickCapture = (e) => {
+      if (e.defaultPrevented || e.button !== 0) return
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+
+      const anchor = e.target.closest('a[href]')
+      if (!anchor || anchor.target === '_blank') return
+
+      const href = anchor.getAttribute('href')
+      if (
+        !href
+        || href.startsWith('#')
+        || href.startsWith('mailto:')
+        || href.startsWith('tel:')
+        || href.startsWith('javascript:')
+      ) {
+        return
+      }
+
+      let url
+      try {
+        url = new URL(href, window.location.href)
+      } catch {
+        return
+      }
+      if (url.origin !== window.location.origin) return
+
+      const current = `${location.pathname}${location.search}${location.hash}`
+      const target = `${url.pathname}${url.search}${url.hash}`
+
+      if (current === target) {
+        e.preventDefault()
+        window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
+      }
+    }
+
+    document.addEventListener('click', onClickCapture, true)
+    return () => document.removeEventListener('click', onClickCapture, true)
+  }, [location])
+
+  return null
+}
+
 // Requires user to be logged in; admins are kicked to /admin
 function AuthRoute({ children }) {
   const { user, initializing } = useStore()
@@ -123,6 +170,7 @@ export default function App() {
     <StoreProvider>
       <BrowserRouter>
         <ScrollToTop />
+        <SamePageScrollToTop />
         <AppRoutes />
       </BrowserRouter>
     </StoreProvider>
