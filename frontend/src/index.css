@@ -2320,12 +2320,16 @@ button, input, select { font-family: inherit; }
   padding: 0 3rem;
   box-sizing: border-box;
 }
+.pop-section .shell {
+  width: min(1240px, 96%);
+}
+
 .pop-strip-viewport {
   overflow: hidden;
   width: 100%;
   margin: 0 auto;
   padding: 0.5rem 0 1.25rem;
-  --pop-gap: 1rem;
+  --pop-gap: 0.75rem;
   --pop-visible: 5;
 }
 .pop-strip {
@@ -2334,12 +2338,19 @@ button, input, select { font-family: inherit; }
   width: max-content;
   padding: 0;
   will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* Širina kartice računa JS iz viewporta (--pop-card-width) */
 .pop-strip .product-card {
   flex: 0 0 var(--pop-card-width, 220px);
   min-width: 0;
+}
+
+.pop-strip .product-card > img {
+  aspect-ratio: 1;
+  object-fit: cover;
 }
 
 .pop-arrow {
@@ -2439,6 +2450,9 @@ button, input, select { font-family: inherit; }
   display: flex;
   width: 100%;
   max-width: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
   min-width: 0;
   height: auto;
   will-change: transform;

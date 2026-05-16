@@ -23,6 +23,15 @@ export function attachResolvedImageSrc(products) {
   }))
 }
 
+/** Prvih `count` sa keširanim slikama, ostali čekaju preload u pozadini. */
+export function attachResolvedImageSrcPartial(products, count) {
+  if (!Array.isArray(products)) return []
+  return products.map((p, i) => ({
+    ...p,
+    imageSrc: i < count ? resolveProductImageSrc(p?.imageUrl) : '',
+  }))
+}
+
 function preloadOne(imageUrl) {
   const key = apiImageUrl(imageUrl)
   if (!key) return Promise.resolve()
