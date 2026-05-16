@@ -125,6 +125,12 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
     {
         var product = await db.Products.FindAsync(id);
         if (product is null) return NotFound();
+        if (await db.OrderItems.AnyAsync(x => x.ProductId == id))
+        {
+            return BadRequest(
+                "Proizvod je deo postojećih porudžbina i ne može se obrisati. Istorija porudžbina mora ostati netaknuta.");
+        }
+
         db.Products.Remove(product);
         await db.SaveChangesAsync();
         return NoContent();

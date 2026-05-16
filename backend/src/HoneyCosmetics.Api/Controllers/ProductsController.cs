@@ -217,6 +217,12 @@ public class ProductsController(AppDbContext db) : ControllerBase
             return NotFound();
         }
 
+        if (await db.OrderItems.AnyAsync(x => x.ProductId == id))
+        {
+            return BadRequest(
+                "Proizvod je deo postojećih porudžbina i ne može se obrisati. Istorija porudžbina mora ostati netaknuta.");
+        }
+
         db.Products.Remove(product);
         await db.SaveChangesAsync();
         return NoContent();

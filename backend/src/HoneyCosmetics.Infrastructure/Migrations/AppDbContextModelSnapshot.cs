@@ -646,7 +646,7 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.HasOne("HoneyCosmetics.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Order");

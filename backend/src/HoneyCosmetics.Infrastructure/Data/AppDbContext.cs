@@ -45,6 +45,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(x => x.OrderId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<OrderItem>()
+            .HasOne(x => x.Product)
+            .WithMany()
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<ProductType>()
             .HasMany(pt => pt.Categories)
             .WithOne(c => c.ProductType)
