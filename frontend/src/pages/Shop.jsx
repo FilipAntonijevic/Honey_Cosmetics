@@ -104,7 +104,9 @@ export default function Shop() {
   const searchTerm = (searchParams.get('search') ?? '').trim()
   const isSearchMode = searchTerm.length > 0
   const bestsellersMode = !isSearchMode && ['1', 'true'].includes(searchParams.get('bestsellers') ?? '')
-  const vrstaName = bestsellersMode || isSearchMode ? null : (searchParams.get('vrsta') ?? searchParams.get('category'))
+  const vrstaName = bestsellersMode || isSearchMode
+    ? null
+    : (searchParams.get('type') ?? searchParams.get('vrsta') ?? searchParams.get('category'))
   const categoryIdParam = bestsellersMode || isSearchMode ? null : searchParams.get('categoryId')
   const sort = searchParams.get('sort') ?? 'newest'
 
@@ -196,7 +198,7 @@ export default function Shop() {
   const headerTitle = useMemo(() => {
     if (isSearchMode) return `Pretraga: „${searchTerm}"`
     if (bestsellersMode) return 'Bestsellers'
-    if (!vrstaName) return 'Shop'
+    if (!vrstaName) return 'Svi proizvodi'
     if (categoryIdParam) {
       const cat = categories.find((c) => String(c.id) === String(categoryIdParam))
       if (cat) return `${vrstaName} — ${cat.name}`

@@ -119,6 +119,10 @@ button, input, select { font-family: inherit; }
 
 .page { padding: 1.6rem 0 2.8rem; }
 
+.wishlist-shop-cta {
+  margin-top: 1.75rem;
+}
+
 /* ===== Shop listing (naslov pun širinu ekrana, gradijent od strip vrste proizvoda) ===== */
 .page.shop-page {
   padding-top: 0;
@@ -2311,27 +2315,30 @@ button, input, select { font-family: inherit; }
 
 .pop-strip-wrap {
   position: relative;
+  width: 100%;
+  margin: 0 auto;
   padding: 0 3rem;
-}
-.pop-section .pop-section-head {
-  margin-bottom: 0.25rem;
+  box-sizing: border-box;
 }
 .pop-strip-viewport {
   overflow: hidden;
   width: 100%;
+  margin: 0 auto;
   padding: 0.5rem 0 1.25rem;
+  --pop-gap: 1rem;
+  --pop-visible: 5;
 }
 .pop-strip {
   display: flex;
-  gap: 1rem;
+  gap: var(--pop-gap);
   width: max-content;
   padding: 0;
   will-change: transform;
 }
 
-/* Iste širine kartica kao u prodavnici (.product-grid) */
+/* Širina kartice računa JS iz viewporta (--pop-card-width) */
 .pop-strip .product-card {
-  flex: 0 0 calc((min(1160px, 92vw) - 3 * 1rem) / 4);
+  flex: 0 0 var(--pop-card-width, 220px);
   min-width: 0;
 }
 
@@ -2374,8 +2381,8 @@ button, input, select { font-family: inherit; }
 .pop-arrow.right { right: 0; }
 
 @media (max-width: 980px) {
-  .pop-strip .product-card {
-    flex-basis: calc((min(1160px, 92vw) - 1rem) / 2);
+  .pop-strip-viewport {
+    --pop-visible: min(3, var(--pop-visible));
   }
 }
 
@@ -2384,20 +2391,21 @@ button, input, select { font-family: inherit; }
   .pop-section {
     overflow-x: clip;
   }
+  .pop-section .shell {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 0;
+    padding-right: 0;
+  }
   .pop-section .pop-strip-wrap {
     width: 100%;
-    max-width: 100vw;
     padding: 0;
     margin: 0;
   }
   .pop-section .pop-strip-viewport {
     padding: 0.5rem 0 1.25rem;
-  }
-  .pop-section .pop-strip {
-    gap: 0.6rem;
-  }
-  .pop-section .pop-strip .product-card {
-    flex: 0 0 calc((min(1160px, 92vw) - 0.6rem) / 2);
+    --pop-gap: 0.6rem;
+    --pop-visible: min(2, var(--pop-visible));
   }
   .pop-section .pop-arrow.left {
     left: max(0.05rem, env(safe-area-inset-left, 0px));
@@ -2411,9 +2419,6 @@ button, input, select { font-family: inherit; }
   .pop-arrow {
     width: 2rem;
     height: 2rem;
-  }
-  .pop-section .pop-strip .product-card {
-    flex-basis: calc((min(1160px, 92vw) - 0.6rem) / 2);
   }
 }
 
@@ -2436,7 +2441,6 @@ button, input, select { font-family: inherit; }
   max-width: 100%;
   min-width: 0;
   height: auto;
-  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform;
 }
 .hero-slide {
@@ -3317,6 +3321,18 @@ button, input, select { font-family: inherit; }
   border-top: none;
   border-bottom: none;
   margin: 0;
+  line-height: 1.5;
+}
+.co-payment-hint--last {
+  border: 1px solid #8B6B47;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  background: #faf4ef;
+  color: #5c4a3a;
+}
+.co-payment-card:last-of-type.co-payment-card--selected:has(+ .co-payment-hint--last) {
+  border-radius: 0;
+  border-bottom: none;
 }
 
 /* Error */

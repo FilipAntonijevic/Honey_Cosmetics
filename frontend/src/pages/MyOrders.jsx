@@ -67,7 +67,9 @@ export default function MyOrders() {
               <div className="order-card-footer">
                 <span className="order-payment">{PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod}</span>
                 {order.discount > 0 && (
-                  <span className="order-discount">Popust: -{fmt(order.discount)} RSD</span>
+                  <span className="order-discount">
+                    Popust{order.couponCode ? ` (${order.couponCode})` : ''}: −{fmt(order.discount)} RSD
+                  </span>
                 )}
                 <span className="order-total">Ukupno: <strong>{fmt(order.total)} RSD</strong></span>
               </div>

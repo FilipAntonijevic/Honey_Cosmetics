@@ -18,6 +18,7 @@ export default function Account({ initialMode = 'login' }) {
   const [loginPwInteractable, setLoginPwInteractable] = useState(() => initialMode === 'register')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [registerEmailSent, setRegisterEmailSent] = useState(false)
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -70,6 +71,7 @@ export default function Account({ initialMode = 'login' }) {
   const switchMode = (next) => {
     setMode(next)
     setError('')
+    setRegisterEmailSent(false)
     if (next === 'login') {
       setForm((f) => ({ ...f, password: '', confirmPassword: '' }))
       setLoginPwInteractable(false)
@@ -107,7 +109,7 @@ export default function Account({ initialMode = 'login' }) {
         const result = await login({ email: form.email, password: form.password })
         navigate(result?.role === 'Admin' ? '/admin' : from, { replace: true })
       } else {
-        const result = await register({
+        await register({
           email: form.email,
           password: form.password,
           confirmPassword: form.confirmPassword,
@@ -119,7 +121,7 @@ export default function Account({ initialMode = 'login' }) {
           postalCode: form.postalCode.trim() || undefined,
           country: form.country || 'Srbija',
         })
-        navigate(result?.role === 'Admin' ? '/admin' : from, { replace: true })
+        setRegisterEmailSent(true)
       }
     } catch (err) {
       if (mode === 'login') {
@@ -148,6 +150,26 @@ export default function Account({ initialMode = 'login' }) {
         </div>
 
         <h1 className="auth-title">{isRegister ? 'Kreirajte nalog' : 'Dobrodošli'}</h1>
+
+        {registerEmailSent ? (
+          <div className="auth-success">
+            <p>
+              Poslali smo vam email sa linkom za potvrdu na adresu{' '}
+              <strong>{form.email}</strong>.
+            </p>
+            <p style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: '#6b7280' }}>
+              Kliknite na link u emailu da aktivirate nalog. Link važi 24 sata.
+            </p>
+            <div className="auth-footer" style={{ marginTop: '1.25rem' }}>
+              <div className="auth-switch">
+                <button type="button" className="auth-link-btn" onClick={() => switchMode('login')}>
+                  Idi na prijavu
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+        <>
         <p className="auth-sub">
           {isRegister ? 'Postanite deo Honey zajednice' : 'Prijavite se u vaš Honey nalog'}
         </p>
@@ -338,6 +360,8 @@ export default function Account({ initialMode = 'login' }) {
             </Link>
           )}
         </div>
+        </>
+        )}
       </div>
     </section>
   )

@@ -32,6 +32,10 @@ public record UpdateProfileRequest(
     string? PostalCode,
     string? Country);
 
+public record RegisterResponse(string Message);
+
+public record ConfirmEmailRequest([Required] string Token);
+
 public record AuthResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserSummary User);
 
 // All user fields returned on login/register/refresh so frontend can prefill forms

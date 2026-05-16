@@ -12,6 +12,7 @@ import Account from './pages/Login'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
+import ConfirmEmail from './pages/ConfirmEmail'
 import MyOrders from './pages/MyOrders'
 import Profile from './pages/Profile'
 import StaticPage from './pages/StaticPage'
@@ -74,7 +75,7 @@ function SamePageScrollToTop() {
       if (url.origin !== window.location.origin) return
 
       const current = `${location.pathname}${location.search}${location.hash}`
-      const target = `${url.pathname}${url.search}${url.hash}`
+      const target = `${toRouterPath(url.pathname)}${url.search}${url.hash}`
 
       if (current === target) {
         e.preventDefault()
@@ -124,6 +125,7 @@ function ClientRoutes() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/confirm-email" element={<ConfirmEmail />} />
         <Route path="/about" element={<About />} />
         <Route path="/collaboration" element={<Collaboration />} />
         <Route path="/contact" element={<Contact />} />
@@ -165,10 +167,27 @@ function AppRoutes() {
   )
 }
 
-function routerBasename() {
+function getRouterBasePath() {
   const base = import.meta.env.BASE_URL
-  if (!base || base === '/') return undefined
+  if (!base || base === '/') return ''
   return base.endsWith('/') ? base.slice(0, -1) : base
+}
+
+function routerBasename() {
+  const base = getRouterBasePath()
+  return base || undefined
+}
+
+/** Browser pathname → router path (npr. /Honey_Cosmetics/ → / na GitHub Pages). */
+function toRouterPath(pathname) {
+  const base = getRouterBasePath()
+  let path = pathname || '/'
+  if (base) {
+    if (path === base || path === `${base}/`) path = '/'
+    else if (path.startsWith(`${base}/`)) path = path.slice(base.length) || '/'
+  }
+  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1)
+  return path || '/'
 }
 
 export default function App() {

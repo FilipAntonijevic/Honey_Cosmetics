@@ -65,6 +65,17 @@ public class CouponsController(AppDbContext db) : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
+    [HttpPatch("{id:int}/deactivate")]
+    public async Task<IActionResult> Deactivate(int id)
+    {
+        var coupon = await db.Coupons.FindAsync(id);
+        if (coupon is null) return NotFound();
+        coupon.IsActive = false;
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {

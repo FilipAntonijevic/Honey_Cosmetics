@@ -115,21 +115,9 @@ export function StoreProvider({ children }) {
 
   const register = useCallback(async (payload) => {
     const { data } = await api.post('/auth/register', payload)
-    localStorage.setItem('honey_access_token', data.accessToken)
-    localStorage.setItem('honey_refresh_token', data.refreshToken)
-    setUser(data.user)
-    setToast('Nalog je kreiran.')
-    await Promise.all(
-      cart.map((item) =>
-        api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {}),
-      ),
-    )
-    try {
-      const { data: serverCart } = await api.get('/cart')
-      setCart(mapServerCartRows(serverCart ?? []))
-    } catch {}
-    return data.user
-  }, [cart])
+    setToast(data.message ?? 'Proverite email i potvrdite registraciju.')
+    return data
+  }, [])
 
   const logout = useCallback(async () => {
     try {

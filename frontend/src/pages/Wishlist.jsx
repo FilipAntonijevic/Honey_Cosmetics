@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
 
@@ -24,6 +25,10 @@ export default function Wishlist() {
           ))}
         </div>
       )}
+
+      <p className="wishlist-shop-cta">
+        <Link className="cta" to="/shop">Izaberi proizvode</Link>
+      </p>
     </section>
   )
 }

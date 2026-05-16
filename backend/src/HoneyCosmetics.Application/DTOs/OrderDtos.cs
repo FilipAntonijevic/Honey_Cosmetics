@@ -15,7 +15,7 @@ public record GuestCheckoutRequest(
 
 public record OrderItemResponse(int ProductId, string ProductName, string? ImageUrl, int Quantity, decimal UnitPrice);
 
-public record OrderResponse(int Id, string DeliveryAddress, string? Phone, PaymentMethod PaymentMethod, string Status, decimal Subtotal, decimal Discount, decimal Total, DateTime CreatedAt, IReadOnlyCollection<OrderItemResponse> Items);
+public record OrderResponse(int Id, string DeliveryAddress, string? Phone, PaymentMethod PaymentMethod, string Status, decimal Subtotal, decimal Discount, string? CouponCode, decimal Total, DateTime CreatedAt, IReadOnlyCollection<OrderItemResponse> Items);
 
 public record CouponRequest(string Code, decimal DiscountValue, bool IsPercentage, DateTime? ExpiresAt, bool FirstOrderOnly);
 public record CouponValidationResponse(bool IsValid, string Message, decimal DiscountValue, bool IsPercentage);

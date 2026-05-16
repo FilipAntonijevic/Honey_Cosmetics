@@ -14,6 +14,8 @@ public class Order
     public PaymentMethod PaymentMethod { get; set; }
     public decimal Subtotal { get; set; }
     public decimal Discount { get; set; }
+    /// <summary>Code of the coupon applied at checkout (e.g. SUMMER10), if any.</summary>
+    public string? CouponCode { get; set; }
     public decimal Total { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -92,6 +92,7 @@ public class OrdersController(
             PaymentMethod = request.PaymentMethod,
             Subtotal = subtotal,
             Discount = discount,
+            CouponCode = coupon?.Code,
             Total = total,
             Status = request.PaymentMethod == PaymentMethod.BankTransfer ? OrderStatus.AwaitingPayment : OrderStatus.Pending,
             Items = cartItems.Select(x => new OrderItem { ProductId = x.ProductId, Quantity = x.Quantity, UnitPrice = x.Product!.Price }).ToList()
@@ -112,7 +113,6 @@ public class OrdersController(
         var settings = sendGridOptions.Value;
         // Build from cartItems — Product nav property is already loaded there
         var orderItems = cartItems.Select(x => (x.Product!.Name, x.Quantity, x.Product.Price)).ToList();
-        var couponCode = request.CouponCode?.Trim().ToUpperInvariant();
 
         logger.LogInformation("[Order {OrderId}] Sending confirmation to user {Email}", order.Id, user.Email);
         // Confirmation to user
@@ -120,7 +120,7 @@ public class OrdersController(
         {
             var body = BuildUserConfirmationEmail(
                 user.FullName, order.Id, orderItems, order.Subtotal, order.Discount,
-                couponCode, order.Total, order.DeliveryAddress, order.Phone,
+                order.CouponCode, order.Total, order.DeliveryAddress, order.Phone,
                 order.PaymentMethod.ToString(), order.CreatedAt);
             await emailService.SendAsync(user.Email, $"Honey Cosmetics — Potvrda porudžbine #{order.Id}", body);
             logger.LogInformation("[Order {OrderId}] User email sent OK", order.Id);
@@ -134,7 +134,7 @@ public class OrdersController(
         {
             var body = BuildAdminNotificationEmail(
                 user.FullName, user.Email, order.Id, orderItems, order.Subtotal, order.Discount,
-                couponCode, order.Total, order.DeliveryAddress, order.Phone,
+                order.CouponCode, order.Total, order.DeliveryAddress, order.Phone,
                 order.PaymentMethod.ToString(), order.CreatedAt);
             await emailService.SendAsync(notificationsEmail, $"Nova porudžbina #{order.Id} — {user.FullName}", body);
             logger.LogInformation("[Order {OrderId}] Admin email sent OK", order.Id);
@@ -202,8 +202,6 @@ public class OrdersController(
         var guestName = order.GuestName ?? "Gost";
         // Build from products dict — Product nav property is not loaded on order.Items
         var orderItemsGuest = request.Items.Select(i => (products[i.ProductId].Name, i.Quantity, products[i.ProductId].Price)).ToList();
-        string? couponCodeGuest = null;
-
         // Confirmation to guest
         if (!string.IsNullOrWhiteSpace(order.GuestEmail))
         {
@@ -218,7 +216,7 @@ public class OrdersController(
                         orderItemsGuest,
                         order.Subtotal,
                         order.Discount,
-                        couponCodeGuest,
+                        order.CouponCode,
                         order.Total,
                         order.DeliveryAddress,
                         order.Phone,
@@ -242,7 +240,7 @@ public class OrdersController(
                     orderItemsGuest,
                     order.Subtotal,
                     order.Discount,
-                    couponCodeGuest,
+                    order.CouponCode,
                     order.Total,
                     order.DeliveryAddress,
                     order.Phone,
@@ -294,7 +292,7 @@ public class OrdersController(
     }
 
     private static OrderResponse MapOrder(Order order) =>
-        new(order.Id, order.DeliveryAddress, order.Phone, order.PaymentMethod, order.Status.ToString(), order.Subtotal, order.Discount, order.Total, order.CreatedAt,
+        new(order.Id, order.DeliveryAddress, order.Phone, order.PaymentMethod, order.Status.ToString(), order.Subtotal, order.Discount, order.CouponCode, order.Total, order.CreatedAt,
             order.Items.Select(x => new OrderItemResponse(x.ProductId, x.Product?.Name ?? string.Empty, x.Product?.ImageUrl, x.Quantity, x.UnitPrice)).ToList());
 
     // Resolves the inbox where order/shipment notifications should be delivered.

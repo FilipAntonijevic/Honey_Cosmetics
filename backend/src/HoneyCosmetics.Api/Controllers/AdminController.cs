@@ -364,6 +364,7 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         o.Status.ToString(),
         o.Subtotal,
         o.Discount,
+        o.CouponCode,
         o.Total,
         o.CreatedAt,
         o.Items.Select(i => new OrderItemResponse(i.ProductId, i.Product?.Name ?? "—", i.Product?.ImageUrl, i.Quantity, i.UnitPrice)).ToList());
@@ -381,6 +382,7 @@ public record AdminOrderResponse(
     string Status,
     decimal Subtotal,
     decimal Discount,
+    string? CouponCode,
     decimal Total,
     DateTime CreatedAt,
     IReadOnlyCollection<OrderItemResponse> Items);

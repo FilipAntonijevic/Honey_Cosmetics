@@ -7,6 +7,7 @@ namespace HoneyCosmetics.Infrastructure.Data;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<PendingRegistration> PendingRegistrations => Set<PendingRegistration>();
     public DbSet<ProductType> ProductTypes => Set<ProductType>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
@@ -24,6 +25,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     {
         modelBuilder.Entity<User>().Ignore(x => x.FullName);
         modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
+        modelBuilder.Entity<PendingRegistration>().HasIndex(x => x.Email).IsUnique();
+        modelBuilder.Entity<PendingRegistration>().HasIndex(x => x.ConfirmationToken).IsUnique();
         modelBuilder.Entity<Coupon>().HasIndex(x => x.Code).IsUnique();
         modelBuilder.Entity<CouponUsage>().HasIndex(x => new { x.CouponId, x.UserId }).IsUnique();
         modelBuilder.Entity<Wishlist>().HasIndex(x => new { x.UserId, x.ProductId }).IsUnique();

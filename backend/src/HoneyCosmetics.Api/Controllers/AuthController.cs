@@ -20,29 +20,79 @@ public class AuthController(
     IConfiguration configuration) : ControllerBase
 {
     [HttpPost("register")]
-    public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request)
+    public async Task<ActionResult<RegisterResponse>> Register(RegisterRequest request)
     {
         if (request.Password != request.ConfirmPassword)
             return BadRequest("Passwords do not match.");
 
-        if (await db.Users.AnyAsync(x => x.Email == request.Email.Trim().ToLowerInvariant()))
+        var email = request.Email.Trim().ToLowerInvariant();
+
+        if (await db.Users.AnyAsync(x => x.Email == email))
             return BadRequest("Email already in use.");
+
+        var token = CreateUrlSafeToken();
+        var pending = await db.PendingRegistrations.FirstOrDefaultAsync(x => x.Email == email);
+        if (pending is null)
+        {
+            pending = new PendingRegistration { Email = email };
+            db.PendingRegistrations.Add(pending);
+        }
+
+        pending.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        pending.FirstName = request.FirstName.Trim();
+        pending.LastName = request.LastName.Trim();
+        pending.PhoneNumber = request.PhoneNumber?.Trim();
+        pending.Street = request.Street?.Trim();
+        pending.City = request.City?.Trim();
+        pending.PostalCode = request.PostalCode?.Trim();
+        pending.Country = request.Country?.Trim() ?? "Srbija";
+        pending.ConfirmationToken = token;
+        pending.ConfirmationTokenExpiresAt = DateTime.UtcNow.AddHours(24);
+
+        await db.SaveChangesAsync();
+
+        var frontendUrl = configuration["FrontendUrl"] ?? "http://localhost:5173";
+        var link = $"{frontendUrl}/confirm-email?token={Uri.EscapeDataString(token)}";
+        var body = BuildConfirmEmailBody(pending.FirstName, link);
+        await emailService.SendAsync(email, "Honey Cosmetics — Potvrdite registraciju", body);
+
+        return Ok(new RegisterResponse(
+            "Poslali smo vam email sa linkom za potvrdu. Kliknite na link da biste aktivirali nalog."));
+    }
+
+    [HttpPost("confirm-email")]
+    public async Task<ActionResult<AuthResponse>> ConfirmEmail(ConfirmEmailRequest request)
+    {
+        var pending = await db.PendingRegistrations.FirstOrDefaultAsync(x =>
+            x.ConfirmationToken == request.Token &&
+            x.ConfirmationTokenExpiresAt > DateTime.UtcNow);
+        if (pending is null)
+            return BadRequest("Link za potvrdu je nevažeći ili je istekao.");
+
+        if (await db.Users.AnyAsync(x => x.Email == pending.Email))
+        {
+            db.PendingRegistrations.Remove(pending);
+            await db.SaveChangesAsync();
+            return BadRequest("Nalog sa ovim emailom već postoji. Prijavite se.");
+        }
 
         var user = new User
         {
-            Email = request.Email.Trim().ToLowerInvariant(),
-            FirstName = request.FirstName.Trim(),
-            LastName = request.LastName.Trim(),
-            PhoneNumber = request.PhoneNumber?.Trim(),
-            Street = request.Street?.Trim(),
-            City = request.City?.Trim(),
-            PostalCode = request.PostalCode?.Trim(),
-            Country = request.Country?.Trim() ?? "Srbija",
-            Role = UserRole.User
+            Email = pending.Email,
+            FirstName = pending.FirstName,
+            LastName = pending.LastName,
+            PhoneNumber = pending.PhoneNumber,
+            Street = pending.Street,
+            City = pending.City,
+            PostalCode = pending.PostalCode,
+            Country = pending.Country ?? "Srbija",
+            Role = UserRole.User,
+            PasswordHash = pending.PasswordHash,
         };
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
         db.Users.Add(user);
+        db.PendingRegistrations.Remove(pending);
+
         db.Coupons.Add(new Coupon
         {
             Code = $"WELCOME-{user.Id.ToString()[..8].ToUpperInvariant()}",
@@ -50,7 +100,7 @@ public class AuthController(
             IsPercentage = true,
             FirstOrderOnly = true,
             IsActive = true,
-            ExpiresAt = DateTime.UtcNow.AddMonths(1)
+            ExpiresAt = DateTime.UtcNow.AddMonths(1),
         });
 
         await db.SaveChangesAsync();
@@ -196,6 +246,22 @@ public class AuthController(
                 user.Country
             ));
     }
+
+    private static string CreateUrlSafeToken() =>
+        Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+            .Replace("+", "-").Replace("/", "_").Replace("=", "");
+
+    private static string BuildConfirmEmailBody(string name, string link) => $"""
+        <div style="font-family:Georgia,serif;max-width:520px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
+          <h2 style="color:#3f2b22;margin-bottom:0.3rem;">Honey Cosmetics</h2>
+          <p style="color:#9b8276;font-size:0.85rem;margin-top:0;">Premium Beauty</p>
+          <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.5rem 0;">
+          <p>Zdravo {name},</p>
+          <p>Hvala što ste se registrovali. Da bismo proverili da je ova email adresa vaša, kliknite na dugme ispod i aktivirajte nalog:</p>
+          <a href="{link}" style="display:inline-block;background:#131313;color:#fff;padding:.75rem 1.5rem;border-radius:999px;text-decoration:none;margin:1rem 0;font-size:0.9rem;">Potvrdi registraciju</a>
+          <p style="color:#9b8276;font-size:0.82rem;margin-top:1.5rem;">Link važi 24 sata. Ako niste vi kreirali nalog, ignorišite ovaj email.</p>
+        </div>
+        """;
 
     private static string BuildForgotPasswordEmail(string name, string link) => $"""
         <div style="font-family:Georgia,serif;max-width:520px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">

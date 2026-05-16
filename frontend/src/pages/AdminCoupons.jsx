@@ -58,6 +58,12 @@ export default function AdminCoupons() {
     }
   }
 
+  const deactivateCoupon = async (id) => {
+    if (!confirm('Deaktivirati kupon? Neće biti moguće iskoristiti, ali ostaje u listi.')) return
+    await api.patch(`/coupons/${id}/deactivate`)
+    setCoupons(prev => prev.map(c => (c.id === id ? { ...c, isActive: false } : c)))
+  }
+
   const deleteCoupon = async (id) => {
     if (!confirm('Obrisati kupon?')) return
     await api.delete(`/coupons/${id}`)
@@ -140,6 +146,7 @@ export default function AdminCoupons() {
                 <th>Prva narudžbina</th>
                 <th>Iskorišćen</th>
                 <th>Status</th>
+                <th>Deaktiviraj</th>
                 <th></th>
               </tr>
             </thead>
@@ -162,7 +169,22 @@ export default function AdminCoupons() {
                     </span>
                   </td>
                   <td>
+                    {c.isActive ? (
+                      <button
+                        type="button"
+                        className="adm-btn-sm"
+                        style={{ background: '#fef3c7', color: '#b45309', border: 'none', borderRadius: 6, padding: '0.3rem 0.7rem', cursor: 'pointer' }}
+                        onClick={() => deactivateCoupon(c.id)}
+                      >
+                        Deaktiviraj
+                      </button>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>
                     <button
+                      type="button"
                       className="adm-btn-sm"
                       style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '0.3rem 0.7rem', cursor: 'pointer' }}
                       onClick={() => deleteCoupon(c.id)}

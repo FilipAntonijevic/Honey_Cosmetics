@@ -253,7 +253,16 @@ export default function AdminOrders() {
                         <div className="adm-order-detail-col">
                           <strong>Adresa dostave:</strong> {order.deliveryAddress}<br />
                           <strong>Telefon:</strong> {order.phone ?? '—'}<br />
-                          <strong>Popust:</strong> {order.discount > 0 ? `${order.discount.toLocaleString('sr-RS')} RSD` : '—'}
+                          <strong>Međuzbir:</strong> {Number(order.subtotal).toLocaleString('sr-RS')} RSD<br />
+                          {order.couponCode && (
+                            <>
+                              <strong>Kupon:</strong> {order.couponCode}<br />
+                            </>
+                          )}
+                          <strong>Popust:</strong>{' '}
+                          {order.discount > 0
+                            ? `−${Number(order.discount).toLocaleString('sr-RS')} RSD`
+                            : '—'}
                         </div>
                         <div className="adm-order-items">
                           <strong>Stavke:</strong>

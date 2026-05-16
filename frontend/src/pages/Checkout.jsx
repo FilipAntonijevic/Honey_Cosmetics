@@ -242,6 +242,12 @@ export default function Checkout() {
                 />
                 <span className="co-payment-name">Direktna bankovna transakcija</span>
               </label>
+              {form.paymentMethod === '1' && (
+                <p className="co-payment-hint co-payment-hint--last">
+                  Platite narudžbinu direktno na našem računu. Molimo Vas koristite broj narudžbine kao
+                  poziv na broj. Vaša narudžbina neće biti poslata dok sredstva ne budu uplaćena na naš račun.
+                </p>
+              )}
             </div>
           </section>
 

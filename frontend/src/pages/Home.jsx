@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
-import ApiImage from '../components/ApiImage'
 import { publicUrl } from '../lib/assets'
+import { attachResolvedImageSrc, preloadProductImagesAwait } from '../lib/imagePreload'
+
+const POP_VISIBLE_MAX = 5
 
 const HERO_IMAGES = [
   publicUrl('/hero/POCETNA.jpg'),
@@ -15,9 +17,8 @@ const HERO_IMAGES = [
 
 const HERO_INTERVAL_MS = 6000
 const PRODUCT_INTERVAL_MS = 4500
-const TRANSITION_FALLBACK_MS = 850
+const TRANSITION_FALLBACK_MS = 900
 
-/** Tab u pozadini: browser ne izvršava transitionend pouzdano — karusel mora pauzirati i resetovati poziciju. */
 function useTabVisible() {
   const [visible, setVisible] = useState(() => document.visibilityState === 'visible')
   useEffect(() => {
@@ -29,10 +30,7 @@ function useTabVisible() {
 }
 
 /**
- * Endless hero carousel.
- * Renders [lastClone, ...images, firstClone] and silently snaps from the
- * clones back to the real slides on transitionend, so the carousel can move
- * forward forever without ever "rewinding" visually.
+ * Endless hero carousel — [lastClone, ...images, firstClone], snap on clone slides.
  */
 function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
   const N = images.length
@@ -40,79 +38,188 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
     () => (N > 0 ? [images[N - 1], ...images, images[0]] : []),
     [images, N],
   )
+  const lastIndex = slides.length - 1
 
   const tabVisible = useTabVisible()
+  const trackRef = useRef(null)
+  const busyRef = useRef(false)
+  const fallbackRef = useRef(null)
+
   const [index, setIndex] = useState(1)
   const [withTransition, setWithTransition] = useState(true)
   const [paused, setPaused] = useState(false)
+  const [autoScrollKey, setAutoScrollKey] = useState(0)
+  const indexRef = useRef(1)
+  indexRef.current = index
+
   const touchStartX = useRef(null)
   const touchStartY = useRef(null)
 
+  const resetAutoScroll = useCallback(() => setAutoScrollKey((k) => k + 1), [])
+
+  const clearFallback = useCallback(() => {
+    if (fallbackRef.current != null) {
+      clearTimeout(fallbackRef.current)
+      fallbackRef.current = null
+    }
+  }, [])
+
+  const releaseBusyAfterSnap = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setWithTransition(true)
+        busyRef.current = false
+      })
+    })
+  }, [])
+
+  const jumpWithoutTransition = useCallback(
+    (targetIndex) => {
+      const fromClone = indexRef.current <= 0 || indexRef.current >= lastIndex
+      clearFallback()
+      setWithTransition(false)
+      setIndex(targetIndex)
+      releaseBusyAfterSnap()
+      if (fromClone) setAutoScrollKey((k) => k + 1)
+    },
+    [lastIndex, clearFallback, releaseBusyAfterSnap],
+  )
+
+  const getRealIndex = useCallback(() => {
+    const i = indexRef.current
+    if (i <= 0) return N - 1
+    if (i >= lastIndex) return 0
+    return i - 1
+  }, [N, lastIndex])
+
+  const isOnClone = useCallback(
+    () => {
+      const i = indexRef.current
+      return i <= 0 || i >= lastIndex
+    },
+    [lastIndex],
+  )
+
   const snapIfOnClone = useCallback(() => {
-    setIndex((i) => {
-      if (i >= slides.length - 1) {
-        setWithTransition(false)
-        return 1
-      }
-      if (i <= 0) {
-        setWithTransition(false)
-        return slides.length - 2
-      }
-      return i
-    })
-  }, [slides.length])
+    const i = indexRef.current
+    if (i >= lastIndex) jumpWithoutTransition(1)
+    else if (i <= 0) jumpWithoutTransition(lastIndex - 1)
+    else busyRef.current = false
+  }, [lastIndex, jumpWithoutTransition])
 
-  const next = useCallback(() => {
-    setWithTransition(true)
-    setIndex((i) => i + 1)
-  }, [])
-  const prev = useCallback(() => {
-    setWithTransition(true)
-    setIndex((i) => i - 1)
-  }, [])
-  const goTo = useCallback((real) => {
-    setWithTransition(true)
-    setIndex(real + 1)
-  }, [])
+  const scheduleCloneFallback = useCallback(() => {
+    clearFallback()
+    fallbackRef.current = setTimeout(snapIfOnClone, TRANSITION_FALLBACK_MS)
+  }, [clearFallback, snapIfOnClone])
 
-  // Auto-rotate (ne u pozadinskom tabu — inače index „beži“ bez transitionend)
+  /** Ista logika kao tačkice — uvek cilja pravi slajd (1…N), ne inkrement klonova. */
+  const navigateToReal = useCallback(
+    (real) => {
+      if (N === 0) return
+      const target = ((real % N) + N) % N + 1
+      const current = indexRef.current
+
+      clearFallback()
+
+      if (current <= 0 || current >= lastIndex) {
+        jumpWithoutTransition(target)
+        return
+      }
+
+      if (current === target) {
+        busyRef.current = false
+        return
+      }
+
+      if (busyRef.current) return
+
+      busyRef.current = true
+      setWithTransition(true)
+      setIndex(target)
+    },
+    [N, lastIndex, clearFallback, jumpWithoutTransition],
+  )
+
+  const navigateNext = useCallback(() => {
+    if (N === 0) return
+    const current = indexRef.current
+    const real = getRealIndex()
+
+    if (isOnClone()) {
+      snapIfOnClone()
+      return
+    }
+
+    if (real === N - 1) {
+      if (busyRef.current) return
+      busyRef.current = true
+      setWithTransition(true)
+      setIndex(lastIndex)
+      scheduleCloneFallback()
+      return
+    }
+
+    navigateToReal(real + 1)
+  }, [N, lastIndex, getRealIndex, isOnClone, snapIfOnClone, navigateToReal, scheduleCloneFallback])
+
+  const navigatePrev = useCallback(() => {
+    if (N === 0) return
+    const current = indexRef.current
+    const real = getRealIndex()
+
+    if (isOnClone()) {
+      snapIfOnClone()
+      return
+    }
+
+    if (real === 0) {
+      if (busyRef.current) return
+      busyRef.current = true
+      setWithTransition(true)
+      setIndex(0)
+      scheduleCloneFallback()
+      return
+    }
+
+    navigateToReal(real - 1)
+  }, [N, getRealIndex, isOnClone, snapIfOnClone, navigateToReal, scheduleCloneFallback])
+
   useEffect(() => {
-    if (paused || !tabVisible || N === 0) return
-    const id = setTimeout(next, interval)
+    if (paused || !tabVisible || N === 0 || isOnClone()) return
+    const id = setTimeout(() => navigateNext(), interval)
     return () => clearTimeout(id)
-  }, [index, paused, tabVisible, interval, N, next])
+  }, [index, paused, tabVisible, interval, N, navigateNext, autoScrollKey, isOnClone])
 
   useEffect(() => {
-    if (tabVisible) snapIfOnClone()
-  }, [tabVisible, snapIfOnClone])
-
-  // Ako transitionend ne stigne (npr. tab u pozadini), tiho vrati na pravi slajd
-  useEffect(() => {
-    if (index <= 0 || index >= slides.length - 1) {
-      const id = setTimeout(snapIfOnClone, TRANSITION_FALLBACK_MS)
-      return () => clearTimeout(id)
+    if (!tabVisible) {
+      clearFallback()
+      return
     }
-  }, [index, slides.length, snapIfOnClone])
+    busyRef.current = false
+    snapIfOnClone()
+  }, [tabVisible, snapIfOnClone, clearFallback])
 
-  // Snap clones back to the real slide without animation
-  const onTransitionEnd = () => {
-    if (index === slides.length - 1) {
-      setWithTransition(false)
-      setIndex(1)
-    } else if (index === 0) {
-      setWithTransition(false)
-      setIndex(slides.length - 2)
-    }
-  }
+  const onArrowPrev = useCallback(() => {
+    resetAutoScroll()
+    navigatePrev()
+  }, [resetAutoScroll, navigatePrev])
 
-  // After a silent snap, re-enable transitions for the next user action
-  useEffect(() => {
-    if (withTransition) return
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setWithTransition(true))
-    })
-    return () => cancelAnimationFrame(id)
-  }, [withTransition])
+  const onArrowNext = useCallback(() => {
+    resetAutoScroll()
+    navigateNext()
+  }, [resetAutoScroll, navigateNext])
+
+  const onTransitionEnd = useCallback(
+    (e) => {
+      if (e.target !== trackRef.current || e.propertyName !== 'transform') return
+      clearFallback()
+      const i = indexRef.current
+      if (i >= lastIndex) jumpWithoutTransition(1)
+      else if (i <= 0) jumpWithoutTransition(lastIndex - 1)
+      else busyRef.current = false
+    },
+    [indexRef, lastIndex, clearFallback, jumpWithoutTransition],
+  )
 
   const onTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX
@@ -123,17 +230,19 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
     const dx = e.changedTouches[0].clientX - touchStartX.current
     const dy = e.changedTouches[0].clientY - touchStartY.current
     if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 0) prev()
-      else next()
+      if (dx > 0) navigatePrev()
+      else navigateNext()
     }
     touchStartX.current = null
     touchStartY.current = null
   }
 
   const onKeyDown = (e) => {
-    if (e.key === 'ArrowLeft') prev()
-    else if (e.key === 'ArrowRight') next()
+    if (e.key === 'ArrowLeft') navigatePrev()
+    else if (e.key === 'ArrowRight') navigateNext()
   }
+
+  useEffect(() => () => clearFallback(), [clearFallback])
 
   if (N === 0) return null
 
@@ -155,6 +264,7 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
       onKeyDown={onKeyDown}
     >
       <div
+        ref={trackRef}
         className="hero-track"
         style={{
           transform: `translateX(-${index * 100}%)`,
@@ -174,7 +284,7 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
       <button
         type="button"
         className="hero-arrow left"
-        onClick={prev}
+        onClick={onArrowPrev}
         aria-label="Prethodna slika"
       >
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -184,7 +294,7 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
       <button
         type="button"
         className="hero-arrow right"
-        onClick={next}
+        onClick={onArrowNext}
         aria-label="Sledeća slika"
       >
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -201,7 +311,7 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
             aria-selected={i === realIndex}
             aria-label={`Slika ${i + 1}`}
             className={`hero-dot${i === realIndex ? ' active' : ''}`}
-            onClick={() => goTo(i)}
+            onClick={() => navigateToReal(i)}
           />
         ))}
       </div>
@@ -209,141 +319,259 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
   )
 }
 
-/**
- * Endless product strip (isto kao hero).
- * Tri kopije liste; pomeramo translateX i na transitionend tiho skačemo
- * nazad u srednju kopiju — bez vidljivog povratka na početak.
- */
+function ProductCarouselCard({ product, onAddToCart, onToggleWishlist }) {
+  return (
+    <article className="product-card">
+      {product.imageSrc ? (
+        <img src={product.imageSrc} alt={product.name} loading="eager" decoding="async" draggable="false" />
+      ) : null}
+      <div className="product-card-body">
+        <h3>
+          <Link to={`/products/${product.id}`}>{product.name}</Link>
+        </h3>
+        <p>{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
+        <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
+        <div className="card-actions">
+          <button type="button" onClick={() => onAddToCart(product)}>Dodaj u korpu</button>
+          <button type="button" className="ghost" onClick={() => onToggleWishlist(product)}>
+            Wishlist
+          </button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
 function ProductCarousel({ products }) {
+  const N = products.length
+  const slides = useMemo(() => {
+    if (N === 0) return []
+    return [
+      { product: products[N - 1], slideKey: 'clone-prev' },
+      ...products.map((p) => ({ product: p, slideKey: String(p.id) })),
+      { product: products[0], slideKey: 'clone-next' },
+    ]
+  }, [products, N])
+  const lastIndex = slides.length - 1
+
   const tabVisible = useTabVisible()
+  const viewportRef = useRef(null)
   const trackRef = useRef(null)
-  const singleWidthRef = useRef(0)
-  const offsetRef = useRef(0)
+  const stepRef = useRef(0)
+  const busyRef = useRef(false)
+  const fallbackRef = useRef(null)
   const touchStartX = useRef(null)
   const touchStartY = useRef(null)
-  const [offset, setOffset] = useState(0)
+  const [index, setIndex] = useState(1)
+  const [stepPx, setStepPx] = useState(0)
   const [withTransition, setWithTransition] = useState(true)
   const [ready, setReady] = useState(false)
   const [paused, setPaused] = useState(false)
+  const [autoScrollKey, setAutoScrollKey] = useState(0)
+  const indexRef = useRef(1)
+  indexRef.current = index
+
   const { addToCart, toggleWishlist } = useStore()
 
-  const itemsCount = products.length
-  const loop = useMemo(() => {
-    if (itemsCount === 0) return []
-    return [...products, ...products, ...products]
-  }, [products, itemsCount])
+  const resetAutoScroll = useCallback(() => setAutoScrollKey((k) => k + 1), [])
 
-  const cardStep = useCallback(() => {
+  const measureStep = useCallback(() => {
+    const viewport = viewportRef.current
     const track = trackRef.current
-    if (!track) return 280
-    const card = track.querySelector('.product-card')
-    if (!card) return 280
+    if (!viewport || !track || N === 0) return
+    const visible = Math.min(POP_VISIBLE_MAX, N)
     const gap = parseFloat(getComputedStyle(track).gap || '16')
-    return card.offsetWidth + gap
-  }, [])
-
-  const measureAndCenter = useCallback(() => {
-    const track = trackRef.current
-    if (!track || itemsCount === 0) return
-    const sw = track.scrollWidth / 3
-    if (sw <= 0) {
-      requestAnimationFrame(measureAndCenter)
-      return
-    }
-    singleWidthRef.current = sw
-    setWithTransition(false)
-    setOffset(sw)
-    offsetRef.current = sw
+    const cardWidth = (viewport.clientWidth - (visible - 1) * gap) / visible
+    if (cardWidth <= 0) return
+    viewport.style.setProperty('--pop-card-width', `${cardWidth}px`)
+    const step = cardWidth + gap
+    stepRef.current = step
+    setStepPx(step)
     setReady(true)
-  }, [itemsCount])
+  }, [N])
 
   useEffect(() => {
     setReady(false)
-    measureAndCenter()
+    setStepPx(0)
+    const id = requestAnimationFrame(measureStep)
+    const viewport = viewportRef.current
     const track = trackRef.current
-    if (!track) return undefined
-    const ro = new ResizeObserver(() => measureAndCenter())
+    if (!viewport || !track) return () => cancelAnimationFrame(id)
+    const ro = new ResizeObserver(() => measureStep())
+    ro.observe(viewport)
     ro.observe(track)
-    window.addEventListener('resize', measureAndCenter)
+    window.addEventListener('resize', measureStep)
     return () => {
+      cancelAnimationFrame(id)
       ro.disconnect()
-      window.removeEventListener('resize', measureAndCenter)
+      window.removeEventListener('resize', measureStep)
     }
-  }, [measureAndCenter, products])
+  }, [measureStep, products])
 
-  useEffect(() => {
-    offsetRef.current = offset
-  }, [offset])
-
-  useEffect(() => {
-    if (withTransition) return
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setWithTransition(true))
-    })
-    return () => cancelAnimationFrame(id)
-  }, [withTransition])
-
-  const shift = useCallback((direction) => {
-    setWithTransition(true)
-    setOffset((o) => o + direction * cardStep())
-  }, [cardStep])
-
-  const snapOffsetIfNeeded = useCallback(() => {
-    const sw = singleWidthRef.current
-    if (!sw) return
-    const o = offsetRef.current
-    if (o >= 2 * sw - 1) {
-      setWithTransition(false)
-      setOffset(o - sw)
-    } else if (o < sw) {
-      setWithTransition(false)
-      setOffset(o + sw)
-    } else if (o > 2.5 * sw) {
-      setWithTransition(false)
-      const mid = sw + (((o - sw) % sw) + sw) % sw
-      setOffset(mid)
+  const clearFallback = useCallback(() => {
+    if (fallbackRef.current != null) {
+      clearTimeout(fallbackRef.current)
+      fallbackRef.current = null
     }
   }, [])
 
-  const onTransitionEnd = (e) => {
-    if (e.target !== trackRef.current || e.propertyName !== 'transform') return
-    const sw = singleWidthRef.current
-    if (!sw) return
-    const o = offsetRef.current
-    if (o >= 2 * sw - 1) {
+  const releaseBusyAfterSnap = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setWithTransition(true)
+        busyRef.current = false
+      })
+    })
+  }, [])
+
+  const jumpWithoutTransition = useCallback(
+    (targetIndex) => {
+      const fromClone = indexRef.current <= 0 || indexRef.current >= lastIndex
+      clearFallback()
       setWithTransition(false)
-      setOffset(o - sw)
-    } else if (o < sw) {
-      setWithTransition(false)
-      setOffset(o + sw)
+      setIndex(targetIndex)
+      releaseBusyAfterSnap()
+      if (fromClone) setAutoScrollKey((k) => k + 1)
+    },
+    [lastIndex, clearFallback, releaseBusyAfterSnap],
+  )
+
+  const getRealIndex = useCallback(() => {
+    const i = indexRef.current
+    if (i <= 0) return N - 1
+    if (i >= lastIndex) return 0
+    return i - 1
+  }, [N, lastIndex])
+
+  const isOnClone = useCallback(
+    () => {
+      const i = indexRef.current
+      return i <= 0 || i >= lastIndex
+    },
+    [lastIndex],
+  )
+
+  const snapIfOnClone = useCallback(() => {
+    const i = indexRef.current
+    if (i >= lastIndex) jumpWithoutTransition(1)
+    else if (i <= 0) jumpWithoutTransition(lastIndex - 1)
+    else busyRef.current = false
+  }, [lastIndex, jumpWithoutTransition])
+
+  const scheduleCloneFallback = useCallback(() => {
+    clearFallback()
+    fallbackRef.current = setTimeout(snapIfOnClone, TRANSITION_FALLBACK_MS)
+  }, [clearFallback, snapIfOnClone])
+
+  const navigateToReal = useCallback(
+    (real) => {
+      if (N === 0 || stepRef.current <= 0) return
+      const target = ((real % N) + N) % N + 1
+      const current = indexRef.current
+
+      clearFallback()
+
+      if (current <= 0 || current >= lastIndex) {
+        jumpWithoutTransition(target)
+        return
+      }
+
+      if (current === target) {
+        busyRef.current = false
+        return
+      }
+
+      if (busyRef.current) return
+
+      busyRef.current = true
+      setWithTransition(true)
+      setIndex(target)
+    },
+    [N, lastIndex, clearFallback, jumpWithoutTransition],
+  )
+
+  const navigateNext = useCallback(() => {
+    if (N === 0 || stepRef.current <= 0) return
+    const current = indexRef.current
+    const real = getRealIndex()
+
+    if (isOnClone()) {
+      snapIfOnClone()
+      return
     }
-  }
+
+    if (real === N - 1) {
+      if (busyRef.current) return
+      busyRef.current = true
+      setWithTransition(true)
+      setIndex(lastIndex)
+      scheduleCloneFallback()
+      return
+    }
+
+    navigateToReal(real + 1)
+  }, [N, lastIndex, getRealIndex, isOnClone, snapIfOnClone, navigateToReal, scheduleCloneFallback])
+
+  const navigatePrev = useCallback(() => {
+    if (N === 0 || stepRef.current <= 0) return
+    const current = indexRef.current
+    const real = getRealIndex()
+
+    if (isOnClone()) {
+      snapIfOnClone()
+      return
+    }
+
+    if (real === 0) {
+      if (busyRef.current) return
+      busyRef.current = true
+      setWithTransition(true)
+      setIndex(0)
+      scheduleCloneFallback()
+      return
+    }
+
+    navigateToReal(real - 1)
+  }, [N, getRealIndex, isOnClone, snapIfOnClone, navigateToReal, scheduleCloneFallback])
+
+  const onTransitionEnd = useCallback(
+    (e) => {
+      if (e.target !== trackRef.current || e.propertyName !== 'transform') return
+      clearFallback()
+      const i = indexRef.current
+      if (i >= lastIndex) jumpWithoutTransition(1)
+      else if (i <= 0) jumpWithoutTransition(lastIndex - 1)
+      else busyRef.current = false
+    },
+    [lastIndex, clearFallback, jumpWithoutTransition],
+  )
 
   useEffect(() => {
-    if (!tabVisible || itemsCount === 0) return
-    const track = trackRef.current
-    if (track) {
-      const sw = track.scrollWidth / 3
-      if (sw > 0) singleWidthRef.current = sw
+    if (!tabVisible) {
+      clearFallback()
+      return
     }
-    requestAnimationFrame(snapOffsetIfNeeded)
-  }, [tabVisible, itemsCount, snapOffsetIfNeeded])
+    busyRef.current = false
+    snapIfOnClone()
+  }, [tabVisible, snapIfOnClone, clearFallback])
 
   useEffect(() => {
-    const sw = singleWidthRef.current
-    if (!sw) return
-    const o = offset
-    if (o >= 2 * sw - 1 || o < sw) {
-      const id = setTimeout(snapOffsetIfNeeded, TRANSITION_FALLBACK_MS)
-      return () => clearTimeout(id)
-    }
-  }, [offset, snapOffsetIfNeeded])
-
-  useEffect(() => {
-    if (paused || !tabVisible || !ready || itemsCount === 0) return
-    const id = setTimeout(() => shift(1), PRODUCT_INTERVAL_MS)
+    if (paused || !tabVisible || !ready || N === 0 || isOnClone()) return
+    const id = setTimeout(() => navigateNext(), PRODUCT_INTERVAL_MS)
     return () => clearTimeout(id)
-  }, [offset, paused, tabVisible, ready, itemsCount, shift])
+  }, [index, paused, tabVisible, ready, N, navigateNext, autoScrollKey, isOnClone])
+
+  useEffect(() => () => clearFallback(), [clearFallback])
+
+  const onArrowPrev = useCallback(() => {
+    resetAutoScroll()
+    navigatePrev()
+  }, [resetAutoScroll, navigatePrev])
+
+  const onArrowNext = useCallback(() => {
+    resetAutoScroll()
+    navigateNext()
+  }, [resetAutoScroll, navigateNext])
 
   const onTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX
@@ -354,14 +582,17 @@ function ProductCarousel({ products }) {
     const dx = e.changedTouches[0].clientX - touchStartX.current
     const dy = e.changedTouches[0].clientY - touchStartY.current
     if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 0) shift(-1)
-      else shift(1)
+      if (dx > 0) navigatePrev()
+      else navigateNext()
     }
     touchStartX.current = null
     touchStartY.current = null
   }
 
-  if (!itemsCount) return null
+  if (!N) return null
+
+  const visibleSlots = Math.min(POP_VISIBLE_MAX, N)
+  const translateX = stepPx > 0 ? index * stepPx : 0
 
   return (
     <div
@@ -376,7 +607,7 @@ function ProductCarousel({ products }) {
       <button
         type="button"
         className="pop-arrow left"
-        onClick={() => shift(-1)}
+        onClick={onArrowPrev}
         aria-label="Pomeri levo"
       >
         <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -384,12 +615,17 @@ function ProductCarousel({ products }) {
         </svg>
       </button>
 
-      <div className="pop-strip-viewport" aria-hidden={!ready}>
+      <div
+        ref={viewportRef}
+        className="pop-strip-viewport"
+        aria-hidden={!ready}
+        style={{ '--pop-visible': visibleSlots }}
+      >
         <div
           ref={trackRef}
           className="pop-strip"
           style={{
-            transform: `translateX(-${offset}px)`,
+            transform: `translateX(-${translateX}px)`,
             transition: withTransition
               ? 'transform 0.55s cubic-bezier(0.4, 0, 0.2, 1)'
               : 'none',
@@ -397,23 +633,13 @@ function ProductCarousel({ products }) {
           }}
           onTransitionEnd={onTransitionEnd}
         >
-          {loop.map((p, i) => (
-            <article key={`${p.id}-${i}`} className="product-card">
-              <ApiImage src={p.imageUrl} alt={p.name} loading="lazy" />
-              <div className="product-card-body">
-                <h3>
-                  <Link to={`/products/${p.id}`}>{p.name}</Link>
-                </h3>
-                <p>{[p.productType, p.category].filter(Boolean).join(' · ')}</p>
-                <strong>{Number(p.price).toLocaleString('sr-RS')} RSD</strong>
-                <div className="card-actions">
-                  <button type="button" onClick={() => addToCart(p)}>Dodaj u korpu</button>
-                  <button type="button" className="ghost" onClick={() => toggleWishlist(p)}>
-                    Wishlist
-                  </button>
-                </div>
-              </div>
-            </article>
+          {slides.map(({ product, slideKey }) => (
+            <ProductCarouselCard
+              key={slideKey}
+              product={product}
+              onAddToCart={addToCart}
+              onToggleWishlist={toggleWishlist}
+            />
           ))}
         </div>
       </div>
@@ -421,7 +647,7 @@ function ProductCarousel({ products }) {
       <button
         type="button"
         className="pop-arrow right"
-        onClick={() => shift(1)}
+        onClick={onArrowNext}
         aria-label="Pomeri desno"
       >
         <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -432,19 +658,27 @@ function ProductCarousel({ products }) {
   )
 }
 
-
 export default function Home() {
   const [bestsellers, setBestsellers] = useState([])
+  const [bestsellersReady, setBestsellersReady] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     api
       .get('/products/bestsellers')
-      .then(({ data }) => {
-        if (!cancelled) setBestsellers(Array.isArray(data) ? data : [])
+      .then(async ({ data }) => {
+        const list = Array.isArray(data) ? data : []
+        await preloadProductImagesAwait(list)
+        if (!cancelled) {
+          setBestsellers(attachResolvedImageSrc(list))
+          setBestsellersReady(true)
+        }
       })
       .catch(() => {
-        if (!cancelled) setBestsellers([])
+        if (!cancelled) {
+          setBestsellers([])
+          setBestsellersReady(true)
+        }
       })
     return () => {
       cancelled = true
@@ -455,15 +689,15 @@ export default function Home() {
     <>
       <HeroCarousel images={HERO_IMAGES} />
 
-      {bestsellers.length > 0 && (
+      {bestsellersReady && bestsellers.length > 0 && (
         <section className="section-gap pop-section">
-          <div className="shell pop-section-head">
+          <div className="shell">
             <div className="pop-head">
               <h2 className="pop-title">Popularni proizvodi</h2>
               <Link to="/shop?bestsellers=1" className="pop-head-link">Vidi sve →</Link>
             </div>
+            <ProductCarousel products={bestsellers} />
           </div>
-          <ProductCarousel products={bestsellers} />
         </section>
       )}
 
@@ -492,7 +726,7 @@ export default function Home() {
           <p className="feature-section-text">
             <strong>Ekološki</strong> je prihvatljiv i pažljivo razvijen kako bi bio bezbedan za upotrebu.
           </p>
-          <Link to="/shop?vrsta=Baze" className="feature-section-btn">O proizvodu</Link>
+          <Link to="/shop?type=Baze" className="feature-section-btn">O proizvodu</Link>
         </div>
         <div className="feature-section-img">
           <img src={publicUrl('/sections/Hard_gel.png')} alt="Honey Hard Gel" loading="lazy" />

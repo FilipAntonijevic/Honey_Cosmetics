@@ -63,6 +63,12 @@ export default function Layout({ children }) {
     }
   }, [location.pathname, location.search])
 
+  const handleLogoClick = (e) => {
+    if (location.pathname !== '/') return
+    e.preventDefault()
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
+  }
+
   const submitProductSearch = (e) => {
     e.preventDefault()
     const q = searchInput.trim()
@@ -312,7 +318,12 @@ export default function Layout({ children }) {
         {/* Main header row — full-width white band, content in .shell */}
         <div className="main-header-band">
         <div className="main-header shell">
-          <Link to="/" className="logo" aria-label="Honey Nail Innovations">
+          <Link
+            to="/"
+            className="logo"
+            aria-label="Honey Nail Innovations"
+            onClick={handleLogoClick}
+          >
             <img src={publicUrl('/logo.png')} alt="Honey Nail Innovations" className="logo-img" />
           </Link>
 
@@ -494,7 +505,7 @@ export default function Layout({ children }) {
                   {vrste.map((cat) => (
                     <Link
                       key={cat}
-                      to={`/shop?vrsta=${encodeURIComponent(cat)}`}
+                      to={`/shop?type=${encodeURIComponent(cat)}`}
                       className="categories-dropdown-item"
                       role="menuitem"
                       onClick={() => setCategoriesMenuOpen(false)}
@@ -520,7 +531,7 @@ export default function Layout({ children }) {
         {/* Category navbar — samo desktop */}
         <nav className="category-nav category-nav--desktop" aria-label="Vrste proizvoda">
           {vrste.map((cat) => (
-            <Link key={cat} to={`/shop?vrsta=${encodeURIComponent(cat)}`} className="cat-link">
+            <Link key={cat} to={`/shop?type=${encodeURIComponent(cat)}`} className="cat-link">
               {cat.toUpperCase()}
             </Link>
           ))}

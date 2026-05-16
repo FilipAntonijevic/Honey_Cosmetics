@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
 import { apiImageUrl } from '../lib/assets'
+import { getPreloadedImage } from '../lib/imagePreload'
 
 /** Učitava /images/... sa API-ja; za ngrok koristi fetch + blob (img tag ne može poslati ngrok header). */
 export default function ApiImage({ src, alt = '', className, style, loading }) {
@@ -14,6 +15,13 @@ export default function ApiImage({ src, alt = '', className, style, loading }) {
       setDisplaySrc('')
       return
     }
+
+    const cached = getPreloadedImage(src)
+    if (cached) {
+      setDisplaySrc(cached)
+      return
+    }
+
     if (!useBlob) {
       setDisplaySrc(directUrl)
       return

@@ -45,7 +45,7 @@ export default function Cart() {
           <div className="cart-left">
             <div className="cart-col-headers">
               <span>PROIZVOD</span>
-              <span className="cart-col-total-label">UKUPNO</span>
+              <span className="cart-col-total-label">CENA</span>
             </div>
             <div className="cart-divider" />
 
