@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import api from '../api'
-import { DEFAULT_PHONE_PREFIX, cleanPhone, placeCursorAtEndIfPrefix } from '../utils/phone'
+import PhoneField from '../components/PhoneField'
+import { PHONE_DEFAULT, cleanPhone } from '../utils/phone'
 import { publicUrl } from '../lib/assets'
 
-const EMPTY = { fullName: '', company: '', email: '', phone: DEFAULT_PHONE_PREFIX, message: '' }
+const EMPTY = { fullName: '', company: '', email: '', phone: PHONE_DEFAULT, message: '' }
 
 export default function Collaboration() {
   const [form, setForm] = useState(EMPTY)
@@ -104,15 +105,12 @@ export default function Collaboration() {
                   <label className="collaboration-label" htmlFor="collab-phone">
                     Telefon
                   </label>
-                  <input
+                  <PhoneField
                     id="collab-phone"
-                    type="tel"
                     className="collaboration-input"
-                    placeholder="+381 60 000 0000"
                     value={form.phone}
-                    onChange={set('phone')}
-                    onFocus={placeCursorAtEndIfPrefix}
-                    onClick={placeCursorAtEndIfPrefix}
+                    onChange={(v) => setForm((f) => ({ ...f, phone: v }))}
+                    ariaLabel="Broj telefona"
                   />
                 </div>
               </div>

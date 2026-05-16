@@ -8,6 +8,7 @@ using HoneyCosmetics.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace HoneyCosmetics.Api.Controllers;
 
@@ -17,7 +18,9 @@ public class AuthController(
     AppDbContext db,
     ITokenService tokenService,
     IEmailService emailService,
-    IConfiguration configuration) : ControllerBase
+    IConfiguration configuration,
+    IWebHostEnvironment environment,
+    ILogger<AuthController> logger) : ControllerBase
 {
     [HttpPost("register")]
     public async Task<ActionResult<RegisterResponse>> Register(RegisterRequest request)
@@ -51,13 +54,63 @@ public class AuthController(
 
         await db.SaveChangesAsync();
 
-        var frontendUrl = configuration["FrontendUrl"] ?? "http://localhost:5173";
-        var link = $"{frontendUrl}/confirm-email?token={Uri.EscapeDataString(token)}";
-        var body = BuildConfirmEmailBody(pending.FirstName, link);
-        await emailService.SendAsync(email, "Honey Cosmetics — Potvrdite registraciju", body);
+        var link = BuildConfirmationLink(token);
+        try
+        {
+            await SendConfirmationEmailAsync(email, pending.FirstName, link);
+        }
+        catch (Exception ex)
+        {
+            db.PendingRegistrations.Remove(pending);
+            await db.SaveChangesAsync();
+            logger.LogError(ex, "Confirmation email failed for {Email}", email);
+            return StatusCode(503, "Nismo mogli da pošaljemo email za potvrdu. Proverite SendGrid podešavanja i pokušajte ponovo.");
+        }
 
+        var devLink = environment.IsDevelopment() && !IsSendGridConfigured() ? link : null;
         return Ok(new RegisterResponse(
-            "Poslali smo vam email sa linkom za potvrdu. Kliknite na link da biste aktivirali nalog."));
+            devLink is null
+                ? "Poslali smo vam email sa linkom za potvrdu. Kliknite na link da biste aktivirali nalog."
+                : "Registracija je sačuvana. SendGrid nije podešen — koristite link ispod (samo u razvoju).",
+            devLink));
+    }
+
+    [HttpPost("resend-confirmation")]
+    public async Task<ActionResult<RegisterResponse>> ResendConfirmation(ForgotPasswordRequest request)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        if (await db.Users.AnyAsync(x => x.Email == email))
+            return BadRequest("Nalog je već aktiviran. Prijavite se.");
+
+        var pending = await db.PendingRegistrations.FirstOrDefaultAsync(x => x.Email == email);
+        if (pending is null)
+        {
+            return Ok(new RegisterResponse(
+                "Ako postoji registracija na čekanju, poslaćemo vam novi email."));
+        }
+
+        var token = CreateUrlSafeToken();
+        pending.ConfirmationToken = token;
+        pending.ConfirmationTokenExpiresAt = DateTime.UtcNow.AddHours(24);
+        await db.SaveChangesAsync();
+
+        var link = BuildConfirmationLink(token);
+        try
+        {
+            await SendConfirmationEmailAsync(email, pending.FirstName, link);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Resend confirmation email failed for {Email}", email);
+            return StatusCode(503, "Nismo mogli da pošaljemo email. Pokušajte ponovo kasnije.");
+        }
+
+        var devLink = environment.IsDevelopment() && !IsSendGridConfigured() ? link : null;
+        return Ok(new RegisterResponse(
+            devLink is null
+                ? "Poslali smo novi email sa linkom za potvrdu."
+                : "Novi link za potvrdu (samo u razvoju):",
+            devLink));
     }
 
     [HttpPost("confirm-email")]
@@ -69,16 +122,17 @@ public class AuthController(
         if (pending is null)
             return BadRequest("Link za potvrdu je nevažeći ili je istekao.");
 
-        if (await db.Users.AnyAsync(x => x.Email == pending.Email))
+        var email = pending.Email.Trim().ToLowerInvariant();
+        var existingUser = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Email == email);
+        if (existingUser is not null)
         {
-            db.PendingRegistrations.Remove(pending);
-            await db.SaveChangesAsync();
+            await RemovePendingAsync(pending);
             return BadRequest("Nalog sa ovim emailom već postoji. Prijavite se.");
         }
 
         var user = new User
         {
-            Email = pending.Email,
+            Email = email,
             FirstName = pending.FirstName,
             LastName = pending.LastName,
             PhoneNumber = pending.PhoneNumber,
@@ -93,28 +147,41 @@ public class AuthController(
         db.Users.Add(user);
         db.PendingRegistrations.Remove(pending);
 
-        db.Coupons.Add(new Coupon
+        try
         {
-            Code = $"WELCOME-{user.Id.ToString()[..8].ToUpperInvariant()}",
-            DiscountValue = 10,
-            IsPercentage = true,
-            FirstOrderOnly = true,
-            IsActive = true,
-            ExpiresAt = DateTime.UtcNow.AddMonths(1),
-        });
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsUsersEmailUniqueViolation(ex))
+        {
+            logger.LogWarning("Confirm-email race for {Email}, returning existing session.", email);
+            db.ChangeTracker.Clear();
+            var activated = await db.Users.FirstAsync(x => x.Email == email);
+            await RemovePendingByEmailAsync(email);
+            await TryAddWelcomeCouponAsync(activated);
+            return Ok(await CreateAuthResponseAsync(activated));
+        }
 
-        await db.SaveChangesAsync();
+        await TryAddWelcomeCouponAsync(user);
         return Ok(await CreateAuthResponseAsync(user));
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
-        var user = await db.Users.FirstOrDefaultAsync(x => x.Email == request.Email.Trim().ToLowerInvariant());
-        if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            return Unauthorized("Invalid credentials.");
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await db.Users.FirstOrDefaultAsync(x => x.Email == email);
+        if (user is not null)
+        {
+            if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+                return Unauthorized("Invalid credentials.");
+            return Ok(await CreateAuthResponseAsync(user));
+        }
 
-        return Ok(await CreateAuthResponseAsync(user));
+        var pending = await db.PendingRegistrations.FirstOrDefaultAsync(x => x.Email == email);
+        if (pending is not null && BCrypt.Net.BCrypt.Verify(request.Password, pending.PasswordHash))
+            return Unauthorized("Potvrdite registraciju putem linka koji smo poslali na email.");
+
+        return Unauthorized("Invalid credentials.");
     }
 
     [HttpPost("refresh")]
@@ -245,6 +312,74 @@ public class AuthController(
                 user.PostalCode,
                 user.Country
             ));
+    }
+
+    private async Task RemovePendingAsync(PendingRegistration pending)
+    {
+        var tracked = await db.PendingRegistrations.FindAsync(pending.Id);
+        if (tracked is null) return;
+        db.PendingRegistrations.Remove(tracked);
+        await db.SaveChangesAsync();
+    }
+
+    private async Task RemovePendingByEmailAsync(string email)
+    {
+        var rows = await db.PendingRegistrations.Where(x => x.Email == email).ToListAsync();
+        if (rows.Count == 0) return;
+        db.PendingRegistrations.RemoveRange(rows);
+        await db.SaveChangesAsync();
+    }
+
+    private async Task TryAddWelcomeCouponAsync(User user)
+    {
+        var prefix = $"WELCOME-{user.Id.ToString()[..8].ToUpperInvariant()}";
+        if (await db.Coupons.AnyAsync(c => c.Code == prefix)) return;
+
+        db.Coupons.Add(new Coupon
+        {
+            Code = prefix,
+            DiscountValue = 10,
+            IsPercentage = true,
+            FirstOrderOnly = true,
+            IsActive = true,
+            ExpiresAt = DateTime.UtcNow.AddMonths(1),
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private static bool IsUsersEmailUniqueViolation(DbUpdateException ex)
+    {
+        for (var inner = ex.InnerException; inner is not null; inner = inner.InnerException)
+        {
+            if (inner is PostgresException pg && pg.SqlState == PostgresErrorCodes.UniqueViolation)
+                return pg.ConstraintName is null or "IX_Users_Email";
+        }
+        return false;
+    }
+
+    private string BuildConfirmationLink(string token)
+    {
+        var frontendUrl = configuration["FrontendUrl"] ?? "http://localhost:5173";
+        return $"{frontendUrl.TrimEnd('/')}/confirm-email?token={Uri.EscapeDataString(token)}";
+    }
+
+    private bool IsSendGridConfigured()
+    {
+        var apiKey = configuration["SendGrid:ApiKey"];
+        return !string.IsNullOrWhiteSpace(apiKey) &&
+               !string.Equals(apiKey, "YOUR_SENDGRID_API_KEY", StringComparison.Ordinal);
+    }
+
+    private async Task SendConfirmationEmailAsync(string email, string firstName, string link)
+    {
+        if (environment.IsDevelopment() && !IsSendGridConfigured())
+        {
+            logger.LogWarning("SendGrid nije podešen. DEV link za potvrdu ({Email}): {Link}", email, link);
+            return;
+        }
+
+        var body = BuildConfirmEmailBody(firstName, link);
+        await emailService.SendAsync(email, "Honey Cosmetics — Potvrdite registraciju", body);
     }
 
     private static string CreateUrlSafeToken() =>

@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
-import { cleanPhone, phoneOrDefault, placeCursorAtEndIfPrefix } from '../utils/phone'
+import PhoneField from '../components/PhoneField'
+import { cleanPhone, phoneOrDefault } from '../utils/phone'
 
 export default function Checkout() {
   const { user, cart, setCart, setToast } = useStore()
@@ -198,17 +199,13 @@ export default function Checkout() {
               <input className="co-input" placeholder="Regija (opciono)" value={form.state} onChange={set('state')} />
             </div>
 
-            <div className="co-row-2">
+            <div className="co-row-2 co-row-2--phone">
               <input className="co-input" placeholder="Poštanski broj (opciono)" value={form.postalCode} onChange={set('postalCode')} />
-              <input
+              <PhoneField
                 className="co-input"
-                type="tel"
-                placeholder="Telefon"
                 value={form.phone}
-                onChange={set('phone')}
-                onFocus={placeCursorAtEndIfPrefix}
-                onClick={placeCursorAtEndIfPrefix}
-                autoComplete="tel"
+                onChange={(v) => setForm((f) => ({ ...f, phone: v }))}
+                ariaLabel="Broj telefona"
               />
             </div>
           </section>

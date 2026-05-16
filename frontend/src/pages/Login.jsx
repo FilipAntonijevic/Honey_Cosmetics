@@ -1,12 +1,9 @@
 import { useLayoutEffect, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import api from '../api'
 import { useStore } from '../context/StoreContext'
-import {
-  DEFAULT_PHONE_PREFIX,
-  cleanPhone,
-  extensionFromStored,
-  storedFromExtensionInput,
-} from '../utils/phone'
+import PhoneField from '../components/PhoneField'
+import { PHONE_DEFAULT, cleanPhone } from '../utils/phone'
 
 export default function Account({ initialMode = 'login' }) {
   const location = useLocation()
@@ -19,13 +16,15 @@ export default function Account({ initialMode = 'login' }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [registerEmailSent, setRegisterEmailSent] = useState(false)
+  const [devConfirmLink, setDevConfirmLink] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
   const [form, setForm] = useState({
     email: '',
     password: '',
     confirmPassword: '',
     firstName: '',
     lastName: '',
-    phoneNumber: DEFAULT_PHONE_PREFIX,
+    phoneNumber: PHONE_DEFAULT,
     country: 'Srbija',
     city: '',
     street: '',
@@ -59,14 +58,6 @@ export default function Account({ initialMode = 'login' }) {
   if (user) return <Navigate to={user.role === 'Admin' ? '/admin' : from} replace />
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
-
-  const phoneExtension = extensionFromStored(form.phoneNumber)
-  const phoneExtensionTrimmed = phoneExtension.trim()
-
-  const setPhoneExtension = (e) => {
-    const nextStored = storedFromExtensionInput(e.target.value)
-    setForm((f) => ({ ...f, phoneNumber: nextStored }))
-  }
 
   const switchMode = (next) => {
     setMode(next)
@@ -109,7 +100,7 @@ export default function Account({ initialMode = 'login' }) {
         const result = await login({ email: form.email, password: form.password })
         navigate(result?.role === 'Admin' ? '/admin' : from, { replace: true })
       } else {
-        await register({
+        const data = await register({
           email: form.email,
           password: form.password,
           confirmPassword: form.confirmPassword,
@@ -121,17 +112,33 @@ export default function Account({ initialMode = 'login' }) {
           postalCode: form.postalCode.trim() || undefined,
           country: form.country || 'Srbija',
         })
+        setDevConfirmLink(data.devConfirmationLink ?? '')
         setRegisterEmailSent(true)
       }
     } catch (err) {
       if (mode === 'login') {
-        setError('Pogrešan email ili lozinka.')
-      } else {
         const msg = err.response?.data
         setError(
-          typeof msg === 'string' && msg.length < 120
+          typeof msg === 'string' && msg.length < 160
             ? msg
-            : 'Registracija nije uspela. Pokušajte ponovo.',
+            : 'Pogrešan email ili lozinka.',
+        )
+      } else if (err.staleApi) {
+        setError(
+          'Backend još uvek koristi staru registraciju (nalog se odmah kreira). Zaustavite dotnet run i pokrenite ponovo.',
+        )
+      } else {
+        const msg = err.response?.data
+        const detail =
+          typeof msg === 'string'
+            ? msg
+            : msg?.title || msg?.detail || msg?.message
+        setError(
+          typeof detail === 'string' && detail.length < 200
+            ? detail
+            : err.response?.status === 400
+              ? 'Proverite unete podatke (email, lozinka).'
+              : 'Registracija nije uspela. Pokušajte ponovo.',
         )
       }
     } finally {
@@ -154,19 +161,60 @@ export default function Account({ initialMode = 'login' }) {
         {registerEmailSent ? (
           <div className="auth-success">
             <p>
-              Poslali smo vam email sa linkom za potvrdu na adresu{' '}
-              <strong>{form.email}</strong>.
+              {devConfirmLink ? (
+                'Registracija je sačuvana. SendGrid nije podešen — aktivirajte nalog linkom ispod:'
+              ) : (
+                <>
+                  Poslali smo vam email sa linkom za potvrdu na adresu{' '}
+                  <strong>{form.email}</strong>.
+                </>
+              )}
             </p>
-            <p style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: '#6b7280' }}>
-              Kliknite na link u emailu da aktivirate nalog. Link važi 24 sata.
-            </p>
-            <div className="auth-footer" style={{ marginTop: '1.25rem' }}>
-              <div className="auth-switch">
-                <button type="button" className="auth-link-btn" onClick={() => switchMode('login')}>
-                  Idi na prijavu
-                </button>
-              </div>
+            {!devConfirmLink && (
+              <p style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: '#6b7280' }}>
+                Kliknite na link u emailu da aktivirate nalog. Link važi 24 sata.
+              </p>
+            )}
+            {devConfirmLink && (
+              <p style={{ marginTop: '1rem' }}>
+                <a href={devConfirmLink} className="auth-link-btn">
+                  Potvrdi registraciju
+                </a>
+              </p>
+            )}
+            <div className="auth-footer auth-switch" style={{ marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                className="auth-link-btn"
+                disabled={resendLoading}
+                onClick={async () => {
+                  setResendLoading(true)
+                  setError('')
+                  try {
+                    const { data } = await api.post('/auth/resend-confirmation', {
+                      email: form.email,
+                    })
+                    if (data.devConfirmationLink) setDevConfirmLink(data.devConfirmationLink)
+                  } catch (err) {
+                    const msg = err.response?.data
+                    setError(
+                      typeof msg === 'string' && msg.length < 160
+                        ? msg
+                        : 'Slanje emaila nije uspelo.',
+                    )
+                  } finally {
+                    setResendLoading(false)
+                  }
+                }}
+              >
+                {resendLoading ? 'Šaljem…' : 'Pošalji ponovo'}
+              </button>
+              <span className="auth-switch-sep">·</span>
+              <button type="button" className="auth-link-btn" onClick={() => switchMode('login')}>
+                Idi na prijavu
+              </button>
             </div>
+            {error && <p className="auth-error" style={{ marginTop: '0.75rem' }}>{error}</p>}
           </div>
         ) : (
         <>
@@ -266,26 +314,12 @@ export default function Account({ initialMode = 'login' }) {
                   </span>
                 )}
               </div>
-              <div className="auth-tel-compose" role="group" aria-label="Telefon opciono, nastavak posle pozivnog za Srbiju">
-                <span className="auth-tel-prefix">+381&nbsp;</span>
-                <div className="auth-tel-extension-wrap">
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    className="auth-input auth-input-tel-extension"
-                    placeholder=""
-                    value={phoneExtension}
-                    onChange={setPhoneExtension}
-                    autoComplete="tel-national"
-                    aria-label="Broj telefona nakon pozivnog +381 (opciono)"
-                  />
-                  {!phoneExtensionTrimmed && (
-                    <span className="auth-input-visual-ph auth-input-visual-ph-tel" aria-hidden="true">
-                      Broj telefona
-                    </span>
-                  )}
-                </div>
-              </div>
+              <PhoneField
+                className="auth-input"
+                value={form.phoneNumber}
+                onChange={(v) => setForm((f) => ({ ...f, phoneNumber: v }))}
+                ariaLabel="Broj telefona (opciono)"
+              />
 
               {/* Address — always shown inline, all optional */}
               <div className="auth-addr-section">

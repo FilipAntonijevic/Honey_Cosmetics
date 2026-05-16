@@ -115,7 +115,16 @@ export function StoreProvider({ children }) {
 
   const register = useCallback(async (payload) => {
     const { data } = await api.post('/auth/register', payload)
-    setToast(data.message ?? 'Proverite email i potvrdite registraciju.')
+    if (data?.accessToken) {
+      const err = new Error('STALE_API')
+      err.staleApi = true
+      throw err
+    }
+    if (!data?.message) {
+      const err = new Error('INVALID_RESPONSE')
+      throw err
+    }
+    setToast(data.message)
     return data
   }, [])
 

@@ -1,6 +1,10 @@
 import axios from 'axios'
 
-const BASE_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
+const BASE_URL = (
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  '/api'
+).replace(/\/$/, '')
 const IS_NGROK = BASE_URL.includes('ngrok')
 
 const api = axios.create({ baseURL: BASE_URL })

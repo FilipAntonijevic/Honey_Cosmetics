@@ -32,7 +32,7 @@ public record UpdateProfileRequest(
     string? PostalCode,
     string? Country);
 
-public record RegisterResponse(string Message);
+public record RegisterResponse(string Message, string? DevConfirmationLink = null);
 
 public record ConfirmEmailRequest([Required] string Token);
 

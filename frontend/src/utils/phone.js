@@ -1,51 +1,62 @@
-// Default Serbian phone prefix. User može da menja po želji.
-export const DEFAULT_PHONE_PREFIX = '+381 '
+/** Podrazumevani početak u polju — korisnik može obrisati 381, ne i „+“. */
+export const PHONE_DEFAULT = '+381'
 
-/** Deo koji korisnik unosi iza +381 (za split prikaz u formama). */
-export function extensionFromStored(stored) {
-  const s = String(stored ?? '').trimStart()
-  if (!s.startsWith('+381')) return ''
-  let after = s.slice(4)
-  if (after.startsWith(' ')) after = after.slice(1)
-  return after
+/** @deprecated */
+export const PHONE_PREFIX = PHONE_DEFAULT
+export const DEFAULT_PHONE_PREFIX = PHONE_DEFAULT
+
+/** Normalizuje unos: uvek počinje sa „+“, zatim samo cifre i razmaci. */
+export function normalizePhoneInput(raw) {
+  if (raw == null || raw === '') return PHONE_DEFAULT
+
+  let s = String(raw).trimStart()
+  if (!s.startsWith('+')) s = `+${s.replace(/\+/g, '')}`
+  else s = `+${s.slice(1).replace(/\+/g, '')}`
+
+  const body = s.slice(1).replace(/[^\d\s]/g, '')
+  const combined = `+${body}`
+
+  return combined === '+' ? '+' : combined
 }
 
-/** Rekonstruiše vrednost sa podrazumevanim prefiksom ako korisnik nalepi ceo broj koji počinje sa +381. */
-export function storedFromExtensionInput(rawExt) {
-  let v = String(rawExt ?? '')
-  const lead = v.trimStart()
-  if (lead.startsWith('+381')) {
-    v = lead.slice(4).replace(/^\s+/, '')
-  }
-  return DEFAULT_PHONE_PREFIX + v
-}
-
-// Vraća dati broj ili default prefix ako je trenutna vrednost prazna.
 export function phoneOrDefault(value) {
-  const trimmed = (value ?? '').trim()
-  return trimmed === '' ? DEFAULT_PHONE_PREFIX : value
+  const t = (value ?? '').trim()
+  if (!t || t === '+') return PHONE_DEFAULT
+  return normalizePhoneInput(t)
 }
 
-// Vraća validan broj telefona za slanje ka API-ju.
-// Ako korisnik nije dodao ništa osim default prefiksa, smatra se da telefon nije unet.
+/** Prazno ako je samo „+“ ili samo pozivni bez broja (npr. +381). */
 export function cleanPhone(value) {
-  const trimmed = (value ?? '').trim()
-  if (!trimmed) return null
-  if (trimmed === '+381' || trimmed === DEFAULT_PHONE_PREFIX.trim()) return null
-  return trimmed
+  const normalized = normalizePhoneInput(value).replace(/\s/g, '')
+  if (normalized === '+' || normalized === '+381') return null
+  const digits = normalized.slice(1)
+  if (digits.length <= 3) return null
+  return normalizePhoneInput(value).trim()
 }
 
-// Click/focus handler — pomera kursor na kraj inputa ako je vrednost samo prefix.
-export function placeCursorAtEndIfPrefix(e) {
+/** Kursor posle „+381“ ili na kraju ako je kraće. */
+export function placePhoneCursor(e) {
   const el = e.target
   const v = el.value ?? ''
-  if (v.trim() === '+381' || v === DEFAULT_PHONE_PREFIX) {
-    const end = el.value.length
+  const pos = v.startsWith(PHONE_DEFAULT) ? PHONE_DEFAULT.length : Math.max(1, v.length)
+  requestAnimationFrame(() => {
+    try {
+      const start = Math.max(1, Math.min(pos, v.length))
+      el.setSelectionRange(start, start)
+    } catch {
+      /* ignore */
+    }
+  })
+}
+
+export function clampPhoneSelection(e) {
+  const el = e.target
+  if (el.selectionStart < 1) {
     requestAnimationFrame(() => {
       try {
-        el.setSelectionRange(end, end)
+        el.setSelectionRange(1, Math.max(1, el.selectionEnd))
       } catch {
-        // ignore browsers that don't support setSelectionRange on this input type
+        /* ignore */
       }
     })
   }

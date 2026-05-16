@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
@@ -10,12 +10,16 @@ export default function ConfirmEmail() {
   const { setUser, setToast, cart, setCart } = useStore()
   const navigate = useNavigate()
   const token = searchParams.get('token') ?? ''
+  const confirmStarted = useRef(false)
 
   useEffect(() => {
     if (!token) {
       setStatus('invalid')
       return
     }
+
+    if (confirmStarted.current) return
+    confirmStarted.current = true
 
     let cancelled = false
 
@@ -53,7 +57,15 @@ export default function ConfirmEmail() {
       } catch (err) {
         if (cancelled) return
         const msg = err.response?.data
-        setError(typeof msg === 'string' ? msg : 'Link je istekao ili je nevažeći.')
+        const detail =
+          typeof msg === 'string'
+            ? msg
+            : msg?.title || msg?.detail
+        setError(
+          typeof detail === 'string' && detail.length < 200
+            ? detail
+            : 'Link je istekao ili je nevažeći.',
+        )
         setStatus('error')
       }
     }

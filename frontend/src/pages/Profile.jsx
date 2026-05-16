@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
-import { DEFAULT_PHONE_PREFIX, cleanPhone, phoneOrDefault, placeCursorAtEndIfPrefix } from '../utils/phone'
+import PhoneField from '../components/PhoneField'
+import { PHONE_DEFAULT, cleanPhone, phoneOrDefault } from '../utils/phone'
 
 export default function Profile() {
   const { setToast, user, setUser } = useStore()
@@ -10,7 +11,7 @@ export default function Profile() {
     firstName: '',
     lastName: '',
     email: '',
-    phoneNumber: DEFAULT_PHONE_PREFIX,
+    phoneNumber: PHONE_DEFAULT,
     street: '',
     city: '',
     postalCode: '',
@@ -113,14 +114,11 @@ export default function Profile() {
               </div>
               <div className="profile-field">
                 <label className="profile-label">Broj telefona</label>
-                <input
+                <PhoneField
                   className="profile-input"
-                  type="tel"
-                  placeholder="+381 60 000 0000"
                   value={form.phoneNumber}
-                  onChange={set('phoneNumber')}
-                  onFocus={placeCursorAtEndIfPrefix}
-                  onClick={placeCursorAtEndIfPrefix}
+                  onChange={(v) => setForm((f) => ({ ...f, phoneNumber: v }))}
+                  ariaLabel="Broj telefona"
                 />
               </div>
             </section>
