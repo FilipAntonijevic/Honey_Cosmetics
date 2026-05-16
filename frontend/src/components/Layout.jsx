@@ -700,7 +700,7 @@ export default function Layout({ children }) {
               <img src={publicUrl('/logo.png')} alt="Honey Nail Innovations" className="footer-logo-img" />
             </div>
             <p className="footer-copy">
-              © {new Date().getFullYear()} Sva prava zadržana. Made by Webumi.
+              © {new Date().getFullYear()} Sva prava zadržana.
             </p>
           </div>
 

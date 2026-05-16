@@ -15,6 +15,18 @@ const HERO_IMAGES = [
 
 const HERO_INTERVAL_MS = 6000
 const PRODUCT_INTERVAL_MS = 4500
+const TRANSITION_FALLBACK_MS = 850
+
+/** Tab u pozadini: browser ne izvršava transitionend pouzdano — karusel mora pauzirati i resetovati poziciju. */
+function useTabVisible() {
+  const [visible, setVisible] = useState(() => document.visibilityState === 'visible')
+  useEffect(() => {
+    const onChange = () => setVisible(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', onChange)
+    return () => document.removeEventListener('visibilitychange', onChange)
+  }, [])
+  return visible
+}
 
 /**
  * Endless hero carousel.
@@ -29,11 +41,26 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
     [images, N],
   )
 
+  const tabVisible = useTabVisible()
   const [index, setIndex] = useState(1)
   const [withTransition, setWithTransition] = useState(true)
   const [paused, setPaused] = useState(false)
   const touchStartX = useRef(null)
   const touchStartY = useRef(null)
+
+  const snapIfOnClone = useCallback(() => {
+    setIndex((i) => {
+      if (i >= slides.length - 1) {
+        setWithTransition(false)
+        return 1
+      }
+      if (i <= 0) {
+        setWithTransition(false)
+        return slides.length - 2
+      }
+      return i
+    })
+  }, [slides.length])
 
   const next = useCallback(() => {
     setWithTransition(true)
@@ -48,12 +75,24 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
     setIndex(real + 1)
   }, [])
 
-  // Auto-rotate
+  // Auto-rotate (ne u pozadinskom tabu — inače index „beži“ bez transitionend)
   useEffect(() => {
-    if (paused || N === 0) return
+    if (paused || !tabVisible || N === 0) return
     const id = setTimeout(next, interval)
     return () => clearTimeout(id)
-  }, [index, paused, interval, N, next])
+  }, [index, paused, tabVisible, interval, N, next])
+
+  useEffect(() => {
+    if (tabVisible) snapIfOnClone()
+  }, [tabVisible, snapIfOnClone])
+
+  // Ako transitionend ne stigne (npr. tab u pozadini), tiho vrati na pravi slajd
+  useEffect(() => {
+    if (index <= 0 || index >= slides.length - 1) {
+      const id = setTimeout(snapIfOnClone, TRANSITION_FALLBACK_MS)
+      return () => clearTimeout(id)
+    }
+  }, [index, slides.length, snapIfOnClone])
 
   // Snap clones back to the real slide without animation
   const onTransitionEnd = () => {
@@ -176,6 +215,7 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
  * nazad u srednju kopiju — bez vidljivog povratka na početak.
  */
 function ProductCarousel({ products }) {
+  const tabVisible = useTabVisible()
   const trackRef = useRef(null)
   const singleWidthRef = useRef(0)
   const offsetRef = useRef(0)
@@ -248,6 +288,23 @@ function ProductCarousel({ products }) {
     setOffset((o) => o + direction * cardStep())
   }, [cardStep])
 
+  const snapOffsetIfNeeded = useCallback(() => {
+    const sw = singleWidthRef.current
+    if (!sw) return
+    const o = offsetRef.current
+    if (o >= 2 * sw - 1) {
+      setWithTransition(false)
+      setOffset(o - sw)
+    } else if (o < sw) {
+      setWithTransition(false)
+      setOffset(o + sw)
+    } else if (o > 2.5 * sw) {
+      setWithTransition(false)
+      const mid = sw + (((o - sw) % sw) + sw) % sw
+      setOffset(mid)
+    }
+  }, [])
+
   const onTransitionEnd = (e) => {
     if (e.target !== trackRef.current || e.propertyName !== 'transform') return
     const sw = singleWidthRef.current
@@ -263,10 +320,30 @@ function ProductCarousel({ products }) {
   }
 
   useEffect(() => {
-    if (paused || !ready || itemsCount === 0) return
+    if (!tabVisible || itemsCount === 0) return
+    const track = trackRef.current
+    if (track) {
+      const sw = track.scrollWidth / 3
+      if (sw > 0) singleWidthRef.current = sw
+    }
+    requestAnimationFrame(snapOffsetIfNeeded)
+  }, [tabVisible, itemsCount, snapOffsetIfNeeded])
+
+  useEffect(() => {
+    const sw = singleWidthRef.current
+    if (!sw) return
+    const o = offset
+    if (o >= 2 * sw - 1 || o < sw) {
+      const id = setTimeout(snapOffsetIfNeeded, TRANSITION_FALLBACK_MS)
+      return () => clearTimeout(id)
+    }
+  }, [offset, snapOffsetIfNeeded])
+
+  useEffect(() => {
+    if (paused || !tabVisible || !ready || itemsCount === 0) return
     const id = setTimeout(() => shift(1), PRODUCT_INTERVAL_MS)
     return () => clearTimeout(id)
-  }, [offset, paused, ready, itemsCount, shift])
+  }, [offset, paused, tabVisible, ready, itemsCount, shift])
 
   const onTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX

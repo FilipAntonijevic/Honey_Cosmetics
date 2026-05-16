@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
+import { apiImageUrl } from '../lib/assets'
 
 const EMPTY_FORM = {
   name: '',
@@ -75,7 +76,7 @@ export default function AdminProducts() {
   const openEdit = (product) => {
     setForm({
       name: product.name,
-      description: product.description,
+      description: product.description ?? '',
       price: String(product.price),
       imageUrl: product.imageUrl,
       productTypeId: String(product.productTypeId ?? ''),
