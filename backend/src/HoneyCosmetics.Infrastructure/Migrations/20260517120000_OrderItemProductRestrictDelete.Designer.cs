@@ -16,7 +16,6 @@ namespace HoneyCosmetics.Infrastructure.Migrations
     partial class OrderItemProductRestrictDelete
     {
         /// <inheritdoc />
-        /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
@@ -725,8 +724,5 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                 });
 #pragma warning restore 612, 618
         }
-    }
-}
-
     }
 }
