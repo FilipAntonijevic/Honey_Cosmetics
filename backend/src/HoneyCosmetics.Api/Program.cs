@@ -65,11 +65,16 @@ builder.Services.AddCors(options =>
         if (!string.IsNullOrWhiteSpace(frontendUrl))
             origins.Add(frontendUrl.Trim());
 
+        var allowedOrigins = origins.Distinct(StringComparer.OrdinalIgnoreCase).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         if (builder.Environment.IsDevelopment())
         {
+            // localhost (Vite) + GitHub Pages / ngrok test sa konfigurisanim origin-ima
             policy
-                .SetIsOriginAllowed(static origin =>
+                .SetIsOriginAllowed(origin =>
                 {
+                    if (allowedOrigins.Contains(origin))
+                        return true;
                     if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
                         return false;
                     return uri.Host is "localhost" or "127.0.0.1";
