@@ -218,14 +218,24 @@ export default function Shop() {
     }
 
     if (!products.length) {
+      const isTypePage = !isSearchMode && !bestsellersMode && Boolean(vrstaName)
+      const emptyMessage = isSearchMode
+        ? `Nema proizvoda čiji naziv sadrži „${searchTerm}".`
+        : bestsellersMode
+          ? 'Trenutno nema proizvoda u sekciji Bestsellers.'
+          : isTypePage
+            ? 'Trenutno nema proizvoda u ovoj kategoriji.'
+            : 'Nema rezultata za izabrane filtere.'
+
       return (
-        <p>
-          {isSearchMode
-            ? `Nema proizvoda čiji naziv sadrži „${searchTerm}".`
-            : bestsellersMode
-              ? 'Trenutno nema proizvoda u sekciji Bestsellers.'
-              : 'Nema rezultata za izabrane filtere.'}
-        </p>
+        <div className="shop-empty">
+          <p className="shop-empty-message">{emptyMessage}</p>
+          {isTypePage ? (
+            <Link to="/shop" className="shop-empty-all-btn">
+              Svi proizvodi
+            </Link>
+          ) : null}
+        </div>
       )
     }
 
@@ -233,7 +243,9 @@ export default function Shop() {
       <div className="product-grid">
         {products.map((product) => (
           <article key={product.id} className="product-card">
-            <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" />
+            <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
+              <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" />
+            </Link>
             <div className="product-card-body">
               <h3>
                 <Link to={`/products/${product.id}`}>{product.name}</Link>
@@ -251,7 +263,7 @@ export default function Shop() {
         ))}
       </div>
     )
-  }, [loading, products, addToCart, toggleWishlist, bestsellersMode, isSearchMode, searchTerm])
+  }, [loading, products, addToCart, toggleWishlist, bestsellersMode, isSearchMode, searchTerm, vrstaName])
 
   return (
     <section className="page shop-page">

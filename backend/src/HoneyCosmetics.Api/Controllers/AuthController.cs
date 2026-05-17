@@ -223,8 +223,7 @@ public class AuthController(
         user.ResetTokenExpiresAt = DateTime.UtcNow.AddHours(2);
         await db.SaveChangesAsync();
 
-        var frontendUrl = configuration["FrontendUrl"] ?? "http://localhost:5173";
-        var link = $"{frontendUrl}/reset-password?token={Uri.EscapeDataString(user.ResetToken)}";
+        var link = $"{GetFrontendBaseUrl()}/reset-password?token={Uri.EscapeDataString(user.ResetToken)}";
         var body = BuildForgotPasswordEmail(user.FirstName, link);
         await emailService.SendAsync(user.Email, "Honey Cosmetics — Reset lozinke", body);
         return Ok();
@@ -357,11 +356,16 @@ public class AuthController(
         return false;
     }
 
-    private string BuildConfirmationLink(string token)
+    private string GetFrontendBaseUrl()
     {
-        var frontendUrl = configuration["FrontendUrl"] ?? "http://localhost:5173";
-        return $"{frontendUrl.TrimEnd('/')}/confirm-email?token={Uri.EscapeDataString(token)}";
+        var url = configuration["FrontendUrl"]?.Trim();
+        if (string.IsNullOrEmpty(url))
+            url = "https://filipantonijevic.github.io/Honey_Cosmetics";
+        return url.TrimEnd('/');
     }
+
+    private string BuildConfirmationLink(string token) =>
+        $"{GetFrontendBaseUrl()}/confirm-email?token={Uri.EscapeDataString(token)}";
 
     private bool IsSendGridConfigured()
     {

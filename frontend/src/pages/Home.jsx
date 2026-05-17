@@ -408,9 +408,11 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
 function ProductCarouselCard({ product, onAddToCart, onToggleWishlist }) {
   return (
     <article className="product-card">
-      {product.imageSrc ? (
-        <img src={product.imageSrc} alt={product.name} loading="eager" decoding="async" draggable="false" />
-      ) : null}
+      <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
+        {product.imageSrc ? (
+          <img src={product.imageSrc} alt={product.name} loading="eager" decoding="async" draggable="false" />
+        ) : null}
+      </Link>
       <div className="product-card-body">
         <h3>
           <Link to={`/products/${product.id}`}>{product.name}</Link>

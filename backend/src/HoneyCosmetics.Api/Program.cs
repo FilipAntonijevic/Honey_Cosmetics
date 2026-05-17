@@ -65,11 +65,27 @@ builder.Services.AddCors(options =>
         if (!string.IsNullOrWhiteSpace(frontendUrl))
             origins.Add(frontendUrl.Trim());
 
-        policy
-            .WithOrigins(origins.Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
+        if (builder.Environment.IsDevelopment())
+        {
+            policy
+                .SetIsOriginAllowed(static origin =>
+                {
+                    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                        return false;
+                    return uri.Host is "localhost" or "127.0.0.1";
+                })
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        }
+        else
+        {
+            policy
+                .WithOrigins(origins.Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        }
     });
 });
 
@@ -116,6 +132,10 @@ builder.Services
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+app.Logger.LogInformation(
+    "Linkovi u emailu (potvrda, reset lozinke): {FrontendUrl}",
+    app.Configuration["FrontendUrl"] ?? "https://filipantonijevic.github.io/Honey_Cosmetics");
 
 //
 // Database Seed

@@ -9,7 +9,8 @@ public record ProductRequest(
     [Range(0.01, 9999999)] decimal Price,
     string ImageUrl,
     int ProductTypeId,
-    int? CategoryId);
+    int? CategoryId,
+    IReadOnlyList<string>? AdditionalImageUrls = null);
 
 public record ProductResponse(
     int Id,
@@ -23,7 +24,8 @@ public record ProductResponse(
     string Category,
     bool IsBestseller,
     int BestsellerSortOrder,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    IReadOnlyList<string>? AdditionalImageUrls = null);
 
 public record BestsellersUpdateRequest(IReadOnlyList<int> ProductIds);
 

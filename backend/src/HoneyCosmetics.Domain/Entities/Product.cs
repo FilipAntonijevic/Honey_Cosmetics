@@ -14,4 +14,5 @@ public class Product
     public bool IsBestseller { get; set; }
     public int BestsellerSortOrder { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public List<ProductImage> AdditionalImages { get; set; } = new();
 }

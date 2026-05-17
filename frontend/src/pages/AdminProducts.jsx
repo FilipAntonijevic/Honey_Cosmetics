@@ -7,9 +7,16 @@ const EMPTY_FORM = {
   name: '',
   description: '',
   price: '',
-  imageUrl: '',
+  imageUrls: [''],
   productTypeId: '',
   categoryId: '',
+}
+
+function productToImageUrls(product) {
+  const main = product.imageUrl?.trim() ?? ''
+  const extra = (product.additionalImageUrls ?? []).map((u) => u.trim()).filter(Boolean)
+  const urls = main ? [main, ...extra] : extra
+  return urls.length > 0 ? urls : ['']
 }
 
 export default function AdminProducts() {
@@ -21,9 +28,9 @@ export default function AdminProducts() {
   const [editId, setEditId] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const [uploadingIndex, setUploadingIndex] = useState(null)
   const [error, setError] = useState('')
-  const fileRef = useRef(null)
+  const fileRefs = useRef([])
 
   const loadProducts = async () => {
     setLoading(true)
@@ -78,7 +85,7 @@ export default function AdminProducts() {
       name: product.name,
       description: product.description ?? '',
       price: String(product.price),
-      imageUrl: product.imageUrl,
+      imageUrls: productToImageUrls(product),
       productTypeId: String(product.productTypeId ?? ''),
       categoryId: product.categoryId != null ? String(product.categoryId) : '',
     })
@@ -103,19 +110,49 @@ export default function AdminProducts() {
     })
   }
 
-  const uploadImage = async (file) => {
-    setUploading(true)
+  const setImageUrl = (index, value) => {
+    setForm((f) => {
+      const imageUrls = [...f.imageUrls]
+      imageUrls[index] = value
+      return { ...f, imageUrls }
+    })
+  }
+
+  const addImageSlot = () => {
+    setForm((f) => ({ ...f, imageUrls: [...f.imageUrls, ''] }))
+  }
+
+  const removeImageSlot = (index) => {
+    setForm((f) => {
+      if (f.imageUrls.length <= 1) return f
+      const imageUrls = f.imageUrls.filter((_, i) => i !== index)
+      return { ...f, imageUrls }
+    })
+  }
+
+  const moveImage = (index, direction) => {
+    setForm((f) => {
+      const next = index + direction
+      if (next < 0 || next >= f.imageUrls.length) return f
+      const imageUrls = [...f.imageUrls]
+      ;[imageUrls[index], imageUrls[next]] = [imageUrls[next], imageUrls[index]]
+      return { ...f, imageUrls }
+    })
+  }
+
+  const uploadImage = async (file, index) => {
+    setUploadingIndex(index)
     try {
       const fd = new FormData()
       fd.append('file', file)
       const { data } = await api.post('/admin/upload', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
-      setForm((f) => ({ ...f, imageUrl: data.url }))
+      setImageUrl(index, data.url)
     } catch {
       setError('Upload slike nije uspeo.')
     } finally {
-      setUploading(false)
+      setUploadingIndex(null)
     }
   }
 
@@ -126,13 +163,21 @@ export default function AdminProducts() {
       setError('Naziv, cena i vrsta proizvoda su obavezni.')
       return
     }
+
+    const urls = form.imageUrls.map((u) => u.trim()).filter(Boolean)
+    if (urls.length === 0) {
+      setError('Dodajte bar jednu sliku (glavnu).')
+      return
+    }
+
     setSaving(true)
     try {
       const payload = {
         name: form.name.trim(),
         description: form.description.trim(),
         price: parseFloat(form.price),
-        imageUrl: form.imageUrl.trim(),
+        imageUrl: urls[0],
+        additionalImageUrls: urls.slice(1),
         productTypeId: parseInt(form.productTypeId, 10),
         categoryId: form.categoryId ? parseInt(form.categoryId, 10) : null,
       }
@@ -174,7 +219,7 @@ export default function AdminProducts() {
 
       {showForm && (
         <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && closeForm()}>
-          <div className="adm-modal">
+          <div className="adm-modal adm-modal--wide">
             <div className="adm-modal-header">
               <h2>{editId ? 'Izmeni proizvod' : 'Novi proizvod'}</h2>
               <button type="button" className="adm-modal-close" onClick={closeForm}>✕</button>
@@ -211,9 +256,6 @@ export default function AdminProducts() {
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
-                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#9ca3af' }}>
-                    Opciono. Liste se puni u panelu Kategorije za izabranu vrstu.
-                  </p>
                 </div>
               </div>
 
@@ -228,29 +270,80 @@ export default function AdminProducts() {
               </div>
 
               <div className="adm-form-row">
-                <label>Slika</label>
-                <div className="adm-image-row">
-                  <input className="adm-input" placeholder="URL slike…" value={form.imageUrl} onChange={set('imageUrl')} />
-                  <span className="adm-or">ili</span>
-                  <input
-                    type="file"
-                    ref={fileRef}
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={(e) => e.target.files[0] && uploadImage(e.target.files[0])}
-                  />
-                  <button
-                    type="button"
-                    className="adm-btn"
-                    disabled={uploading}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    {uploading ? 'Upload…' : '↑ Upload'}
-                  </button>
+                <label>Slike proizvoda</label>
+                <p className="adm-field-hint">
+                  Prva slika je glavna (prikazuje se u prodavnici i na karticama). Ostale se vide na stranici proizvoda.
+                </p>
+                <div className="adm-product-images">
+                  {form.imageUrls.map((url, index) => (
+                    <div key={index} className="adm-product-image-slot">
+                      <div className="adm-product-image-slot__head">
+                        <span className="adm-product-image-slot__label">
+                          {index === 0 ? 'Glavna slika' : `Dodatna slika ${index}`}
+                        </span>
+                        <div className="adm-product-image-slot__actions">
+                          <button
+                            type="button"
+                            className="adm-btn adm-btn-sm"
+                            disabled={index === 0}
+                            onClick={() => moveImage(index, -1)}
+                            aria-label="Pomeri gore"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="adm-btn adm-btn-sm"
+                            disabled={index === form.imageUrls.length - 1}
+                            onClick={() => moveImage(index, 1)}
+                            aria-label="Pomeri dole"
+                          >
+                            ↓
+                          </button>
+                          {form.imageUrls.length > 1 ? (
+                            <button
+                              type="button"
+                              className="adm-btn adm-btn-sm adm-btn-danger"
+                              onClick={() => removeImageSlot(index)}
+                            >
+                              Ukloni
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="adm-image-row">
+                        <input
+                          className="adm-input"
+                          placeholder="URL slike…"
+                          value={url}
+                          onChange={(e) => setImageUrl(index, e.target.value)}
+                        />
+                        <span className="adm-or">ili</span>
+                        <input
+                          type="file"
+                          ref={(el) => { fileRefs.current[index] = el }}
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => e.target.files[0] && uploadImage(e.target.files[0], index)}
+                        />
+                        <button
+                          type="button"
+                          className="adm-btn"
+                          disabled={uploadingIndex === index}
+                          onClick={() => fileRefs.current[index]?.click()}
+                        >
+                          {uploadingIndex === index ? 'Upload…' : '↑ Upload'}
+                        </button>
+                      </div>
+                      {url ? (
+                        <img src={apiImageUrl(url)} alt="" className="adm-img-preview adm-img-preview--sm" />
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
-                {form.imageUrl && (
-                  <img src={apiImageUrl(form.imageUrl)} alt="preview" className="adm-img-preview" />
-                )}
+                <button type="button" className="adm-btn adm-btn-add-image" onClick={addImageSlot}>
+                  + Dodaj sliku
+                </button>
               </div>
 
               <div className="adm-modal-footer">

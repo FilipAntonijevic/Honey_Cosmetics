@@ -55,7 +55,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
                 x.Category != null ? x.Category.Name : string.Empty,
                 x.IsBestseller,
                 x.BestsellerSortOrder,
-                x.CreatedAt))
+                x.CreatedAt,
+                null))
             .ToListAsync();
         return Ok(list);
     }
@@ -120,31 +121,78 @@ public class ProductsController(AppDbContext db) : ControllerBase
                 x.Category != null ? x.Category.Name : string.Empty,
                 x.IsBestseller,
                 x.BestsellerSortOrder,
-                x.CreatedAt))
+                x.CreatedAt,
+                null))
             .ToListAsync();
 
         return Ok(result);
     }
 
+    [AllowAnonymous]
+    [HttpGet("{id:int}/related")]
+    public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetRelated(int id, [FromQuery] int count = 4)
+    {
+        count = Math.Clamp(count, 1, 12);
+
+        var pool = await db.Products
+            .Include(x => x.Category)
+            .Include(x => x.ProductType)
+            .Where(x => x.Id != id)
+            .ToListAsync();
+
+        var list = pool
+            .OrderBy(_ => Random.Shared.Next())
+            .Take(count)
+            .Select(x => new ProductResponse(
+                x.Id,
+                x.Name,
+                x.Description,
+                x.Price,
+                x.ImageUrl,
+                x.ProductTypeId,
+                x.ProductType != null ? x.ProductType.Name : string.Empty,
+                x.CategoryId,
+                x.Category != null ? x.Category.Name : string.Empty,
+                x.IsBestseller,
+                x.BestsellerSortOrder,
+                x.CreatedAt,
+                null))
+            .ToList();
+
+        return Ok(list);
+    }
+
+    [AllowAnonymous]
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ProductResponse>> GetById(int id)
     {
-        var product = await db.Products.Include(x => x.Category).Include(x => x.ProductType).FirstOrDefaultAsync(x => x.Id == id);
-        return product is null
-            ? NotFound()
-            : Ok(new ProductResponse(
-                product.Id,
-                product.Name,
-                product.Description,
-                product.Price,
-                product.ImageUrl,
-                product.ProductTypeId,
-                product.ProductType != null ? product.ProductType.Name : string.Empty,
-                product.CategoryId,
-                product.Category != null ? product.Category.Name : string.Empty,
-                product.IsBestseller,
-                product.BestsellerSortOrder,
-                product.CreatedAt));
+        var product = await db.Products
+            .Include(x => x.Category)
+            .Include(x => x.ProductType)
+            .Include(x => x.AdditionalImages)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (product is null)
+            return NotFound();
+
+        var additional = product.AdditionalImages
+            .OrderBy(x => x.SortOrder)
+            .Select(x => x.ImageUrl)
+            .ToList();
+
+        return Ok(new ProductResponse(
+            product.Id,
+            product.Name,
+            product.Description,
+            product.Price,
+            product.ImageUrl,
+            product.ProductTypeId,
+            product.ProductType != null ? product.ProductType.Name : string.Empty,
+            product.CategoryId,
+            product.Category != null ? product.Category.Name : string.Empty,
+            product.IsBestseller,
+            product.BestsellerSortOrder,
+            product.CreatedAt,
+            additional));
     }
 
     [Authorize(Roles = "Admin")]
@@ -166,8 +214,11 @@ public class ProductsController(AppDbContext db) : ControllerBase
 
         db.Products.Add(product);
         await db.SaveChangesAsync();
+        await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
+        await db.SaveChangesAsync();
         await db.Entry(product).Reference(x => x.ProductType).LoadAsync();
         await db.Entry(product).Reference(x => x.Category).LoadAsync();
+        var additional = await db.GetAdditionalImageUrlsAsync(product.Id);
 
         return CreatedAtAction(nameof(GetById), new { id = product.Id }, new ProductResponse(
             product.Id,
@@ -181,7 +232,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
             product.Category != null ? product.Category.Name : string.Empty,
             product.IsBestseller,
             product.BestsellerSortOrder,
-            product.CreatedAt));
+            product.CreatedAt,
+            additional));
     }
 
     [Authorize(Roles = "Admin")]
@@ -203,6 +255,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
         product.ImageUrl = request.ImageUrl;
         product.ProductTypeId = request.ProductTypeId;
         product.CategoryId = request.CategoryId;
+        await db.SaveChangesAsync();
+        await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
         await db.SaveChangesAsync();
         return NoContent();
     }

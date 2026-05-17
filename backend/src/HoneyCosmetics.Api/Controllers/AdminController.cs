@@ -71,6 +71,7 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         var products = await db.Products
             .Include(x => x.Category)
             .Include(x => x.ProductType)
+            .Include(x => x.AdditionalImages)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
         return Ok(products.Select(MapProduct));
@@ -93,8 +94,11 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         };
         db.Products.Add(product);
         await db.SaveChangesAsync();
+        await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
+        await db.SaveChangesAsync();
         await db.Entry(product).Reference(p => p.Category).LoadAsync();
         await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
+        await db.Entry(product).Collection(p => p.AdditionalImages).LoadAsync();
         return Ok(MapProduct(product));
     }
 
@@ -115,8 +119,11 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
         product.CategoryId = request.CategoryId;
 
         await db.SaveChangesAsync();
+        await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
+        await db.SaveChangesAsync();
         await db.Entry(product).Reference(p => p.Category).LoadAsync();
         await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
+        await db.Entry(product).Collection(p => p.AdditionalImages).LoadAsync();
         return Ok(MapProduct(product));
     }
 
@@ -358,7 +365,11 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
             p.Category != null ? p.Category.Name : string.Empty,
             p.IsBestseller,
             p.BestsellerSortOrder,
-            p.CreatedAt);
+            p.CreatedAt,
+            p.AdditionalImages
+                .OrderBy(x => x.SortOrder)
+                .Select(x => x.ImageUrl)
+                .ToList());
 
     private static AdminOrderResponse MapAdminOrder(Order o) => new(
         o.Id,
