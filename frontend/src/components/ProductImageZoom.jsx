@@ -27,7 +27,8 @@ export default function ProductImageZoom({ src, alt }) {
       <ApiImage
         src={src}
         alt={alt}
-        className={`pd-zoom__img${zoomed ? ' is-zoomed' : ''}`}
+        className="pd-zoom__wrap"
+        imgClassName={`pd-zoom__img${zoomed ? ' is-zoomed' : ''}`}
         style={zoomed ? { transformOrigin: origin } : undefined}
       />
     </div>

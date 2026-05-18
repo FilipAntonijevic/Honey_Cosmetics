@@ -296,7 +296,7 @@ export default function Checkout() {
                 <div key={item.id} className="co-sum-item">
                   <div className="co-sum-img-wrap">
                     {item.imageUrl
-                      ? <ApiImage src={item.imageUrl} alt={item.name} className="co-sum-img" />
+                      ? <ApiImage src={item.imageUrl} alt={item.name} className="co-sum-img" variant="medium" />
                       : <div className="co-sum-img-ph" />}
                     <span className="co-sum-qty">{item.quantity}</span>
                   </div>

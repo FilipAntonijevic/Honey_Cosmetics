@@ -54,7 +54,7 @@ export default function Cart() {
                 <div className="cart-row-left">
                   <div className="cart-img-wrap">
                     {item.imageUrl
-                      ? <ApiImage src={item.imageUrl} alt={item.name} className="cart-img" />
+                      ? <ApiImage src={item.imageUrl} alt={item.name} className="cart-img" variant="medium" />
                       : <div className="cart-img-ph" />}
                   </div>
                   <div className="cart-info">

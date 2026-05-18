@@ -576,7 +576,7 @@ export default function Layout({ children }) {
                   {cart.map((item) => (
                     <li key={item.id} className="mini-cart-item">
                       {item.imageUrl && (
-                        <ApiImage src={item.imageUrl} alt={item.name} className="mini-cart-img" />
+                        <ApiImage src={item.imageUrl} alt={item.name} className="mini-cart-img" variant="medium" />
                       )}
                       <div className="mini-cart-info">
                         <span className="mini-cart-name">{item.name}</span>

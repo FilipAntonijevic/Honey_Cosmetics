@@ -6,7 +6,7 @@ import { publicUrl } from '../lib/assets'
 import {
   attachResolvedImageSrc,
   attachResolvedImageSrcPartial,
-  preloadProductImagesAwait,
+  preloadProductImagesMediumAwait,
 } from '../lib/imagePreload'
 
 const POP_VISIBLE_MAX = 5
@@ -763,14 +763,14 @@ export default function Home() {
         }
 
         const firstBatch = list.slice(0, POP_VISIBLE_MAX)
-        await preloadProductImagesAwait(firstBatch)
+        await preloadProductImagesMediumAwait(firstBatch)
         if (cancelled) return
 
         setBestsellers(attachResolvedImageSrcPartial(list, POP_VISIBLE_MAX))
         setBestsellersReady(true)
 
         if (list.length > POP_VISIBLE_MAX) {
-          preloadProductImagesAwait(list.slice(POP_VISIBLE_MAX)).then(() => {
+          preloadProductImagesMediumAwait(list.slice(POP_VISIBLE_MAX)).then(() => {
             if (!cancelled) setBestsellers(attachResolvedImageSrc(list))
           })
         }

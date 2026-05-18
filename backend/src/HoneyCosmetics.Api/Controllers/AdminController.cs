@@ -1,3 +1,4 @@
+using HoneyCosmetics.Api.Services;
 using HoneyCosmetics.Application.DTOs;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Domain.Enums;
@@ -11,7 +12,10 @@ namespace HoneyCosmetics.Api.Controllers;
 [ApiController]
 [Authorize(Roles = "Admin")]
 [Route("api/admin")]
-public class AdminController(AppDbContext db, IWebHostEnvironment env) : ControllerBase
+public class AdminController(
+    AppDbContext db,
+    IWebHostEnvironment env,
+    ImageThumbnailService thumbnails) : ControllerBase
 {
     // ── Dashboard ────────────────────────────────────────────────────────────
     [HttpGet("dashboard")]
@@ -338,11 +342,20 @@ public class AdminController(AppDbContext db, IWebHostEnvironment env) : Control
 
         var fileName = $"{Guid.NewGuid()}{ext}";
         var filePath = Path.Combine(imagesDir, fileName);
-        await using var stream = System.IO.File.Create(filePath);
-        await file.CopyToAsync(stream);
+        await using (var stream = System.IO.File.Create(filePath))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        await thumbnails.GenerateAllVariantsAsync(fileName);
 
         var url = $"/images/{fileName}";
-        return Ok(new { url });
+        return Ok(new
+        {
+            url,
+            thumbnailUrl = ImageThumbnailService.GetThumbnailUrl(url),
+            mediumUrl = ImageThumbnailService.GetMediumUrl(url),
+        });
     }
 
     private Task<bool> CategoryMatchesProductTypeAsync(int productTypeId, int? categoryId)

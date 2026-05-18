@@ -12,7 +12,7 @@ export default function Wishlist() {
         <div className="product-grid">
           {wishlist.map((item) => (
             <article className="product-card" key={item.id}>
-              <ApiImage src={item.imageUrl} alt={item.name} />
+              <ApiImage src={item.imageUrl} alt={item.name} variant="medium" />
               <div className="product-card-body">
                 <h3>{item.name}</h3>
                 <strong>{Number(item.price).toLocaleString('sr-RS')} RSD</strong>

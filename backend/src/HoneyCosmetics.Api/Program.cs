@@ -4,6 +4,7 @@ using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Domain.Enums;
 using HoneyCosmetics.Infrastructure.Configurations;
 using HoneyCosmetics.Infrastructure.Data;
+using HoneyCosmetics.Api.Services;
 using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.StaticFiles;
@@ -38,6 +39,7 @@ builder.Services.Configure<SendGridSettings>(
 //
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddSingleton<ImageThumbnailService>();
 
 //
 // Background Services
@@ -345,5 +347,23 @@ app.UseAuthorization();
 // Controllers
 //
 app.MapControllers();
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var thumbs = scope.ServiceProvider.GetRequiredService<ImageThumbnailService>();
+            await thumbs.BackfillMissingThumbnailsAsync();
+        }
+        catch (Exception ex)
+        {
+            var log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ImageThumbnails");
+            log.LogWarning(ex, "Thumbnail backfill failed.");
+        }
+    });
+});
 
 app.Run();

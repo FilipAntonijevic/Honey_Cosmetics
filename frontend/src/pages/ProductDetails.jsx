@@ -49,7 +49,7 @@ function RelatedCard({ product, onAddToCart }) {
   return (
     <article className="product-card">
       <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
-        <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" />
+        <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" variant="medium" />
       </Link>
       <div className="product-card-body">
         <h3>

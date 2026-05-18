@@ -17,3 +17,36 @@ export function apiImageUrl(path) {
 
   return path.startsWith('/') ? path : `/${path}`
 }
+
+/** Isto kao backend: /images/foo.jpg → /images/thumbs/foo.webp */
+export function variantWebpFileName(path) {
+  const fileName = String(path).replace(/^\//, '').split('/').pop() || ''
+  if (!fileName) return ''
+  const base = fileName.includes('.') ? fileName.replace(/\.[^.]+$/, '') : fileName
+  return `${base}.webp`
+}
+
+function apiVariantUrl(path, folder) {
+  if (!path || /^https?:\/\//i.test(path)) return ''
+  const webpName = variantWebpFileName(path)
+  if (!webpName) return ''
+  return apiImageUrl(`/images/${folder}/${webpName}`)
+}
+
+/** Legacy JPEG varijanta (dok traje migracija). */
+export function apiVariantUrlLegacy(path, folder) {
+  if (!path || /^https?:\/\//i.test(path)) return ''
+  const fileName = String(path).replace(/^\//, '').split('/').pop()
+  if (!fileName) return ''
+  return apiImageUrl(`/images/${folder}/${fileName}`)
+}
+
+/** Mala verzija (~64px) — blur placeholder. */
+export function apiThumbnailUrl(path) {
+  return apiVariantUrl(path, 'thumbs')
+}
+
+/** Srednja verzija (~800px) — brz oštar prikaz u listama. */
+export function apiMediumUrl(path) {
+  return apiVariantUrl(path, 'medium')
+}

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { apiImageUrl } from './assets'
+import { apiImageUrl, apiMediumUrl, apiThumbnailUrl, apiVariantUrlLegacy } from './assets'
 
 /** Keš blob/http URL-ova — ApiImage i karusel dele iste učitane slike. */
 const cache = new Map()
@@ -32,10 +32,13 @@ export function attachResolvedImageSrcPartial(products, count) {
   }))
 }
 
-function preloadOne(imageUrl) {
-  const key = apiImageUrl(imageUrl)
-  if (!key) return Promise.resolve()
-  if (cache.has(key)) return Promise.resolve()
+function preloadUrl(key) {
+  if (!key || cache.has(key)) return Promise.resolve()
+  return preloadUrlOnce(key)
+}
+
+function preloadUrlOnce(key) {
+  if (!key || cache.has(key)) return Promise.resolve()
 
   if (key.includes('ngrok')) {
     return axios
@@ -65,10 +68,61 @@ function preloadOne(imageUrl) {
   })
 }
 
-/** Pokreni preload u pozadini (ne čeka). */
+function preloadVariant(webpKey, legacyKey) {
+  if (!webpKey) return Promise.resolve()
+  if (cache.has(webpKey)) return Promise.resolve()
+  return preloadUrlOnce(webpKey).catch(() =>
+    legacyKey && !cache.has(legacyKey) ? preloadUrlOnce(legacyKey) : Promise.resolve(),
+  )
+}
+
+function preloadOne(imageUrl, { full = true } = {}) {
+  const key = apiImageUrl(imageUrl)
+  if (!key) return Promise.resolve()
+  if (cache.has(key)) return Promise.resolve()
+
+  const thumbKey = apiThumbnailUrl(imageUrl)
+  const thumbLegacy = apiVariantUrlLegacy(imageUrl, 'thumbs')
+  const mediumKey = apiMediumUrl(imageUrl)
+  const mediumLegacy = apiVariantUrlLegacy(imageUrl, 'medium')
+
+  let chain = Promise.resolve()
+  if (thumbKey || thumbLegacy)
+    chain = chain.then(() => preloadVariant(thumbKey, thumbLegacy))
+  if (mediumKey || mediumLegacy)
+    chain = chain.then(() => preloadVariant(mediumKey, mediumLegacy))
+  if (full) {
+    chain = chain.then(() => preloadUrlOnce(key))
+  } else {
+    chain = chain.then(async () => {
+      if (!mediumKey && !mediumLegacy) {
+        await preloadUrlOnce(key)
+        return
+      }
+      await preloadVariant(mediumKey, mediumLegacy)
+      const cachedMedium = (mediumKey && cache.get(mediumKey)) || (mediumLegacy && cache.get(mediumLegacy))
+      if (cachedMedium) cache.set(key, cachedMedium)
+    })
+  }
+
+  return chain
+}
+
+/** Lista/kartice — dovoljna je srednja rezolucija. */
+export function preloadProductImagesMedium(products) {
+  if (!Array.isArray(products)) return
+  for (const p of products) preloadOne(p?.imageUrl, { full: false })
+}
+
+export function preloadProductImagesMediumAwait(products) {
+  if (!Array.isArray(products) || products.length === 0) return Promise.resolve()
+  return Promise.all(products.map((p) => preloadOne(p?.imageUrl, { full: false })))
+}
+
+/** Pokreni preload u pozadini (ne čeka) — puna rezolucija. */
 export function preloadProductImages(products) {
   if (!Array.isArray(products)) return
-  for (const p of products) preloadOne(p?.imageUrl)
+  for (const p of products) preloadOne(p?.imageUrl, { full: true })
 }
 
 /** Sačekaj sve slike bestsellera pre prikaza karusela. */

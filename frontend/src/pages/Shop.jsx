@@ -62,7 +62,7 @@ function CategoryStrip({ categories, selectedId, onSelect }) {
             >
               <div className="cat-strip-img-wrap">
                 {c.imageUrl ? (
-                  <ApiImage src={c.imageUrl} alt={c.name} loading="lazy" />
+                  <ApiImage src={c.imageUrl} alt={c.name} loading="lazy" variant="medium" />
                 ) : (
                   <div className="cat-strip-img-empty" />
                 )}
@@ -244,7 +244,7 @@ export default function Shop() {
         {products.map((product) => (
           <article key={product.id} className="product-card">
             <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
-              <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" />
+              <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" variant="medium" />
             </Link>
             <div className="product-card-body">
               <h3>

@@ -36,7 +36,7 @@ export default function ProductGallery({ imageUrl, additionalImageUrls, alt }) {
               className={`pd-gallery__thumb${index === activeIndex ? ' is-active' : ''}`}
               onClick={() => setActiveIndex(index)}
             >
-              <ApiImage src={src} alt="" loading="lazy" />
+              <ApiImage src={src} alt="" loading="lazy" variant="medium" />
             </button>
           ))}
         </div>

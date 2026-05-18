@@ -1,64 +1,188 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
-import { apiImageUrl } from '../lib/assets'
+import {
+  apiImageUrl,
+  apiMediumUrl,
+  apiThumbnailUrl,
+  apiVariantUrlLegacy,
+} from '../lib/assets'
 import { getPreloadedImage } from '../lib/imagePreload'
 
-/** Učitava /images/... sa API-ja; za ngrok koristi fetch + blob (img tag ne može poslati ngrok header). */
-export default function ApiImage({ src, alt = '', className, style, loading }) {
-  const directUrl = src ? apiImageUrl(src) : ''
-  const useBlob = directUrl.includes('ngrok')
+async function fetchBlobUrl(url) {
+  const { data } = await axios.get(url, {
+    responseType: 'blob',
+    headers: { 'ngrok-skip-browser-warning': 'true' },
+  })
+  return URL.createObjectURL(data)
+}
 
-  const [displaySrc, setDisplaySrc] = useState(useBlob ? '' : directUrl)
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+async function resolveUrl(directUrl, useBlob) {
+  if (!directUrl) return ''
+  if (!useBlob) return directUrl
+  return fetchBlobUrl(directUrl)
+}
+
+async function loadVariant(webpUrl, legacyUrl, useBlob) {
+  if (webpUrl) {
+    try {
+      const url = await resolveUrl(webpUrl, useBlob)
+      await loadImageElement(url)
+      return url
+    } catch {
+      /* WebP još nije generisan */
+    }
+  }
+  if (legacyUrl) {
+    const url = await resolveUrl(legacyUrl, useBlob)
+    await loadImageElement(url)
+    return url
+  }
+  throw new Error('variant unavailable')
+}
+
+/**
+ * Progresivno: thumb (blur) → medium → full.
+ * variant="medium" — za kartice u prodavnici (ne učitava original).
+ */
+export default function ApiImage({
+  src,
+  alt = '',
+  className,
+  imgClassName,
+  style,
+  loading,
+  variant = 'full',
+}) {
+  const fullDirect = src ? apiImageUrl(src) : ''
+  const mediumDirect = src ? apiMediumUrl(src) : ''
+  const thumbDirect = src ? apiThumbnailUrl(src) : ''
+  const mediumLegacy = src ? apiVariantUrlLegacy(src, 'medium') : ''
+  const thumbLegacy = src ? apiVariantUrlLegacy(src, 'thumbs') : ''
+  const useBlob = fullDirect.includes('ngrok')
+  const wantFull = variant === 'full'
+
+  const [thumbSrc, setThumbSrc] = useState('')
+  const [displaySrc, setDisplaySrc] = useState('')
+  const [fullReady, setFullReady] = useState(false)
 
   useEffect(() => {
-    if (!src || !directUrl) {
+    if (!src || !fullDirect) {
+      setThumbSrc('')
       setDisplaySrc('')
+      setFullReady(false)
       return
     }
+
+    setThumbSrc('')
+    setDisplaySrc('')
+    setFullReady(false)
 
     const cached = getPreloadedImage(src)
     if (cached) {
       setDisplaySrc(cached)
-      return
-    }
-
-    if (!useBlob) {
-      setDisplaySrc(directUrl)
+      setFullReady(true)
       return
     }
 
     let cancelled = false
-    let objectUrl = ''
+    let blobUrls = []
 
-    axios
-      .get(directUrl, {
-        responseType: 'blob',
-        headers: { 'ngrok-skip-browser-warning': 'true' },
-      })
-      .then((res) => {
+    const trackBlob = (url) => {
+      if (url.startsWith('blob:')) blobUrls.push(url)
+      return url
+    }
+
+    const run = async () => {
+      let hasDisplay = false
+
+      try {
+        try {
+          const thumb = await loadVariant(thumbDirect, thumbLegacy, useBlob)
+          if (!cancelled) setThumbSrc(trackBlob(thumb))
+        } catch {
+          /* thumb još nije generisan */
+        }
+
+        try {
+          const medium = await loadVariant(mediumDirect, mediumLegacy, useBlob)
+          if (cancelled) return
+          setDisplaySrc(trackBlob(medium))
+          hasDisplay = true
+          if (!wantFull) setFullReady(true)
+        } catch {
+          /* medium još nije generisan — fallback na original ispod */
+        }
+
+        if (!wantFull) {
+          if (!hasDisplay && !cancelled) {
+            const full = await resolveUrl(fullDirect, useBlob)
+            await loadImageElement(full)
+            if (!cancelled) {
+              setDisplaySrc(trackBlob(full))
+              setFullReady(true)
+            }
+          }
+          return
+        }
+
+        const full = await resolveUrl(fullDirect, useBlob)
+        await loadImageElement(full)
         if (cancelled) return
-        objectUrl = URL.createObjectURL(res.data)
-        setDisplaySrc(objectUrl)
-      })
-      .catch(() => {
-        if (!cancelled) setDisplaySrc('')
-      })
+        setDisplaySrc(trackBlob(full))
+        setFullReady(true)
+      } catch {
+        if (!cancelled) {
+          setThumbSrc('')
+          setDisplaySrc('')
+        }
+      }
+    }
+
+    run()
 
     return () => {
       cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      for (const url of blobUrls) URL.revokeObjectURL(url)
+      blobUrls = []
     }
-  }, [src, directUrl, useBlob])
+  }, [src, fullDirect, mediumDirect, thumbDirect, mediumLegacy, thumbLegacy, useBlob, wantFull])
 
-  if (!displaySrc) return null
+  if (!thumbSrc && !displaySrc) {
+    return <span className={`api-image api-image--pending${className ? ` ${className}` : ''}`} style={style} aria-hidden />
+  }
+
+  const wrapClass = ['api-image', fullReady ? 'api-image--ready' : '', className].filter(Boolean).join(' ')
 
   return (
-    <img
-      src={displaySrc}
-      alt={alt}
-      className={className}
-      style={style}
-      loading={loading}
-    />
+    <span className={wrapClass} style={style}>
+      {thumbSrc && !fullReady ? (
+        <img
+          src={thumbSrc}
+          alt=""
+          aria-hidden
+          className="api-image__placeholder"
+          loading={loading}
+        />
+      ) : null}
+      {displaySrc ? (
+        <img
+          src={displaySrc}
+          alt={alt}
+          className={['api-image__full', imgClassName].filter(Boolean).join(' ')}
+          style={style}
+          loading={loading}
+          decoding="async"
+        />
+      ) : null}
+    </span>
   )
 }
