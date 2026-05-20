@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Address> Addresses => Set<Address>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SiteSettings> SiteSettings => Set<SiteSettings>();
+    public DbSet<HomeSlideshowSlide> HomeSlideshowSlides => Set<HomeSlideshowSlide>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,7 +30,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<PendingRegistration>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.Entity<PendingRegistration>().HasIndex(x => x.ConfirmationToken).IsUnique();
         modelBuilder.Entity<Coupon>().HasIndex(x => x.Code).IsUnique();
-        modelBuilder.Entity<CouponUsage>().HasIndex(x => new { x.CouponId, x.UserId }).IsUnique();
+        modelBuilder.Entity<CouponUsage>().HasIndex(x => new { x.CouponId, x.UserId });
         modelBuilder.Entity<Wishlist>().HasIndex(x => new { x.UserId, x.ProductId }).IsUnique();
         modelBuilder.Entity<Cart>().HasIndex(x => new { x.UserId, x.ProductId }).IsUnique();
 
@@ -76,5 +77,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<ProductImage>()
             .HasIndex(x => new { x.ProductId, x.SortOrder });
+
+        modelBuilder.Entity<HomeSlideshowSlide>()
+            .HasIndex(x => x.SortOrder);
     }
 }

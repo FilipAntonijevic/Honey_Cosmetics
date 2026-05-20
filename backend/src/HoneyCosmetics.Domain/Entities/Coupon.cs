@@ -9,5 +9,6 @@ public class Coupon
     public DateTime? ExpiresAt { get; set; }
     public bool IsActive { get; set; } = true;
     public bool FirstOrderOnly { get; set; }
+    public bool OneTimePerUser { get; set; } = true;
     public List<CouponUsage> Usages { get; set; } = [];
 }

@@ -33,10 +33,13 @@ public class CouponsController(AppDbContext db) : ControllerBase
         }
 
         var userId = User.GetUserId();
-        var alreadyUsed = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
-        if (alreadyUsed)
+        if (coupon.OneTimePerUser)
         {
-            return Ok(new CouponValidationResponse(false, "Kupon je već iskorišćen.", 0, false));
+            var alreadyUsed = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
+            if (alreadyUsed)
+            {
+                return Ok(new CouponValidationResponse(false, "Kupon je već iskorišćen.", 0, false));
+            }
         }
 
         return Ok(new CouponValidationResponse(true, "Kupon je validan.", coupon.DiscountValue, coupon.IsPercentage));
@@ -57,6 +60,7 @@ public class CouponsController(AppDbContext db) : ControllerBase
                 x.IsPercentage,
                 x.ExpiresAt,
                 x.FirstOrderOnly,
+                x.OneTimePerUser,
                 x.IsActive,
                 UsageCount = x.Usages.Count
             })
@@ -103,6 +107,7 @@ public class CouponsController(AppDbContext db) : ControllerBase
             IsPercentage = request.IsPercentage,
             ExpiresAt = request.ExpiresAt,
             FirstOrderOnly = request.FirstOrderOnly,
+            OneTimePerUser = request.OneTimePerUser,
             IsActive = true
         });
 

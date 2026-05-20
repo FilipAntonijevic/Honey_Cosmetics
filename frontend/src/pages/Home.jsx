@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
-import { publicUrl } from '../lib/assets'
+import { apiImageUrl, publicUrl } from '../lib/assets'
 import {
   attachResolvedImageSrc,
   attachResolvedImageSrcPartial,
@@ -747,6 +747,25 @@ function ProductCarousel({ products }) {
 export default function Home() {
   const [bestsellers, setBestsellers] = useState([])
   const [bestsellersReady, setBestsellersReady] = useState(false)
+  const [heroImages, setHeroImages] = useState(HERO_IMAGES)
+
+  useEffect(() => {
+    let cancelled = false
+    api
+      .get('/home-slideshow')
+      .then(({ data }) => {
+        if (cancelled) return
+        const urls = (data ?? [])
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((s) => apiImageUrl(s.imageUrl))
+          .filter(Boolean)
+        if (urls.length > 0) setHeroImages(urls)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -788,7 +807,7 @@ export default function Home() {
 
   return (
     <>
-      <HeroCarousel images={HERO_IMAGES} />
+      <HeroCarousel images={heroImages} />
 
       {bestsellersReady && bestsellers.length > 0 && (
         <section className="section-gap pop-section">

@@ -143,6 +143,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<bool>("IsPercentage")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("OneTimePerUser")
+                        .HasColumnType("boolean");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
@@ -172,10 +175,31 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.HasIndex("CouponId", "UserId")
-                        .IsUnique();
+                    b.HasIndex("CouponId", "UserId");
 
                     b.ToTable("CouponUsages");
+                });
+
+            modelBuilder.Entity("HoneyCosmetics.Domain.Entities.HomeSlideshowSlide", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SortOrder");
+
+                    b.ToTable("HomeSlideshowSlides");
                 });
 
             modelBuilder.Entity("HoneyCosmetics.Domain.Entities.Notification", b =>

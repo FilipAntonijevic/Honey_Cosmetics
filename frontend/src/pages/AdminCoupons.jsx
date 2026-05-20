@@ -7,6 +7,7 @@ const EMPTY = {
   isPercentage: true,
   expiresAt: '',
   firstOrderOnly: false,
+  oneTimePerUser: true,
 }
 
 export default function AdminCoupons() {
@@ -47,6 +48,7 @@ export default function AdminCoupons() {
         isPercentage: form.isPercentage,
         expiresAt: form.expiresAt || null,
         firstOrderOnly: form.firstOrderOnly,
+        oneTimePerUser: form.oneTimePerUser,
       })
       setForm(EMPTY)
       setShowForm(false)
@@ -117,6 +119,30 @@ export default function AdminCoupons() {
             </div>
           </div>
 
+          <div className="adm-form-row" style={{ marginTop: '0.8rem' }}>
+            <label className="adm-form-row">Korišćenje po korisniku</label>
+            <div style={{ display: 'flex', gap: '1.2rem', marginTop: '0.35rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="oneTimePerUser"
+                  checked={form.oneTimePerUser}
+                  onChange={() => setForm(f => ({ ...f, oneTimePerUser: true }))}
+                />
+                Jednom po korisniku
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="oneTimePerUser"
+                  checked={!form.oneTimePerUser}
+                  onChange={() => setForm(f => ({ ...f, oneTimePerUser: false }))}
+                />
+                Neograničeno
+              </label>
+            </div>
+          </div>
+
           {error && <p className="adm-form-error" style={{ marginTop: '0.8rem' }}>{error}</p>}
 
           <div style={{ display: 'flex', gap: '0.7rem', marginTop: '1rem' }}>
@@ -144,6 +170,7 @@ export default function AdminCoupons() {
                 <th>Tip</th>
                 <th>Ističe</th>
                 <th>Prva narudžbina</th>
+                <th>Korišćenje</th>
                 <th>Iskorišćen</th>
                 <th>Status</th>
                 <th>Deaktiviraj</th>
@@ -158,6 +185,7 @@ export default function AdminCoupons() {
                   <td>{c.isPercentage ? 'Procenat' : 'Fiksni iznos'}</td>
                   <td>{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('sr-RS') : '—'}</td>
                   <td>{c.firstOrderOnly ? '✓' : '—'}</td>
+                  <td>{c.oneTimePerUser ? 'Jednom' : 'Neograničeno'}</td>
                   <td>{c.usageCount}×</td>
                   <td>
                     <span style={{

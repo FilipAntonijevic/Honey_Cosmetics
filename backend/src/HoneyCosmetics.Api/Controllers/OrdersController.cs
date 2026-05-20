@@ -68,10 +68,13 @@ public class OrdersController(
                 return BadRequest("Coupon is invalid or expired.");
             }
 
-            var usedByUser = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
-            if (usedByUser)
+            if (coupon.OneTimePerUser)
             {
-                return BadRequest("Coupon already used.");
+                var usedByUser = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
+                if (usedByUser)
+                {
+                    return BadRequest("Coupon already used.");
+                }
             }
 
             if (coupon.FirstOrderOnly && await db.Orders.AnyAsync(x => x.UserId == userId))

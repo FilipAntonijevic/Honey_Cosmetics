@@ -11,6 +11,7 @@ const navItems = [
   { to: '/admin/products', label: 'Proizvodi', icon: '🧴' },
   { to: '/admin/categories', label: 'Kategorije', icon: '📁' },
   { to: '/admin/bestsellers', label: 'Bestsellers', icon: '★' },
+  { to: '/admin/home-slideshow', label: 'Slideshow', icon: '🖼' },
   { to: '/admin/coupons', label: 'Kuponi', icon: '🎫' },
   { to: '/admin/links', label: 'Linkovi', icon: '🔗' },
 ]

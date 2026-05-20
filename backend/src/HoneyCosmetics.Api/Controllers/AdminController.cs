@@ -326,6 +326,70 @@ public class AdminController(
             s.NotificationsEmail));
     }
 
+    // ── Slideshow (početna) ────────────────────────────────────────────────
+    [HttpGet("home-slideshow")]
+    public async Task<ActionResult<IReadOnlyCollection<HomeSlideshowSlideResponse>>> GetHomeSlideshow()
+    {
+        var slides = await db.HomeSlideshowSlides
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Id)
+            .Select(x => new HomeSlideshowSlideResponse(x.Id, x.ImageUrl, x.SortOrder))
+            .ToListAsync();
+        return Ok(slides);
+    }
+
+    [HttpPost("home-slideshow")]
+    public async Task<ActionResult<HomeSlideshowSlideResponse>> CreateHomeSlideshowSlide(
+        [FromBody] HomeSlideshowSlideRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ImageUrl))
+            return BadRequest("Image URL is required.");
+
+        var maxOrder = await db.HomeSlideshowSlides.MaxAsync(x => (int?)x.SortOrder) ?? -1;
+        var slide = new HomeSlideshowSlide
+        {
+            ImageUrl = request.ImageUrl.Trim(),
+            SortOrder = maxOrder + 1,
+        };
+        db.HomeSlideshowSlides.Add(slide);
+        await db.SaveChangesAsync();
+        return Ok(new HomeSlideshowSlideResponse(slide.Id, slide.ImageUrl, slide.SortOrder));
+    }
+
+    [HttpPut("home-slideshow/order")]
+    public async Task<IActionResult> ReorderHomeSlideshow([FromBody] HomeSlideshowReorderRequest request)
+    {
+        var ids = request.SlideIds?.ToList() ?? [];
+        if (ids.Count == 0) return NoContent();
+
+        var slides = await db.HomeSlideshowSlides.ToListAsync();
+        var slideMap = slides.ToDictionary(x => x.Id);
+        var missing = ids.Where(id => !slideMap.ContainsKey(id)).ToList();
+        if (missing.Count > 0)
+            return BadRequest($"Slike sa Id-jevima [{string.Join(", ", missing)}] ne postoje.");
+
+        for (var i = 0; i < ids.Count; i++)
+            slideMap[ids[i]].SortOrder = i;
+
+        var ordered = new HashSet<int>(ids);
+        var next = ids.Count;
+        foreach (var slide in slides.Where(s => !ordered.Contains(s.Id)).OrderBy(s => s.SortOrder).ThenBy(s => s.Id))
+            slide.SortOrder = next++;
+
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("home-slideshow/{id:int}")]
+    public async Task<IActionResult> DeleteHomeSlideshowSlide(int id)
+    {
+        var slide = await db.HomeSlideshowSlides.FindAsync(id);
+        if (slide is null) return NotFound();
+        db.HomeSlideshowSlides.Remove(slide);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ── Image upload ─────────────────────────────────────────────────────────
     [HttpPost("upload")]
     public async Task<IActionResult> Upload(IFormFile file)

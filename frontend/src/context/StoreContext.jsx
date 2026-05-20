@@ -27,6 +27,7 @@ export function StoreProvider({ children }) {
   const [cart, setCart] = useState(fromStorage('honey_cart', []))
   const [wishlist, setWishlist] = useState(fromStorage('honey_wishlist', []))
   const [toast, setToast] = useState('')
+  const [cartAddTick, setCartAddTick] = useState(0)
   const [initializing, setInitializing] = useState(true)
 
   // Persist state to localStorage
@@ -153,6 +154,7 @@ export function StoreProvider({ children }) {
       api.post('/cart', { productId: product.id, quantity: 1 }).catch(() => {})
     }
     setToast('Proizvod dodat u korpu.')
+    setCartAddTick((t) => t + 1)
   }, [user])
 
   const removeFromCart = useCallback(
@@ -183,6 +185,7 @@ export function StoreProvider({ children }) {
       cart,
       wishlist,
       toast,
+      cartAddTick,
       initializing,
       login,
       register,
@@ -193,7 +196,7 @@ export function StoreProvider({ children }) {
       setToast,
       setCart,
     }),
-    [user, cart, wishlist, toast, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, setCart, setUser],
+    [user, cart, wishlist, toast, cartAddTick, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, setCart, setUser],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

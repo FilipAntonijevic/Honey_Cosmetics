@@ -27,6 +27,7 @@ import AdminProducts from './pages/AdminProducts'
 import AdminCoupons from './pages/AdminCoupons'
 import AdminCategories from './pages/AdminCategories'
 import AdminBestsellers from './pages/AdminBestsellers'
+import AdminHomeSlideshow from './pages/AdminHomeSlideshow'
 import AdminLinks from './pages/AdminLinks'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
@@ -149,6 +150,7 @@ function AdminRoutes() {
           <Route path="products" element={<AdminProducts />} />
           <Route path="categories" element={<AdminCategories />} />
           <Route path="bestsellers" element={<AdminBestsellers />} />
+          <Route path="home-slideshow" element={<AdminHomeSlideshow />} />
           <Route path="coupons" element={<AdminCoupons />} />
           <Route path="links" element={<AdminLinks />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />

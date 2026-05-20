@@ -220,7 +220,7 @@ export default function AdminLinks() {
         />
 
         <LinkField
-          icon={<ViberIcon />}
+          icon={<ViberIcon size={47} className="adm-viber-icon-img" />}
           label="Viber (broj ili viber:// link)"
           placeholder="+381606340344"
           value={form.viberNumber}

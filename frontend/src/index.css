@@ -53,7 +53,6 @@ body.is-adm-sidebar-open {
 }
 main {
   max-width: 100%;
-  padding-top: var(--site-header-h, 0px);
 }
 
 a { color: inherit; text-decoration: none; }
@@ -61,34 +60,36 @@ button, input, select { font-family: inherit; }
 
 .shell { width: min(1160px, 92%); margin: 0 auto; }
 .site-shell { min-height: 100vh; }
-.sticky-header {
+/* Glavni header — u toku stranice, skroluje se prirodno */
+.site-header-panel--flow {
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  box-shadow: 0 1px 0 #e8dcd0;
+}
+/* Ceo gornji header — fiksiran; pojava animirana, nestajanje odmah */
+.site-header-panel--reveal {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: var(--z-sticky-header);
   background: #fff;
-  box-shadow: 0 1px 0 #e8dcd0;
-  transform: translateY(0);
-  will-change: transform;
-  transition:
-    transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(-100%);
+  pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) {
-  .sticky-header { transition: none; }
+.site-header-panel--reveal.is-visible {
+  transform: translateY(0);
+  pointer-events: auto;
+  transition: transform 0.22s ease;
+}
+.site-header-panel--reveal.is-hidden {
+  transform: translateY(-100%);
+  transition: none;
+  pointer-events: none;
 }
 .site-header-body {
   overflow: visible;
-}
-.sticky-header.is-header-hidden {
-  transform: translateY(-100%);
-  box-shadow: none;
-  pointer-events: none;
-}
-.sticky-header.is-header-hidden .site-header-body {
-  overflow: hidden;
-  pointer-events: none;
 }
 .site-footer {
   padding-bottom: max(2.5rem, env(safe-area-inset-bottom, 0px));
@@ -188,6 +189,9 @@ button, input, select { font-family: inherit; }
   color: var(--espresso);
 }
 .section-gap { padding: 2.4rem 0; }
+.section-gap.pop-section {
+  padding-top: 0.75rem;
+}
 .grid-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 .grid-three article, .order-card { background: rgba(255, 255, 255, 0.75); border: 1px solid #f1e5d8; border-radius: 16px; padding: 1rem; }
 .product-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
@@ -2796,11 +2800,13 @@ button, input, select { font-family: inherit; }
 }
 .pop-title {
   margin: 0;
+  padding-left: 2ch;
   font-size: clamp(1.4rem, 2.2vw, 1.9rem);
   color: #1a1a2e;
   letter-spacing: 0.01em;
 }
 .pop-head-link {
+  margin-right: 2ch;
   font-size: 0.85rem;
   color: #8B6B47;
   letter-spacing: 0.05em;
@@ -2929,47 +2935,46 @@ button, input, select { font-family: inherit; }
   }
 }
 
-/* ===== Hero carousel (Home page) ===== */
+/* ===== Hero carousel (Home page) — visina bannera +10% u odnosu na 200/49 ===== */
 .hero-carousel {
   position: relative;
   width: 100%;
   max-width: 100%;
-  margin: 0 0 1.5rem;
+  margin: 0 0 0.75rem;
   overflow: hidden;
   background: #f4ebe0;
   outline: none;
   user-select: none;
-  /* visina prati sliku (width: 100% + height: auto na img) */
-  height: auto;
+  aspect-ratio: 200 / 61.96;
 }
 .hero-track {
   display: flex;
   width: 100%;
   max-width: 100%;
+  height: 100%;
+  min-height: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   will-change: transform;
   min-width: 0;
-  height: auto;
-  will-change: transform;
 }
 .hero-slide {
   flex: 0 0 100%;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  height: auto;
+  height: 100%;
+  min-height: 0;
   display: block;
   position: relative;
   overflow: hidden;
+  background: #f4ebe0;
 }
 .hero-slide img {
   width: 100%;
-  max-width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
-  vertical-align: top;
-  object-fit: contain;
+  object-fit: fill;
   object-position: center;
   -webkit-user-drag: none;
   pointer-events: none;
@@ -3124,6 +3129,16 @@ button, input, select { font-family: inherit; }
 }
 .adm-best-thumb-empty {
   background: linear-gradient(135deg, #f1e5d8, #e6d3c0);
+}
+.adm-best-thumb--wide {
+  width: 120px;
+  height: 54px;
+  border-radius: 6px;
+}
+.adm-best-sub--mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  word-break: break-all;
 }
 .adm-best-meta {
   flex: 1;
@@ -4339,15 +4354,22 @@ button, input, select { font-family: inherit; }
   width: 20px;
   height: 20px;
 }
-/* viber.png već sadrži ljubičasti krug */
+/* viber.png ima svoj ljubičasti krug + providna pozadina — bez belog „letterbox“-a */
 .phone-menu-icon--viber {
+  width: auto;
+  height: auto;
+  flex: 0 0 auto;
+  border-radius: 0;
   background: transparent;
   padding: 0;
+  overflow: visible;
 }
 .phone-menu-icon--viber img {
-  width: 45px;
-  height: 45px;
-  object-fit: contain;
+  width: 39px;
+  height: 39px;
+  object-fit: cover;
+  display: block;
+  background: transparent;
 }
 .phone-menu-text {
   display: flex;
@@ -5067,14 +5089,18 @@ button, input, select { font-family: inherit; }
   border-top: 1px solid #eceef4;
 }
 .adm-links-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  column-gap: 0.9rem;
+  row-gap: 0.25rem;
   align-items: center;
-  gap: 0.9rem;
 }
 .adm-links-icon {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: center;
   width: 44px;
   height: 44px;
-  flex: 0 0 44px;
   border-radius: 50%;
   background: #f3cdb4;
   color: #2b2b2b;
@@ -5082,14 +5108,18 @@ button, input, select { font-family: inherit; }
   align-items: center;
   justify-content: center;
 }
+.adm-viber-icon-img {
+  width: 47px;
+  height: 47px;
+  object-fit: cover;
+  background: transparent;
+}
 .adm-links-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
-  min-width: 0;
+  display: contents;
 }
 .adm-links-label {
+  grid-column: 2;
+  grid-row: 1;
   font-size: 0.72rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -5097,6 +5127,8 @@ button, input, select { font-family: inherit; }
   font-weight: 600;
 }
 .adm-links-input {
+  grid-column: 2;
+  grid-row: 2;
   width: 100%;
   padding: 0.65rem 0.8rem;
   border: 1px solid #d6d9e3;
