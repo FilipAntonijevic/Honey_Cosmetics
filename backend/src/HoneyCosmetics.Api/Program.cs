@@ -6,6 +6,7 @@ using HoneyCosmetics.Infrastructure.Configurations;
 using HoneyCosmetics.Infrastructure.Data;
 using HoneyCosmetics.Api.Services;
 using HoneyCosmetics.Infrastructure.Services;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,12 @@ var builder = WebApplication.CreateBuilder(args);
 //
 // Controllers & Swagger
 //
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

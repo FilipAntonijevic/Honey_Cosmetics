@@ -18,6 +18,7 @@ public class Order
     public string? CouponCode { get; set; }
     public decimal Total { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
+    public bool FinanceRecorded { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<OrderItem> Items { get; set; } = [];
 }

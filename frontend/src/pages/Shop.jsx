@@ -252,8 +252,13 @@ export default function Shop() {
               </h3>
               <p>{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
               <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
+              {!product.inStock && product.stockQuantity <= 0 ? (
+                <p className="product-stock-badge product-stock-badge--out">Nije na stanju</p>
+              ) : null}
               <div className="card-actions">
-                <button onClick={() => addToCart(product)}>Dodaj u korpu</button>
+                <button type="button" onClick={() => addToCart(product)} disabled={!product.inStock && (product.stockQuantity ?? 0) <= 0}>
+                  Dodaj u korpu
+                </button>
                 <button onClick={() => toggleWishlist(product)} className="ghost">
                   Wishlist
                 </button>

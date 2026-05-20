@@ -1,5 +1,7 @@
 using HoneyCosmetics.Application.DTOs;
+using HoneyCosmetics.Application.Mapping;
 using HoneyCosmetics.Infrastructure.Data;
+using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -39,26 +41,14 @@ public class ProductsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetBestsellers()
     {
         var list = await db.Products
+            .ActiveProducts()
             .Include(x => x.Category)
             .Include(x => x.ProductType)
+            .Include(x => x.AdditionalImages)
             .Where(x => x.IsBestseller)
             .OrderBy(x => x.BestsellerSortOrder)
-            .Select(x => new ProductResponse(
-                x.Id,
-                x.Name,
-                x.Description,
-                x.Price,
-                x.ImageUrl,
-                x.ProductTypeId,
-                x.ProductType != null ? x.ProductType.Name : string.Empty,
-                x.CategoryId,
-                x.Category != null ? x.Category.Name : string.Empty,
-                x.IsBestseller,
-                x.BestsellerSortOrder,
-                x.CreatedAt,
-                null))
             .ToListAsync();
-        return Ok(list);
+        return Ok(list.Select(p => ProductMapper.ToResponse(p)));
     }
 
     [AllowAnonymous]
@@ -76,7 +66,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
                 c.Name,
                 c.ImageUrl,
                 c.ProductTypeId,
-                c.Products.Count))
+                c.Products.Count(p => !p.IsDeleted)))
             .ToListAsync();
 
         return Ok(list);
@@ -86,7 +76,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetAll([FromQuery] ProductQuery query)
     {
-        var products = db.Products.Include(x => x.Category).Include(x => x.ProductType).AsQueryable();
+        var products = db.Products.ActiveProducts().Include(x => x.Category).Include(x => x.ProductType).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -109,23 +99,10 @@ public class ProductsController(AppDbContext db) : ControllerBase
         };
 
         var result = await products
-            .Select(x => new ProductResponse(
-                x.Id,
-                x.Name,
-                x.Description,
-                x.Price,
-                x.ImageUrl,
-                x.ProductTypeId,
-                x.ProductType != null ? x.ProductType.Name : string.Empty,
-                x.CategoryId,
-                x.Category != null ? x.Category.Name : string.Empty,
-                x.IsBestseller,
-                x.BestsellerSortOrder,
-                x.CreatedAt,
-                null))
+            .Include(x => x.AdditionalImages)
             .ToListAsync();
 
-        return Ok(result);
+        return Ok(result.Select(p => ProductMapper.ToResponse(p)));
     }
 
     [AllowAnonymous]
@@ -135,28 +112,17 @@ public class ProductsController(AppDbContext db) : ControllerBase
         count = Math.Clamp(count, 1, 12);
 
         var pool = await db.Products
+            .ActiveProducts()
             .Include(x => x.Category)
             .Include(x => x.ProductType)
+            .Include(x => x.AdditionalImages)
             .Where(x => x.Id != id)
             .ToListAsync();
 
         var list = pool
             .OrderBy(_ => Random.Shared.Next())
             .Take(count)
-            .Select(x => new ProductResponse(
-                x.Id,
-                x.Name,
-                x.Description,
-                x.Price,
-                x.ImageUrl,
-                x.ProductTypeId,
-                x.ProductType != null ? x.ProductType.Name : string.Empty,
-                x.CategoryId,
-                x.Category != null ? x.Category.Name : string.Empty,
-                x.IsBestseller,
-                x.BestsellerSortOrder,
-                x.CreatedAt,
-                null))
+            .Select(p => ProductMapper.ToResponse(p))
             .ToList();
 
         return Ok(list);
@@ -167,6 +133,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<ProductResponse>> GetById(int id)
     {
         var product = await db.Products
+            .ActiveProducts()
             .Include(x => x.Category)
             .Include(x => x.ProductType)
             .Include(x => x.AdditionalImages)
@@ -174,25 +141,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
         if (product is null)
             return NotFound();
 
-        var additional = product.AdditionalImages
-            .OrderBy(x => x.SortOrder)
-            .Select(x => x.ImageUrl)
-            .ToList();
-
-        return Ok(new ProductResponse(
-            product.Id,
-            product.Name,
-            product.Description,
-            product.Price,
-            product.ImageUrl,
-            product.ProductTypeId,
-            product.ProductType != null ? product.ProductType.Name : string.Empty,
-            product.CategoryId,
-            product.Category != null ? product.Category.Name : string.Empty,
-            product.IsBestseller,
-            product.BestsellerSortOrder,
-            product.CreatedAt,
-            additional));
+        return Ok(ProductMapper.ToResponse(product));
     }
 
     [Authorize(Roles = "Admin")]
@@ -202,59 +151,50 @@ public class ProductsController(AppDbContext db) : ControllerBase
         if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
             return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
 
-        var product = new HoneyCosmetics.Domain.Entities.Product
+        HoneyCosmetics.Domain.Entities.Product product;
+        try
         {
-            Name = request.Name,
-            Description = request.Description,
-            Price = request.Price,
-            ImageUrl = request.ImageUrl,
-            ProductTypeId = request.ProductTypeId,
-            CategoryId = request.CategoryId
-        };
+            (product, _) = await ProductCatalogService.CreateOrRestoreAsync(db, request);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
 
-        db.Products.Add(product);
         await db.SaveChangesAsync();
         await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
         await db.SaveChangesAsync();
         await db.Entry(product).Reference(x => x.ProductType).LoadAsync();
         await db.Entry(product).Reference(x => x.Category).LoadAsync();
-        var additional = await db.GetAdditionalImageUrlsAsync(product.Id);
+        await db.Entry(product).Collection(x => x.AdditionalImages).LoadAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = product.Id }, new ProductResponse(
-            product.Id,
-            product.Name,
-            product.Description,
-            product.Price,
-            product.ImageUrl,
-            product.ProductTypeId,
-            product.ProductType != null ? product.ProductType.Name : string.Empty,
-            product.CategoryId,
-            product.Category != null ? product.Category.Name : string.Empty,
-            product.IsBestseller,
-            product.BestsellerSortOrder,
-            product.CreatedAt,
-            additional));
+        return CreatedAtAction(nameof(GetById), new { id = product.Id }, ProductMapper.ToResponse(product));
     }
 
     [Authorize(Roles = "Admin")]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, ProductRequest request)
     {
-        var product = await db.Products.FindAsync(id);
+        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
         if (product is null)
-        {
             return NotFound();
-        }
 
         if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
             return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
 
-        product.Name = request.Name;
-        product.Description = request.Description;
-        product.Price = request.Price;
-        product.ImageUrl = request.ImageUrl;
-        product.ProductTypeId = request.ProductTypeId;
-        product.CategoryId = request.CategoryId;
+        var normalizedName = ProductCatalogService.NormalizeName(request.Name);
+        if (!ProductCatalogService.NamesMatch(product.Name, normalizedName))
+        {
+            var nameConflict = await ProductCatalogService.GetActiveNameConflictAsync(db, normalizedName, id);
+            if (nameConflict is not null)
+                return BadRequest(nameConflict);
+
+            if (await db.Products.AnyAsync(p => p.Id != id && p.IsDeleted && p.Name == normalizedName))
+                return BadRequest(
+                    "Proizvod sa tim imenom je uklonjen iz prodavnice. Kreirajte novi proizvod pod tim imenom da ga vratite.");
+        }
+
+        ProductCatalogService.ApplyRequest(product, request);
         await db.SaveChangesAsync();
         await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
         await db.SaveChangesAsync();
@@ -265,19 +205,11 @@ public class ProductsController(AppDbContext db) : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var product = await db.Products.FindAsync(id);
+        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
         if (product is null)
-        {
             return NotFound();
-        }
 
-        if (await db.OrderItems.AnyAsync(x => x.ProductId == id))
-        {
-            return BadRequest(
-                "Proizvod je deo postojećih porudžbina i ne može se obrisati. Istorija porudžbina mora ostati netaknuta.");
-        }
-
-        db.Products.Remove(product);
+        await ProductCatalogService.SoftDeleteAsync(db, product);
         await db.SaveChangesAsync();
         return NoContent();
     }

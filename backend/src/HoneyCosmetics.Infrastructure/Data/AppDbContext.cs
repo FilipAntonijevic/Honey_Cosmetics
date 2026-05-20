@@ -22,6 +22,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SiteSettings> SiteSettings => Set<SiteSettings>();
     public DbSet<HomeSlideshowSlide> HomeSlideshowSlides => Set<HomeSlideshowSlide>();
+    public DbSet<StockReceipt> StockReceipts => Set<StockReceipt>();
+    public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,7 +38,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<Order>()
             .HasOne(x => x.User)
-            .WithMany()
+            .WithMany(u => u.Orders)
             .HasForeignKey(x => x.UserId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
@@ -75,10 +77,40 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(x => x.ProductId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<Product>()
+            .HasIndex(p => p.Name)
+            .IsUnique();
+
         modelBuilder.Entity<ProductImage>()
             .HasIndex(x => new { x.ProductId, x.SortOrder });
 
         modelBuilder.Entity<HomeSlideshowSlide>()
             .HasIndex(x => x.SortOrder);
+
+        modelBuilder.Entity<StockReceipt>()
+            .HasOne(x => x.Product)
+            .WithMany()
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<LedgerEntry>()
+            .HasOne(x => x.Order)
+            .WithMany()
+            .HasForeignKey(x => x.OrderId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<LedgerEntry>()
+            .HasOne(x => x.Product)
+            .WithMany()
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<LedgerEntry>()
+            .HasOne(x => x.StockReceipt)
+            .WithMany()
+            .HasForeignKey(x => x.StockReceiptId);
+
+        modelBuilder.Entity<LedgerEntry>()
+            .HasIndex(x => x.OccurredAt);
     }
 }

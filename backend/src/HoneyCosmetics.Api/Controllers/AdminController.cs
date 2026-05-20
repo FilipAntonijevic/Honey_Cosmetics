@@ -1,7 +1,9 @@
 using HoneyCosmetics.Api.Services;
 using HoneyCosmetics.Application.DTOs;
-using HoneyCosmetics.Domain.Entities;
+using HoneyCosmetics.Application.Mapping;
 using HoneyCosmetics.Domain.Enums;
+using HoneyCosmetics.Infrastructure.Services;
+using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,7 +25,7 @@ public class AdminController(
     {
         var totalOrders = await db.Orders.CountAsync();
         var pendingOrders = await db.Orders.CountAsync(x => x.Status == OrderStatus.Pending);
-        var totalProducts = await db.Products.CountAsync();
+        var totalProducts = await db.Products.ActiveProducts().CountAsync();
         var totalRevenue = await db.Orders
             .Where(x => x.Status != OrderStatus.Cancelled && x.Status != OrderStatus.Returned)
             .SumAsync(x => (decimal?)x.Total) ?? 0;
@@ -60,10 +62,15 @@ public class AdminController(
     [HttpPut("orders/{orderId:int}/status")]
     public async Task<IActionResult> UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
     {
-        var order = await db.Orders.FindAsync(orderId);
+        var order = await db.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == orderId);
         if (order is null) return NotFound();
 
-        order.Status = request.Status;
+        var error = await OrderStatusWorkflow.TryApplyStatusChangeAsync(db, order, request.Status);
+        if (error is not null)
+            return BadRequest(error);
+
         await db.SaveChangesAsync();
         return Ok(new { order.Id, status = order.Status.ToString() });
     }
@@ -73,6 +80,7 @@ public class AdminController(
     public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetProducts()
     {
         var products = await db.Products
+            .ActiveProducts()
             .Include(x => x.Category)
             .Include(x => x.ProductType)
             .Include(x => x.AdditionalImages)
@@ -87,40 +95,54 @@ public class AdminController(
         if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
             return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
 
-        var product = new Product
+        Product product;
+        bool restored;
+        try
         {
-            Name = request.Name,
-            Description = request.Description,
-            Price = request.Price,
-            ImageUrl = request.ImageUrl,
-            ProductTypeId = request.ProductTypeId,
-            CategoryId = request.CategoryId
-        };
-        db.Products.Add(product);
+            (product, restored) = await ProductCatalogService.CreateOrRestoreAsync(db, request);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+
         await db.SaveChangesAsync();
         await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
         await db.SaveChangesAsync();
         await db.Entry(product).Reference(p => p.Category).LoadAsync();
         await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
         await db.Entry(product).Collection(p => p.AdditionalImages).LoadAsync();
-        return Ok(MapProduct(product));
+        return Ok(new { product = MapProduct(product), restored });
     }
 
     [HttpPut("products/{id:int}")]
     public async Task<ActionResult<ProductResponse>> UpdateProduct(int id, [FromBody] ProductRequest request)
     {
-        var product = await db.Products.Include(x => x.Category).Include(x => x.ProductType).FirstOrDefaultAsync(x => x.Id == id);
+        var product = await db.Products
+            .ActiveProducts()
+            .Include(x => x.Category)
+            .Include(x => x.ProductType)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (product is null) return NotFound();
 
         if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
             return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
 
-        product.Name = request.Name;
-        product.Description = request.Description;
-        product.Price = request.Price;
-        product.ImageUrl = request.ImageUrl;
-        product.ProductTypeId = request.ProductTypeId;
-        product.CategoryId = request.CategoryId;
+        var normalizedName = ProductCatalogService.NormalizeName(request.Name);
+        if (!ProductCatalogService.NamesMatch(product.Name, normalizedName))
+        {
+            var nameConflict = await ProductCatalogService.GetActiveNameConflictAsync(db, normalizedName, id);
+            if (nameConflict is not null)
+                return BadRequest(nameConflict);
+
+            var reservedByDeleted = await db.Products.AnyAsync(p =>
+                p.Id != id && p.IsDeleted && p.Name == normalizedName);
+            if (reservedByDeleted)
+                return BadRequest(
+                    "Proizvod sa tim imenom je uklonjen iz prodavnice. Kreirajte novi proizvod pod tim imenom da ga vratite.");
+        }
+
+        ProductCatalogService.ApplyRequest(product, request);
 
         await db.SaveChangesAsync();
         await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
@@ -131,18 +153,88 @@ public class AdminController(
         return Ok(MapProduct(product));
     }
 
+    [HttpGet("products/{id:int}")]
+    public async Task<ActionResult<ProductResponse>> GetProduct(int id)
+    {
+        var product = await db.Products
+            .ActiveProducts()
+            .Include(x => x.Category)
+            .Include(x => x.ProductType)
+            .Include(x => x.AdditionalImages)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (product is null) return NotFound();
+        return Ok(MapProduct(product));
+    }
+
+    [HttpGet("products/{id:int}/stats")]
+    public async Task<ActionResult<ProductStatsResponse>> GetProductStats(int id)
+    {
+        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
+        if (product is null) return NotFound();
+
+        var soldItems = await db.OrderItems
+            .Where(i => i.ProductId == id)
+            .Join(
+                db.Orders.Where(o => o.Status == OrderStatus.Delivered),
+                i => i.OrderId,
+                o => o.Id,
+                (i, o) => i)
+            .ToListAsync();
+
+        var totalSold = soldItems.Sum(i => i.Quantity);
+        var totalRevenue = soldItems.Sum(i => i.UnitPrice * i.Quantity);
+        var unitCost = product.UnitCostPrice ?? 0m;
+        var totalCogs = soldItems.Sum(i => unitCost * i.Quantity);
+        var totalProfit = totalRevenue - totalCogs;
+        var profitPerUnit = totalSold > 0 ? Math.Round(totalProfit / totalSold, 2) : 0m;
+
+        return Ok(new ProductStatsResponse(
+            product.Id,
+            product.Name,
+            product.Price,
+            product.UnitCostPrice,
+            product.StockQuantity,
+            totalSold,
+            totalRevenue,
+            totalCogs,
+            totalProfit,
+            profitPerUnit));
+    }
+
+    [HttpPost("products/{id:int}/stock-purchase")]
+    public async Task<IActionResult> StockPurchase(int id, [FromBody] StockPurchaseRequest request)
+    {
+        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
+        if (product is null) return NotFound();
+
+        var transportTotal = request.TotalTransportCost is > 0
+            ? request.TotalTransportCost.Value
+            : request.TransportCost;
+        if (transportTotal <= 0 && request.TransportUnitCost > 0 && request.Quantity > 0)
+            transportTotal = Math.Round(request.TransportUnitCost * request.Quantity, 2);
+
+        await InventoryFinanceService.ApplyStockPurchaseAsync(
+            db,
+            product,
+            request.Quantity,
+            request.UnitCost,
+            request.TransportUnitCost,
+            transportTotal,
+            request.TotalMerchandiseCost,
+            request.TotalTransportCost ?? (transportTotal > 0 ? transportTotal : null),
+            request.TotalPurchaseCost,
+            request.Note);
+
+        return Ok(new { product.Id, product.StockQuantity, product.UnitCostPrice });
+    }
+
     [HttpDelete("products/{id:int}")]
     public async Task<IActionResult> DeleteProduct(int id)
     {
-        var product = await db.Products.FindAsync(id);
+        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
         if (product is null) return NotFound();
-        if (await db.OrderItems.AnyAsync(x => x.ProductId == id))
-        {
-            return BadRequest(
-                "Proizvod je deo postojećih porudžbina i ne može se obrisati. Istorija porudžbina mora ostati netaknuta.");
-        }
 
-        db.Products.Remove(product);
+        await ProductCatalogService.SoftDeleteAsync(db, product);
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -235,6 +327,7 @@ public class AdminController(
     public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetBestsellers()
     {
         var list = await db.Products
+            .ActiveProducts()
             .Include(x => x.Category)
             .Include(x => x.ProductType)
             .Where(x => x.IsBestseller)
@@ -250,14 +343,14 @@ public class AdminController(
 
         if (ids.Count > 0)
         {
-            var existing = await db.Products.Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync();
+            var existing = await db.Products.ActiveProducts().Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync();
             var missing = ids.Except(existing).ToList();
             if (missing.Count > 0)
                 return BadRequest($"Proizvodi sa Id-jevima [{string.Join(", ", missing)}] ne postoje.");
         }
 
         // Reset flags on previously flagged products not in the new list
-        var current = await db.Products.Where(p => p.IsBestseller).ToListAsync();
+        var current = await db.Products.ActiveProducts().Where(p => p.IsBestseller).ToListAsync();
         foreach (var p in current)
         {
             if (!ids.Contains(p.Id))
@@ -270,7 +363,7 @@ public class AdminController(
         // Apply new list with order
         for (int i = 0; i < ids.Count; i++)
         {
-            var prod = await db.Products.FirstAsync(p => p.Id == ids[i]);
+            var prod = await db.Products.ActiveProducts().FirstAsync(p => p.Id == ids[i]);
             prod.IsBestseller = true;
             prod.BestsellerSortOrder = i;
         }
@@ -429,24 +522,7 @@ public class AdminController(
     }
 
     // ── Mappers ───────────────────────────────────────────────────────────────
-    private static ProductResponse MapProduct(Product p) =>
-        new(
-            p.Id,
-            p.Name,
-            p.Description,
-            p.Price,
-            p.ImageUrl,
-            p.ProductTypeId,
-            p.ProductType != null ? p.ProductType.Name : string.Empty,
-            p.CategoryId,
-            p.Category != null ? p.Category.Name : string.Empty,
-            p.IsBestseller,
-            p.BestsellerSortOrder,
-            p.CreatedAt,
-            p.AdditionalImages
-                .OrderBy(x => x.SortOrder)
-                .Select(x => x.ImageUrl)
-                .ToList());
+    private static ProductResponse MapProduct(Product p) => ProductMapper.ToResponse(p, includeUnitCost: true);
 
     private static AdminOrderResponse MapAdminOrder(Order o) => new(
         o.Id,

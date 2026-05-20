@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../api'
+import { clampCartQuantity, isInStock } from '../utils/stock'
 
 const StoreContext = createContext(null)
 
@@ -143,18 +144,35 @@ export function StoreProvider({ children }) {
   }, [])
 
   const addToCart = useCallback((product) => {
+    if (!isInStock(product)) {
+      setToast('Proizvod trenutno nije na stanju.')
+      return false
+    }
+    const stock = product.stockQuantity ?? 0
+    let added = 0
+    let limited = false
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id)
+      const requested = (existing?.quantity ?? 0) + 1
+      const nextQty = clampCartQuantity(requested, stock)
+      if (nextQty < requested) limited = true
+      if (nextQty <= 0) return prev
+      added = nextQty - (existing?.quantity ?? 0)
       if (existing) {
-        return prev.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item))
+        return prev.map((item) =>
+          item.id === product.id ? { ...item, quantity: nextQty, stockQuantity: stock } : item,
+        )
       }
-      return [...prev, { ...product, quantity: 1 }]
+      return [...prev, { ...product, quantity: nextQty, stockQuantity: stock }]
     })
-    if (user) {
-      api.post('/cart', { productId: product.id, quantity: 1 }).catch(() => {})
+    if (added > 0) {
+      if (user) api.post('/cart', { productId: product.id, quantity: added }).catch(() => {})
+      setToast(limited ? 'Nema dovoljno proizvoda na stanju.' : 'Proizvod dodat u korpu.')
+      setCartAddTick((t) => t + 1)
+      return true
     }
-    setToast('Proizvod dodat u korpu.')
-    setCartAddTick((t) => t + 1)
+    setToast('Nema dovoljno proizvoda na stanju.')
+    return false
   }, [user])
 
   const removeFromCart = useCallback(

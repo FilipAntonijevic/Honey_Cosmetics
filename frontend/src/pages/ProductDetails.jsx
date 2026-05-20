@@ -4,6 +4,7 @@ import api from '../api'
 import ApiImage from '../components/ApiImage'
 import ProductGallery from '../components/ProductGallery'
 import { useStore } from '../context/StoreContext'
+import { clampCartQuantity, isInStock } from '../utils/stock'
 
 function formatPrice(value) {
   return `${Number(value).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} RSD`
@@ -103,9 +104,13 @@ export default function ProductDetails() {
     }
   }, [id])
 
+  const inStock = product ? isInStock(product) : false
+  const maxQty = product ? Math.max(0, product.stockQuantity ?? 0) : 0
+
   const addWithQty = () => {
-    if (!product) return
-    for (let i = 0; i < quantity; i += 1) {
+    if (!product || !inStock) return
+    const capped = clampCartQuantity(quantity, maxQty)
+    for (let i = 0; i < capped; i += 1) {
       addToCart(product)
     }
   }
@@ -140,6 +145,7 @@ export default function ProductDetails() {
           <div className="pd-info">
             <h1 className="pd-title">{product.name}</h1>
             <p className="pd-price">{formatPrice(product.price)}</p>
+            {!inStock && <p className="product-stock-badge product-stock-badge--out">Nije na stanju</p>}
 
             <div className="pd-buy">
               <div className="pd-qty" aria-label="Količina">
@@ -148,6 +154,7 @@ export default function ProductDetails() {
                   className="pd-qty__btn"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   aria-label="Smanji količinu"
+                  disabled={!inStock}
                 >
                   −
                 </button>
@@ -157,14 +164,15 @@ export default function ProductDetails() {
                 <button
                   type="button"
                   className="pd-qty__btn"
-                  onClick={() => setQuantity((q) => q + 1)}
+                  onClick={() => setQuantity((q) => clampCartQuantity(q + 1, maxQty))}
                   aria-label="Povećaj količinu"
+                  disabled={!inStock || quantity >= maxQty}
                 >
                   +
                 </button>
               </div>
-              <button type="button" className="pd-add-btn" onClick={addWithQty}>
-                Dodaj u korpu
+              <button type="button" className="pd-add-btn" onClick={addWithQty} disabled={!inStock}>
+                {inStock ? 'Dodaj u korpu' : 'Nije na stanju'}
               </button>
             </div>
 

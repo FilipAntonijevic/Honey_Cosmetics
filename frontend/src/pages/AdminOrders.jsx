@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from '../api'
 
-const ORDER_STATUSES = ['Pending', 'Shipped', 'Delivered', 'Returned', 'Cancelled']
+/** Redosled u padajućem meniju (Dostavljeno poslednje). */
+const ORDER_STATUSES = ['Pending', 'Shipped', 'Returned', 'Cancelled', 'Delivered']
+
+const FINAL_STATUSES = new Set(['Delivered', 'Returned', 'Cancelled'])
 
 const STATUS_VALUES = {
   Pending: 0,
@@ -17,14 +20,40 @@ const STATUS_LABELS = {
   Delivered: 'Dostavljeno',
   Returned: 'Vraćeno',
   Cancelled: 'Otkazano',
+  AwaitingPayment: 'Na čekanju',
+  PaymentConfirmed: 'Na čekanju',
+  Processing: 'Na čekanju',
+  InsufficientFunds: 'Na čekanju',
+  FailedDelivery: 'Vraćeno',
 }
 
 const STATUS_COLORS = {
   Pending: '#f59e0b',
   Shipped: '#0ea5e9',
-  Delivered: '#22c55e',
+  Delivered: '#16a34a',
   Returned: '#f97316',
   Cancelled: '#ef4444',
+}
+
+const LEGACY_AS_PENDING = new Set([
+  'AwaitingPayment',
+  'PaymentConfirmed',
+  'Processing',
+  'InsufficientFunds',
+  'FailedDelivery',
+])
+
+function normalizeStatus(status) {
+  if (LEGACY_AS_PENDING.has(status)) return 'Pending'
+  return status
+}
+
+function isFinalStatus(status) {
+  return FINAL_STATUSES.has(status)
+}
+
+function statusLabel(status) {
+  return STATUS_LABELS[status] ?? STATUS_LABELS[normalizeStatus(status)] ?? status
 }
 
 export default function AdminOrders() {
@@ -36,6 +65,7 @@ export default function AdminOrders() {
   )
   const [paymentFilter, setPaymentFilter] = useState('')
   const [updating, setUpdating] = useState(null)
+  const [deliveredConfirm, setDeliveredConfirm] = useState(null)
   const [expanded, setExpanded] = useState(null)
   const [sort, setSort] = useState({ col: 'id', dir: 'desc' })
   const [headerOpen, setHeaderOpen] = useState(null)
@@ -77,7 +107,7 @@ export default function AdminOrders() {
   const displayed = useMemo(() => {
     let arr = orders
     if (selectedStatuses.size < ORDER_STATUSES.length) {
-      arr = arr.filter((o) => selectedStatuses.has(o.status))
+      arr = arr.filter((o) => selectedStatuses.has(normalizeStatus(o.status)))
     }
     if (paymentFilter) arr = arr.filter(o => o.paymentMethod === paymentFilter)
     arr = [...arr]
@@ -117,11 +147,68 @@ export default function AdminOrders() {
     try {
       await api.put(`/admin/orders/${orderId}/status`, { status: STATUS_VALUES[status] })
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o))
-    } catch {
-      alert('Nije moguće ažurirati status.')
+    } catch (err) {
+      const msg = typeof err.response?.data === 'string'
+        ? err.response.data
+        : 'Nije moguće ažurirati status.'
+      alert(msg)
     } finally {
       setUpdating(null)
     }
+  }
+
+  const handleStatusSelect = (order, newStatus) => {
+    if (isFinalStatus(order.status)) return
+    if (newStatus === 'Delivered') {
+      setDeliveredConfirm({ orderId: order.id, customerName: order.customerName })
+      return
+    }
+    updateStatus(order.id, newStatus)
+  }
+
+  const confirmDelivered = async () => {
+    if (!deliveredConfirm) return
+    const { orderId } = deliveredConfirm
+    setDeliveredConfirm(null)
+    await updateStatus(orderId, 'Delivered')
+  }
+
+  const renderStatusCell = (order) => {
+    const display = normalizeStatus(order.status)
+    const color = STATUS_COLORS[order.status] ?? STATUS_COLORS[display] ?? '#6b7280'
+
+    if (isFinalStatus(order.status)) {
+      const isDelivered = order.status === 'Delivered'
+      return (
+        <span
+          className={`adm-order-status-locked${isDelivered ? ' adm-order-status-locked--delivered' : ''}`}
+          style={{ background: color, color: '#fff' }}
+          title="Finalan status — ne može se menjati"
+        >
+          {statusLabel(order.status)}
+        </span>
+      )
+    }
+
+    return (
+      <select
+        className={`adm-select adm-select-sm adm-order-status-select${display === 'Delivered' ? ' adm-order-status-select--delivered' : ''}`}
+        value={display}
+        disabled={updating === order.id}
+        style={{ background: STATUS_COLORS[display] ?? '#6b7280', color: '#fff', fontWeight: 600, border: 'none', borderRadius: 8, padding: '4px 8px' }}
+        onChange={e => handleStatusSelect(order, e.target.value)}
+      >
+        {ORDER_STATUSES.map(s => (
+          <option
+            key={s}
+            value={s}
+            className={s === 'Delivered' ? 'adm-order-status-option--delivered' : undefined}
+          >
+            {STATUS_LABELS[s] ?? s}
+          </option>
+        ))}
+      </select>
+    )
   }
 
   const SortTh = ({ col, children }) => {
@@ -275,17 +362,7 @@ export default function AdminOrders() {
                   <td>{order.paymentMethod === 'CashOnDelivery' ? 'Pouzećem' : 'Bankovni prenos'}</td>
                   <td className="adm-td-total">{Number(order.total).toLocaleString('sr-RS')} RSD</td>
                   <td onClick={e => e.stopPropagation()}>
-                    <select
-                      className="adm-select adm-select-sm"
-                      value={order.status}
-                      disabled={updating === order.id}
-                      style={{ background: STATUS_COLORS[order.status] ?? '#6b7280', color: '#fff', fontWeight: 600, border: 'none', borderRadius: 8, padding: '4px 8px' }}
-                      onChange={e => updateStatus(order.id, e.target.value)}
-                    >
-                      {ORDER_STATUSES.map(s => (
-                        <option key={s} value={s}>{STATUS_LABELS[s] ?? s}</option>
-                      ))}
-                    </select>
+                    {renderStatusCell(order)}
                   </td>
                 </tr>
                 {expanded === order.id && (
@@ -325,6 +402,35 @@ export default function AdminOrders() {
           </tbody>
         </table>
       </div>
+
+      {deliveredConfirm && (
+        <div
+          className="adm-modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setDeliveredConfirm(null)}
+        >
+          <div className="adm-modal adm-modal--confirm" role="dialog" aria-modal="true">
+            <div className="adm-modal-body">
+              <h2>Da li ste sigurni da želite da evidentirate da je pošiljka dostavljena?</h2>
+              <p>
+                Porudžbina <strong>#{deliveredConfirm.orderId}</strong>
+                {deliveredConfirm.customerName ? <> ({deliveredConfirm.customerName})</> : null}
+                {' '}biće označena kao dostavljena. Status je finalan, a uplata korisnika biće evidentirana u prihodima.
+              </p>
+            </div>
+            <div className="adm-modal-footer">
+              <button type="button" className="adm-btn" onClick={() => setDeliveredConfirm(null)}>Odustani</button>
+              <button
+                type="button"
+                className="adm-btn adm-btn-primary adm-btn--delivered"
+                disabled={updating === deliveredConfirm.orderId}
+                onClick={confirmDelivered}
+              >
+                {updating === deliveredConfirm.orderId ? 'Čuvanje…' : 'Da, evidentiraj dostavu'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

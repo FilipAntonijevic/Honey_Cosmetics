@@ -4,7 +4,9 @@ import ApiImage from '../components/ApiImage'
 
 const STATUS_LABEL = {
   Pending: 'Na čekanju',
-  AwaitingPayment: 'Čeka uplatu',
+  AwaitingPayment: 'Na čekanju',
+  PaymentConfirmed: 'Na čekanju',
+  Processing: 'Na čekanju',
   Shipped: 'Poslato',
   Delivered: 'Dostavljeno',
   Returned: 'Vraćeno',

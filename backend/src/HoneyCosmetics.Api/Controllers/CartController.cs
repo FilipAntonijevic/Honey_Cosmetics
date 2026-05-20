@@ -1,6 +1,7 @@
 using HoneyCosmetics.Api.Extensions;
 using HoneyCosmetics.Application.DTOs;
 using HoneyCosmetics.Infrastructure.Data;
+using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -36,7 +37,7 @@ public class CartController(AppDbContext db) : ControllerBase
     public async Task<IActionResult> Add(CartItemRequest request)
     {
         var userId = User.GetUserId();
-        var productExists = await db.Products.AnyAsync(p => p.Id == request.ProductId);
+        var productExists = await db.Products.ActiveProducts().AnyAsync(p => p.Id == request.ProductId);
         if (!productExists)
         {
             return NotFound("Product not found.");

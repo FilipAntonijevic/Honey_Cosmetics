@@ -10,7 +10,9 @@ public record ProductRequest(
     string ImageUrl,
     int ProductTypeId,
     int? CategoryId,
-    IReadOnlyList<string>? AdditionalImageUrls = null);
+    IReadOnlyList<string>? AdditionalImageUrls = null,
+    [Range(0, 1000000)] int StockQuantity = 0,
+    [Range(0, 9999999)] decimal? UnitCostPrice = null);
 
 public record ProductResponse(
     int Id,
@@ -24,8 +26,11 @@ public record ProductResponse(
     string Category,
     bool IsBestseller,
     int BestsellerSortOrder,
+    int StockQuantity,
+    bool InStock,
     DateTime CreatedAt,
-    IReadOnlyList<string>? AdditionalImageUrls = null);
+    IReadOnlyList<string>? AdditionalImageUrls = null,
+    decimal? UnitCostPrice = null);
 
 public record BestsellersUpdateRequest(IReadOnlyList<int> ProductIds);
 

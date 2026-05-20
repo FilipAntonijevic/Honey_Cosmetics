@@ -24,6 +24,9 @@ import Wishlist from './pages/Wishlist'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminOrders from './pages/AdminOrders'
 import AdminProducts from './pages/AdminProducts'
+import AdminProductDetail from './pages/admin/AdminProductDetail'
+import AdminProductFormPage from './pages/admin/AdminProductFormPage'
+import AdminFinance from './pages/admin/AdminFinance'
 import AdminCoupons from './pages/AdminCoupons'
 import AdminCategories from './pages/AdminCategories'
 import AdminBestsellers from './pages/AdminBestsellers'
@@ -148,6 +151,10 @@ function AdminRoutes() {
           <Route index element={<AdminDashboard />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="products" element={<AdminProducts />} />
+          <Route path="products/new" element={<AdminProductFormPage />} />
+          <Route path="products/:id/edit" element={<AdminProductFormPage />} />
+          <Route path="products/:id" element={<AdminProductDetail />} />
+          <Route path="finance" element={<AdminFinance />} />
           <Route path="categories" element={<AdminCategories />} />
           <Route path="bestsellers" element={<AdminBestsellers />} />
           <Route path="home-slideshow" element={<AdminHomeSlideshow />} />

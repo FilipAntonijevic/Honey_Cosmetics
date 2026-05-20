@@ -5,6 +5,7 @@ using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Domain.Enums;
 using HoneyCosmetics.Infrastructure.Configurations;
 using HoneyCosmetics.Infrastructure.Data;
+using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -92,6 +93,12 @@ public class OrdersController(
 
         var total = Math.Max(0, subtotal - discount);
 
+        var stockError = await InventoryFinanceService.ValidateAndApplyStockForOrderAsync(
+            db,
+            cartItems.Select(x => (x.ProductId, x.Quantity)));
+        if (stockError is not null)
+            return BadRequest(stockError);
+
         var order = new Order
         {
             UserId = userId,
@@ -102,7 +109,7 @@ public class OrdersController(
             Discount = discount,
             CouponCode = coupon?.Code,
             Total = total,
-            Status = request.PaymentMethod == PaymentMethod.BankTransfer ? OrderStatus.AwaitingPayment : OrderStatus.Pending,
+            Status = OrderStatus.Pending,
             Items = cartItems.Select(x => new OrderItem { ProductId = x.ProductId, Quantity = x.Quantity, UnitPrice = x.Product!.Price }).ToList()
         };
 
@@ -168,6 +175,7 @@ public class OrdersController(
         // Fetch real prices from DB — never trust client
         var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();
         var products = await db.Products
+            .ActiveProducts()
             .Where(p => productIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id);
 
@@ -183,6 +191,12 @@ public class OrdersController(
 
         var total = subtotal;
 
+        var stockError = await InventoryFinanceService.ValidateAndApplyStockForOrderAsync(
+            db,
+            request.Items.Select(i => (i.ProductId, i.Quantity)));
+        if (stockError is not null)
+            return BadRequest(stockError);
+
         var order = new Order
         {
             UserId = null,
@@ -194,7 +208,7 @@ public class OrdersController(
             Subtotal = subtotal,
             Discount = discount,
             Total = total,
-            Status = request.PaymentMethod == PaymentMethod.BankTransfer ? OrderStatus.AwaitingPayment : OrderStatus.Pending,
+            Status = OrderStatus.Pending,
             Items = request.Items.Select(i => new OrderItem
             {
                 ProductId = i.ProductId,
@@ -291,13 +305,16 @@ public class OrdersController(
     [HttpPut("{orderId:int}/status")]
     public async Task<IActionResult> UpdateStatus(int orderId, [FromBody] OrderStatus status)
     {
-        var order = await db.Orders.FindAsync(orderId);
+        var order = await db.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == orderId);
         if (order is null)
-        {
             return NotFound();
-        }
 
-        order.Status = status;
+        var error = await OrderStatusWorkflow.TryApplyStatusChangeAsync(db, order, status);
+        if (error is not null)
+            return BadRequest(error);
+
         await db.SaveChangesAsync();
         return NoContent();
     }
