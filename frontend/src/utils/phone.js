@@ -25,6 +25,11 @@ export function phoneOrDefault(value) {
   return normalizePhoneInput(t)
 }
 
+/** Da li je unet pun broj (ne samo +381). */
+export function isPhoneComplete(value) {
+  return cleanPhone(value) != null
+}
+
 /** Prazno ako je samo „+“ ili samo pozivni bez broja (npr. +381). */
 export function cleanPhone(value) {
   const normalized = normalizePhoneInput(value).replace(/\s/g, '')

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from '../api'
 
-const STATUSES = ['Pending', 'Shipped', 'Delivered', 'Returned', 'Cancelled']
+const ORDER_STATUSES = ['Pending', 'Shipped', 'Delivered', 'Returned', 'Cancelled']
 
 const STATUS_VALUES = {
   Pending: 0,
@@ -13,49 +13,43 @@ const STATUS_VALUES = {
 
 const STATUS_LABELS = {
   Pending: 'Na čekanju',
-  AwaitingPayment: 'Čeka uplatu',
-  PaymentConfirmed: 'Uplata potvrđena',
-  Processing: 'U obradi',
   Shipped: 'Poslato',
   Delivered: 'Dostavljeno',
   Returned: 'Vraćeno',
   Cancelled: 'Otkazano',
-  FailedDelivery: 'Neuspela dostava',
 }
 
 const STATUS_COLORS = {
   Pending: '#f59e0b',
-  AwaitingPayment: '#6366f1',
-  PaymentConfirmed: '#10b981',
-  Processing: '#3b82f6',
   Shipped: '#0ea5e9',
   Delivered: '#22c55e',
   Returned: '#f97316',
   Cancelled: '#ef4444',
-  FailedDelivery: '#dc2626',
 }
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [selectedStatuses, setSelectedStatuses] = useState(
+    () => new Set(ORDER_STATUSES),
+  )
   const [paymentFilter, setPaymentFilter] = useState('')
   const [updating, setUpdating] = useState(null)
   const [expanded, setExpanded] = useState(null)
   const [sort, setSort] = useState({ col: 'id', dir: 'desc' })
   const [headerOpen, setHeaderOpen] = useState(null)
-  const headerRef = useRef(null)
 
   useEffect(() => {
+    if (!headerOpen) return
     const handler = (e) => {
-      if (headerRef.current && !headerRef.current.contains(e.target)) {
+      if (!e.target.closest('.adm-header-filter')) {
         setHeaderOpen(null)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  }, [headerOpen])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -82,12 +76,18 @@ export default function AdminOrders() {
 
   const displayed = useMemo(() => {
     let arr = orders
-    if (statusFilter) arr = arr.filter(o => o.status === statusFilter)
+    if (selectedStatuses.size < ORDER_STATUSES.length) {
+      arr = arr.filter((o) => selectedStatuses.has(o.status))
+    }
     if (paymentFilter) arr = arr.filter(o => o.paymentMethod === paymentFilter)
     arr = [...arr]
     const { col, dir } = sort
     arr.sort((a, b) => {
       let av, bv
+      if (col === 'customer') {
+        const cmp = (a.customerName ?? '').localeCompare(b.customerName ?? '', 'sr', { sensitivity: 'base' })
+        return dir === 'asc' ? cmp : -cmp
+      }
       if (col === 'id') { av = a.id; bv = b.id }
       else if (col === 'date') { av = new Date(a.createdAt); bv = new Date(b.createdAt) }
       else if (col === 'total') { av = a.total; bv = b.total }
@@ -97,7 +97,20 @@ export default function AdminOrders() {
       return 0
     })
     return arr
-  }, [orders, sort, statusFilter, paymentFilter])
+  }, [orders, sort, selectedStatuses, paymentFilter])
+
+  const statusFilterActive = selectedStatuses.size < ORDER_STATUSES.length
+
+  const toggleStatusFilter = (status) => {
+    setSelectedStatuses((prev) => {
+      const next = new Set(prev)
+      if (next.has(status)) next.delete(status)
+      else next.add(status)
+      return next
+    })
+  }
+
+  const selectAllStatuses = () => setSelectedStatuses(new Set(ORDER_STATUSES))
 
   const updateStatus = async (orderId, status) => {
     setUpdating(orderId)
@@ -121,10 +134,50 @@ export default function AdminOrders() {
     )
   }
 
+  const StatusFilterTh = () => {
+    const open = headerOpen === 'status'
+    return (
+      <th className="adm-header-filter" style={{ position: 'relative', userSelect: 'none', whiteSpace: 'nowrap' }}>
+        <div
+          style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          onClick={() => setHeaderOpen(open ? null : 'status')}
+        >
+          Status
+          <span style={{ fontSize: 11, opacity: statusFilterActive ? 1 : 0.4, color: statusFilterActive ? '#f59e0b' : 'inherit' }}>▼</span>
+        </div>
+        {open && (
+          <div className="adm-filter-popup adm-filter-popup--status">
+            <button
+              type="button"
+              className="adm-filter-popup-action"
+              onClick={selectAllStatuses}
+            >
+              Označi sve
+            </button>
+            {ORDER_STATUSES.map((status) => (
+              <label key={status} className="adm-filter-check">
+                <input
+                  type="checkbox"
+                  checked={selectedStatuses.has(status)}
+                  onChange={() => toggleStatusFilter(status)}
+                />
+                <span
+                  className="adm-filter-check-dot"
+                  style={{ background: STATUS_COLORS[status] ?? '#6b7280' }}
+                />
+                <span>{STATUS_LABELS[status] ?? status}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </th>
+    )
+  }
+
   const FilterTh = ({ filterKey, value, onChange, options, children }) => {
     const open = headerOpen === filterKey
     return (
-      <th style={{ position: 'relative', userSelect: 'none', whiteSpace: 'nowrap' }}>
+      <th className="adm-header-filter" style={{ position: 'relative', userSelect: 'none', whiteSpace: 'nowrap' }}>
         <div
           style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
           onClick={() => setHeaderOpen(open ? null : filterKey)}
@@ -133,11 +186,7 @@ export default function AdminOrders() {
           <span style={{ fontSize: 11, opacity: value ? 1 : 0.4, color: value ? '#f59e0b' : 'inherit' }}>▼</span>
         </div>
         {open && (
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 200,
-            background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10,
-            boxShadow: '0 6px 24px rgba(0,0,0,0.13)', minWidth: 170, overflow: 'hidden'
-          }}>
+          <div className="adm-filter-popup">
             <div
               style={{ padding: '9px 16px', cursor: 'pointer', fontWeight: !value ? 700 : 400, background: !value ? '#f9fafb' : 'transparent', color: '#374151', fontSize: 14 }}
               onClick={(e) => { e.stopPropagation(); onChange(''); setHeaderOpen(null) }}
@@ -178,9 +227,9 @@ export default function AdminOrders() {
       <div className="adm-table-wrap" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         <table className="adm-table">
           <thead>
-            <tr ref={headerRef}>
+            <tr>
               <SortTh col="id">#ID</SortTh>
-              <th>Kupac</th>
+              <SortTh col="customer">Kupac</SortTh>
               <SortTh col="date">Datum</SortTh>
               <FilterTh
                 filterKey="payment"
@@ -194,14 +243,7 @@ export default function AdminOrders() {
                 Plaćanje
               </FilterTh>
               <SortTh col="total">Ukupno</SortTh>
-              <FilterTh
-                filterKey="status"
-                value={statusFilter}
-                onChange={setStatusFilter}
-                options={STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] ?? s }))}
-              >
-                Status
-              </FilterTh>
+              <StatusFilterTh />
             </tr>
           </thead>
           <tbody>
@@ -240,7 +282,7 @@ export default function AdminOrders() {
                       style={{ background: STATUS_COLORS[order.status] ?? '#6b7280', color: '#fff', fontWeight: 600, border: 'none', borderRadius: 8, padding: '4px 8px' }}
                       onChange={e => updateStatus(order.id, e.target.value)}
                     >
-                      {STATUSES.map(s => (
+                      {ORDER_STATUSES.map(s => (
                         <option key={s} value={s}>{STATUS_LABELS[s] ?? s}</option>
                       ))}
                     </select>

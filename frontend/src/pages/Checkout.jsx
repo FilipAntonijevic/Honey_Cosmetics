@@ -4,7 +4,7 @@ import api from '../api'
 import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
 import PhoneField from '../components/PhoneField'
-import { cleanPhone, phoneOrDefault } from '../utils/phone'
+import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
 
 export default function Checkout() {
   const { user, cart, setCart, setToast } = useStore()
@@ -87,6 +87,10 @@ export default function Checkout() {
     e.preventDefault()
     setError('')
     if (!cart.length) { setToast('Korpa je prazna.'); return }
+    if (!isPhoneComplete(form.phone)) {
+      setError('Broj telefona je obavezan.')
+      return
+    }
     setSubmitting(true)
     try {
       const phoneClean = cleanPhone(form.phone)
@@ -205,6 +209,7 @@ export default function Checkout() {
                 className="co-input"
                 value={form.phone}
                 onChange={(v) => setForm((f) => ({ ...f, phone: v }))}
+                required
                 ariaLabel="Broj telefona"
               />
             </div>

@@ -1171,6 +1171,67 @@ button, input, select { font-family: inherit; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 .adm-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.adm-filter-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.13);
+  min-width: 220px;
+  overflow: hidden;
+  padding: 0.35rem 0;
+}
+.adm-filter-popup--status {
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+}
+.adm-filter-popup-action {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.55rem 1rem;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.adm-filter-popup-action:hover {
+  background: #f3f4f6;
+}
+.adm-filter-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #374151;
+}
+.adm-filter-check:hover {
+  background: #f9fafb;
+}
+.adm-filter-check input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #8b6b47;
+  cursor: pointer;
+}
+.adm-filter-check-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 .adm-table th {
   background: #f9fafb;
   padding: 0.85rem 1rem;
@@ -1661,6 +1722,67 @@ button, input, select { font-family: inherit; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 .adm-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.adm-filter-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.13);
+  min-width: 220px;
+  overflow: hidden;
+  padding: 0.35rem 0;
+}
+.adm-filter-popup--status {
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+}
+.adm-filter-popup-action {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.55rem 1rem;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.adm-filter-popup-action:hover {
+  background: #f3f4f6;
+}
+.adm-filter-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #374151;
+}
+.adm-filter-check:hover {
+  background: #f9fafb;
+}
+.adm-filter-check input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #8b6b47;
+  cursor: pointer;
+}
+.adm-filter-check-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 .adm-table th {
   background: #f9fafb;
   padding: 0.85rem 1rem;

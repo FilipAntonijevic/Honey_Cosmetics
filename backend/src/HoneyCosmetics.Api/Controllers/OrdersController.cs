@@ -55,6 +55,11 @@ public class OrdersController(
             return BadRequest("Cart is empty.");
         }
 
+        if (!TryNormalizeOrderPhone(request.Phone, out var phone))
+        {
+            return BadRequest("Broj telefona je obavezan.");
+        }
+
         var subtotal = cartItems.Sum(x => x.Quantity * x.Product!.Price);
         decimal discount = 0;
         Coupon? coupon = null;
@@ -91,7 +96,7 @@ public class OrdersController(
         {
             UserId = userId,
             DeliveryAddress = string.IsNullOrWhiteSpace(request.DeliveryAddress) ? user.DefaultAddress ?? string.Empty : request.DeliveryAddress,
-            Phone = string.IsNullOrWhiteSpace(request.Phone) ? user.PhoneNumber : request.Phone,
+            Phone = phone,
             PaymentMethod = request.PaymentMethod,
             Subtotal = subtotal,
             Discount = discount,
@@ -157,6 +162,9 @@ public class OrdersController(
         if (string.IsNullOrWhiteSpace(request.DeliveryAddress))
             return BadRequest("Delivery address is required.");
 
+        if (!TryNormalizeOrderPhone(request.Phone, out var guestPhone))
+            return BadRequest("Broj telefona je obavezan.");
+
         // Fetch real prices from DB — never trust client
         var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();
         var products = await db.Products
@@ -181,7 +189,7 @@ public class OrdersController(
             GuestName = request.GuestName?.Trim(),
             GuestEmail = request.GuestEmail?.Trim(),
             DeliveryAddress = request.DeliveryAddress.Trim(),
-            Phone = request.Phone?.Trim(),
+            Phone = guestPhone,
             PaymentMethod = request.PaymentMethod,
             Subtotal = subtotal,
             Discount = discount,
@@ -328,6 +336,21 @@ public class OrdersController(
               <tbody>{rows}</tbody>
             </table>
             """;
+    }
+
+    /// <summary>Minimum: pozivni + bar još nekoliko cifara (npr. +381 60…).</summary>
+    private static bool TryNormalizeOrderPhone(string? phone, out string normalized)
+    {
+        normalized = string.Empty;
+        if (string.IsNullOrWhiteSpace(phone))
+            return false;
+
+        normalized = phone.Trim();
+        var digitsOnly = new string(normalized.Where(char.IsDigit).ToArray());
+        if (digitsOnly.Length <= 3 || normalized == "+")
+            return false;
+
+        return true;
     }
 
     private static string BuildUserConfirmationEmail(
