@@ -33,6 +33,28 @@ const mapServerCartRows = (rows) =>
     inStock: true,
   }))
 
+const mapServerWishlistRows = (rows) =>
+  rows.map((item) => ({
+    id: item.productId,
+    name: item.name,
+    price: item.price,
+    imageUrl: item.imageUrl,
+    stockQuantity: item.stockQuantity ?? 0,
+    inStock: item.inStock ?? (item.stockQuantity ?? 0) > 0,
+  }))
+
+async function mergeLocalWishlistToServer() {
+  const local = fromStorage('honey_wishlist', [])
+  await Promise.all(
+    local.map((item) => api.post(`/wishlist/${item.id}`).catch(() => {})),
+  )
+}
+
+async function fetchServerWishlist() {
+  const { data } = await api.get('/wishlist')
+  return mapServerWishlistRows(data ?? [])
+}
+
 function cartStockUnchanged(prev, next) {
   if (prev.length !== next.length) return false
   for (let i = 0; i < prev.length; i += 1) {
@@ -93,6 +115,10 @@ export function StoreProvider({ children }) {
               })
             }
           } catch {}
+          try {
+            await mergeLocalWishlistToServer()
+            setWishlist(await fetchServerWishlist())
+          } catch {}
         } catch {
           clearAuthSession()
           setUser(null)
@@ -140,6 +166,10 @@ export function StoreProvider({ children }) {
     try {
       const { data: serverCart } = await api.get('/cart')
       setCart(mapServerCartRows(serverCart ?? []))
+    } catch {}
+    try {
+      await mergeLocalWishlistToServer()
+      setWishlist(await fetchServerWishlist())
     } catch {}
     return data.user
   }, [cart])
@@ -251,14 +281,19 @@ export function StoreProvider({ children }) {
 
   const toggleWishlist = useCallback((product) => {
     setWishlist((prev) => {
-      if (prev.some((item) => item.id === product.id)) {
+      const exists = prev.some((item) => item.id === product.id)
+      if (user) {
+        if (exists) api.delete(`/wishlist/${product.id}`).catch(() => {})
+        else api.post(`/wishlist/${product.id}`).catch(() => {})
+      }
+      if (exists) {
         setToast('Uklonjeno sa wishlist-e.')
         return prev.filter((item) => item.id !== product.id)
       }
       setToast('Dodato u wishlist.')
       return [...prev, product]
     })
-  }, [])
+  }, [user])
 
   const value = useMemo(
     () => ({

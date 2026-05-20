@@ -8,6 +8,7 @@ import {
   attachResolvedImageSrcPartial,
   preloadProductImagesMediumAwait,
 } from '../lib/imagePreload'
+import { isInStock } from '../utils/stock'
 
 const POP_VISIBLE_MAX = 5
 
@@ -406,6 +407,7 @@ function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
 }
 
 function ProductCarouselCard({ product, onAddToCart, onToggleWishlist }) {
+  const outOfStock = !isInStock(product)
   return (
     <article className="product-card">
       <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
@@ -420,7 +422,14 @@ function ProductCarouselCard({ product, onAddToCart, onToggleWishlist }) {
         <p>{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
         <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
         <div className="card-actions">
-          <button type="button" onClick={() => onAddToCart(product)}>Dodaj u korpu</button>
+          <button
+            type="button"
+            className={outOfStock ? 'product-card-btn--out-of-stock' : undefined}
+            onClick={() => onAddToCart(product)}
+            disabled={outOfStock}
+          >
+            {outOfStock ? 'Nije na stanju' : 'Dodaj u korpu'}
+          </button>
           <button type="button" className="ghost" onClick={() => onToggleWishlist(product)}>
             Wishlist
           </button>

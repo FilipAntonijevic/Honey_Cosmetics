@@ -18,7 +18,15 @@ public class WishlistController(AppDbContext db) : ControllerBase
         var items = await db.Wishlists
             .Where(x => x.UserId == userId)
             .Include(x => x.Product)
-            .Select(x => new { x.ProductId, x.Product!.Name, x.Product.Price, x.Product.ImageUrl })
+            .Select(x => new
+            {
+                x.ProductId,
+                x.Product!.Name,
+                x.Product.Price,
+                x.Product.ImageUrl,
+                x.Product.StockQuantity,
+                InStock = x.Product.StockQuantity > 0,
+            })
             .ToListAsync();
 
         return Ok(items);
