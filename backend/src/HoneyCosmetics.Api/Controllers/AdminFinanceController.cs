@@ -64,6 +64,43 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
         return Ok(MapLedger(entry));
     }
 
+    [HttpDelete("ledger/{id:int}")]
+    public async Task<IActionResult> DeleteLedger(int id)
+    {
+        var entry = await db.LedgerEntries
+            .Include(e => e.StockReceipt)
+            .Include(e => e.Order)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (entry is null)
+            return NotFound();
+
+        StockReceipt? receiptToRemove = entry.StockReceipt;
+        if (receiptToRemove is not null)
+        {
+            var product = await db.Products.FindAsync(receiptToRemove.ProductId);
+            if (product is not null)
+            {
+                if (receiptToRemove.ReceivedAt is null)
+                    product.OrderedQuantity = Math.Max(0, product.OrderedQuantity - receiptToRemove.Quantity);
+                else
+                    product.StockQuantity = Math.Max(0, product.StockQuantity - receiptToRemove.Quantity);
+            }
+        }
+
+        if (entry.Source == LedgerSource.OrderDelivered && entry.OrderId is not null)
+        {
+            var order = entry.Order ?? await db.Orders.FindAsync(entry.OrderId.Value);
+            if (order is not null)
+                order.FinanceRecorded = false;
+        }
+
+        db.LedgerEntries.Remove(entry);
+        if (receiptToRemove is not null)
+            db.StockReceipts.Remove(receiptToRemove);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
     private static LedgerEntryResponse MapLedger(LedgerEntry e)
     {
         var receipt = e.StockReceipt;

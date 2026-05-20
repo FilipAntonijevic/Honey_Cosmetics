@@ -1,13 +1,16 @@
 using HoneyCosmetics.Api.Services;
 using HoneyCosmetics.Application.DTOs;
+using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Application.Mapping;
 using HoneyCosmetics.Domain.Enums;
+using HoneyCosmetics.Infrastructure.Configurations;
 using HoneyCosmetics.Infrastructure.Services;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace HoneyCosmetics.Api.Controllers;
 
@@ -17,7 +20,11 @@ namespace HoneyCosmetics.Api.Controllers;
 public class AdminController(
     AppDbContext db,
     IWebHostEnvironment env,
-    ImageThumbnailService thumbnails) : ControllerBase
+    ImageThumbnailService thumbnails,
+    IEmailService emailService,
+    IConfiguration configuration,
+    IOptions<SendGridSettings> sendGridOptions,
+    ILogger<AdminController> logger) : ControllerBase
 {
     // ── Dashboard ────────────────────────────────────────────────────────────
     [HttpGet("dashboard")]
@@ -142,6 +149,7 @@ public class AdminController(
                     "Proizvod sa tim imenom je uklonjen iz prodavnice. Kreirajte novi proizvod pod tim imenom da ga vratite.");
         }
 
+        var stockBefore = product.StockQuantity;
         ProductCatalogService.ApplyRequest(product, request);
 
         await db.SaveChangesAsync();
@@ -150,6 +158,10 @@ public class AdminController(
         await db.Entry(product).Reference(p => p.Category).LoadAsync();
         await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
         await db.Entry(product).Collection(p => p.AdditionalImages).LoadAsync();
+
+        await WishlistStockNotificationService.TryNotifyBackInStockAsync(
+            db, emailService, configuration, sendGridOptions, product, stockBefore, logger);
+
         return Ok(MapProduct(product));
     }
 
@@ -169,36 +181,103 @@ public class AdminController(
     [HttpGet("products/{id:int}/stats")]
     public async Task<ActionResult<ProductStatsResponse>> GetProductStats(int id)
     {
-        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
+        var product = await db.Products.FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
         if (product is null) return NotFound();
 
-        var soldItems = await db.OrderItems
+        var orderLines = await db.OrderItems
+            .AsNoTracking()
             .Where(i => i.ProductId == id)
             .Join(
-                db.Orders.Where(o => o.Status == OrderStatus.Delivered),
+                db.Orders.AsNoTracking(),
                 i => i.OrderId,
                 o => o.Id,
-                (i, o) => i)
+                (i, o) => new { i.Quantity, i.UnitPrice, o.Status, o.Id })
             .ToListAsync();
 
-        var totalSold = soldItems.Sum(i => i.Quantity);
-        var totalRevenue = soldItems.Sum(i => i.UnitPrice * i.Quantity);
-        var unitCost = product.UnitCostPrice ?? 0m;
-        var totalCogs = soldItems.Sum(i => unitCost * i.Quantity);
+        var deliveredLines = orderLines.Where(x => x.Status == OrderStatus.Delivered).ToList();
+        var totalSold = deliveredLines.Sum(x => x.Quantity);
+        var totalRevenue = deliveredLines.Sum(x => x.UnitPrice * x.Quantity);
+
+        var receipts = await db.StockReceipts
+            .AsNoTracking()
+            .Where(r => r.ProductId == id)
+            .Select(r => new { r.Quantity, r.TotalCost, r.ReceivedAt })
+            .ToListAsync();
+
+        var totalPurchasedQuantity = receipts.Sum(r => r.Quantity);
+        var totalPurchaseSpend = receipts.Sum(r => r.TotalCost);
+        var purchaseReceiptCount = receipts.Count;
+        var pendingReceiptQuantity = receipts.Where(r => r.ReceivedAt == null).Sum(r => r.Quantity);
+
+        decimal? averagePurchaseUnitCost = null;
+        if (totalPurchasedQuantity > 0)
+            averagePurchaseUnitCost = Math.Round(totalPurchaseSpend / totalPurchasedQuantity, 2);
+
+        var unitCostForProfit = product.UnitCostPrice ?? averagePurchaseUnitCost ?? 0m;
+        var totalCogs = deliveredLines.Sum(x => unitCostForProfit * x.Quantity);
         var totalProfit = totalRevenue - totalCogs;
         var profitPerUnit = totalSold > 0 ? Math.Round(totalProfit / totalSold, 2) : 0m;
+        var averageSalePrice = totalSold > 0 ? Math.Round(totalRevenue / totalSold, 2) : (decimal?)null;
+        var profitMarginPercent = totalRevenue > 0
+            ? Math.Round(totalProfit / totalRevenue * 100m, 1)
+            : (decimal?)null;
+
+        var activeOrderQuantity = orderLines
+            .Where(x => !OrderStatusWorkflow.IsFinal(x.Status))
+            .Sum(x => x.Quantity);
+        var returnedCancelledQuantity = orderLines
+            .Where(x => x.Status is OrderStatus.Returned or OrderStatus.Cancelled)
+            .Sum(x => x.Quantity);
+        var deliveredOrderCount = deliveredLines.Select(x => x.Id).Distinct().Count();
+        var totalOrdersWithProduct = orderLines.Select(x => x.Id).Distinct().Count();
+
+        var wishlistCount = await db.Wishlists.AsNoTracking().CountAsync(w => w.ProductId == id);
+
+        var costForMargin = product.UnitCostPrice ?? averagePurchaseUnitCost;
+        decimal? unitMargin = null;
+        decimal? marginPercent = null;
+        if (costForMargin is not null)
+        {
+            unitMargin = product.Price - costForMargin.Value;
+            marginPercent = product.Price > 0
+                ? Math.Round(unitMargin.Value / product.Price * 100m, 1)
+                : 0m;
+        }
+
+        var stockRetailValue = product.StockQuantity * product.Price;
+        var stockUnitCost = product.UnitCostPrice ?? averagePurchaseUnitCost;
+        decimal? stockCostValue = stockUnitCost is not null
+            ? product.StockQuantity * stockUnitCost.Value
+            : null;
 
         return Ok(new ProductStatsResponse(
             product.Id,
             product.Name,
             product.Price,
             product.UnitCostPrice,
+            averagePurchaseUnitCost,
             product.StockQuantity,
+            product.OrderedQuantity,
+            pendingReceiptQuantity,
             totalSold,
             totalRevenue,
             totalCogs,
             totalProfit,
-            profitPerUnit));
+            profitPerUnit,
+            unitMargin,
+            marginPercent,
+            profitMarginPercent,
+            averageSalePrice,
+            activeOrderQuantity,
+            returnedCancelledQuantity,
+            deliveredOrderCount,
+            totalOrdersWithProduct,
+            wishlistCount,
+            totalPurchasedQuantity,
+            totalPurchaseSpend,
+            purchaseReceiptCount,
+            stockRetailValue,
+            stockCostValue));
     }
 
     [HttpPost("products/{id:int}/stock-purchase")]
@@ -240,9 +319,13 @@ public class AdminController(
         var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
         if (product is null) return NotFound();
 
+        var stockBefore = product.StockQuantity;
         var error = await InventoryFinanceService.ConfirmStockArrivalAsync(db, product);
         if (error is not null)
             return BadRequest(error);
+
+        await WishlistStockNotificationService.TryNotifyBackInStockAsync(
+            db, emailService, configuration, sendGridOptions, product, stockBefore, logger);
 
         return Ok(new
         {

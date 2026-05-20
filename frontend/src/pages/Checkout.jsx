@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
@@ -7,7 +7,7 @@ import PhoneField from '../components/PhoneField'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
 
 export default function Checkout() {
-  const { user, cart, setCart, setToast } = useStore()
+  const { user, checkoutCart, setCart, setToast, refreshCartStock } = useStore()
   const navigate = useNavigate()
 
   const [couponInput, setCouponInput] = useState('')
@@ -34,12 +34,21 @@ export default function Checkout() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    refreshCartStock()
+  }, [refreshCartStock])
+
+  useEffect(() => {
     if (user) return
     setCoupon(null)
     setCouponInput('')
     setCouponError('')
     setForm((f) => ({ ...f, couponCode: '' }))
   }, [user])
+
+  const subtotal = useMemo(
+    () => checkoutCart.reduce((s, item) => s + Number(item.price) * item.quantity, 0),
+    [checkoutCart],
+  )
 
   const applyCoupon = async () => {
     if (!user) {
@@ -86,7 +95,12 @@ export default function Checkout() {
   const submit = async (e) => {
     e.preventDefault()
     setError('')
-    if (!cart.length) { setToast('Korpa je prazna.'); return }
+    const inStockItems = await refreshCartStock()
+    if (!inStockItems.length) {
+      setError('Nema proizvoda na stanju u korpi.')
+      setToast('Nema proizvoda na stanju u korpi.')
+      return
+    }
     if (!isPhoneComplete(form.phone)) {
       setError('Broj telefona je obavezan.')
       return
@@ -105,7 +119,7 @@ export default function Checkout() {
         navigate('/my-orders')
       } else {
         await api.post('/orders/guest-checkout', {
-          items: cart.map((item) => ({ productId: item.id, quantity: item.quantity })),
+          items: inStockItems.map((item) => ({ productId: item.id, quantity: item.quantity })),
           deliveryAddress: buildAddress(),
           phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
@@ -126,7 +140,6 @@ export default function Checkout() {
 
   const fmt = (n) =>
     Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const subtotal = cart.reduce((s, item) => s + Number(item.price) * item.quantity, 0)
   const discountAmt = coupon
     ? coupon.isPercentage
       ? subtotal * (coupon.discountValue / 100)
@@ -134,10 +147,10 @@ export default function Checkout() {
     : 0
   const grandTotal = Math.max(0, subtotal - discountAmt)
 
-  if (!cart.length) {
+  if (!checkoutCart.length) {
     return (
       <div className="co-empty shell">
-        <p>Korpa je prazna.</p>
+        <p>Korpa je prazna ili nema proizvoda na stanju.</p>
         <Link className="cta" to="/shop">Nastavi kupovinu</Link>
       </div>
     )
@@ -200,17 +213,26 @@ export default function Checkout() {
 
             <div className="co-row-2">
               <input className="co-input" placeholder="Grad" value={form.city} onChange={set('city')} />
-              <input className="co-input" placeholder="Regija (opciono)" value={form.state} onChange={set('state')} />
+              <input className="co-input" placeholder="Poštanski broj (opciono)" value={form.postalCode} onChange={set('postalCode')} />
             </div>
 
-            <div className="co-row-2 co-row-2--phone">
-              <input className="co-input" placeholder="Poštanski broj (opciono)" value={form.postalCode} onChange={set('postalCode')} />
+            <div className="co-field-wrap">
+              <input
+                className="co-input"
+                placeholder="Regija (opciono)"
+                value={form.state}
+                onChange={set('state')}
+              />
+            </div>
+
+            <div className="co-field-wrap co-field-wrap--phone">
               <PhoneField
                 className="co-input"
                 value={form.phone}
                 onChange={(v) => setForm((f) => ({ ...f, phone: v }))}
                 required
                 ariaLabel="Broj telefona"
+                placeholder="+381"
               />
             </div>
           </section>
@@ -297,7 +319,7 @@ export default function Checkout() {
             <div className="co-summary-title">Rezime porudžbine</div>
 
             <div className="co-summary-items">
-              {cart.map((item) => (
+              {checkoutCart.map((item) => (
                 <div key={item.id} className="co-sum-item">
                   <div className="co-sum-img-wrap">
                     {item.imageUrl

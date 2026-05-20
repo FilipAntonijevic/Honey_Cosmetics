@@ -46,14 +46,37 @@ public class OrdersController(
             return Unauthorized();
         }
 
-        var cartItems = await db.Carts
+        var allCartItems = await db.Carts
             .Where(x => x.UserId == userId)
             .Include(x => x.Product)
             .ToListAsync();
 
-        if (cartItems.Count == 0)
+        if (allCartItems.Count == 0)
         {
             return BadRequest("Cart is empty.");
+        }
+
+        var unavailable = allCartItems
+            .Where(x => x.Product is null || x.Product.IsDeleted || x.Product.StockQuantity <= 0)
+            .ToList();
+        if (unavailable.Count > 0)
+            db.Carts.RemoveRange(unavailable);
+
+        var cartItems = allCartItems.Except(unavailable).ToList();
+        foreach (var item in cartItems)
+        {
+            var stock = item.Product!.StockQuantity;
+            if (item.Quantity > stock)
+                item.Quantity = stock;
+        }
+
+        cartItems = cartItems.Where(x => x.Quantity > 0).ToList();
+
+        if (cartItems.Count == 0)
+        {
+            if (unavailable.Count > 0)
+                await db.SaveChangesAsync();
+            return BadRequest("Nema proizvoda na stanju u korpi.");
         }
 
         if (!TryNormalizeOrderPhone(request.Phone, out var phone))
@@ -114,7 +137,7 @@ public class OrdersController(
         };
 
         db.Orders.Add(order);
-        db.Carts.RemoveRange(cartItems);
+        db.Carts.RemoveRange(allCartItems);
 
         if (coupon is not null)
         {

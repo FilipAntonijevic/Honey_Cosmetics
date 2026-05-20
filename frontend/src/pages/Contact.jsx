@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import api from '../api'
 import useSiteLinks from '../hooks/useSiteLinks'
-import { cleanPhone } from '../utils/phone'
+import PhoneField from '../components/PhoneField'
+import { PHONE_DEFAULT, cleanPhone } from '../utils/phone'
 import { publicUrl } from '../lib/assets'
 
 const EMPTY_FORM = {
   firstName: '',
   lastName: '',
-  phone: '',
+  phone: PHONE_DEFAULT,
   email: '',
   message: '',
 }
@@ -178,13 +179,13 @@ export default function Contact() {
             </div>
             <label className="contact-form-field">
               <span className="contact-form-label">Telefon</span>
-              <input
-                type="tel"
+              <PhoneField
                 className="contact-input"
                 value={form.phone}
-                onChange={set('phone')}
-                autoComplete="tel"
+                onChange={(v) => setForm((f) => ({ ...f, phone: v }))}
                 required
+                ariaLabel="Broj telefona"
+                placeholder="+381"
               />
             </label>
             <label className="contact-form-field">

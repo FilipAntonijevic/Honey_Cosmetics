@@ -20,6 +20,7 @@ public class EmailService : IEmailService
         string to,
         string subject,
         string body,
+        string? replyTo = null,
         CancellationToken cancellationToken = default)
     {
         var client =
@@ -40,6 +41,9 @@ public class EmailService : IEmailService
                 subject,
                 "",
                 body);
+
+        if (!string.IsNullOrWhiteSpace(replyTo))
+            msg.ReplyTo = new EmailAddress(replyTo.Trim());
 
         var response =
             await client.SendEmailAsync(msg, cancellationToken);

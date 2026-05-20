@@ -137,7 +137,7 @@ function TreeRow({
   )
 }
 
-function EntryDetailInline({ entry, fmt }) {
+function EntryDetailInline({ entry, fmt, onDelete }) {
   const isIncome = entry.entryType === 'Income'
   const isPurchase = entry.source === 'StockPurchase'
 
@@ -185,11 +185,20 @@ function EntryDetailInline({ entry, fmt }) {
           </>
         )}
       </dl>
+      <div className="ledger-detail-inline__footer">
+        <button
+          type="button"
+          className="adm-btn adm-btn-danger adm-btn-sm"
+          onClick={(e) => { e.stopPropagation(); onDelete(entry) }}
+        >
+          Obriši
+        </button>
+      </div>
     </div>
   )
 }
 
-function TransactionRow({ entry, depth, expanded, toggle, fmt }) {
+function TransactionRow({ entry, depth, expanded, toggle, fmt, onDelete }) {
   const txKey = `tx:${entry.id}`
   const open = expanded.has(txKey)
 
@@ -210,7 +219,7 @@ function TransactionRow({ entry, depth, expanded, toggle, fmt }) {
       )}
       amount={signedAmount(entry)}
     >
-      <EntryDetailInline entry={entry} fmt={fmt} />
+      <EntryDetailInline entry={entry} fmt={fmt} onDelete={onDelete} />
     </TreeRow>
   )
 }
@@ -224,6 +233,8 @@ export default function AdminFinance() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [expanded, setExpanded] = useState(new Set())
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -293,6 +304,31 @@ export default function AdminFinance() {
   }
 
   const fmt = (n) => Number(n).toLocaleString('sr-RS', { maximumFractionDigits: 0 })
+
+  const requestDelete = (entry) => setDeleteConfirm(entry)
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return
+    const entryId = deleteConfirm.id
+    setDeleting(true)
+    try {
+      await api.delete(`/admin/finance/ledger/${entryId}`)
+      setExpanded((prev) => {
+        const next = new Set(prev)
+        next.delete(`tx:${entryId}`)
+        return next
+      })
+      setDeleteConfirm(null)
+      load()
+    } catch (err) {
+      const msg = typeof err.response?.data === 'string'
+        ? err.response.data
+        : 'Brisanje nije uspelo.'
+      alert(msg)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="adm-page adm-page--ledger">
@@ -385,6 +421,7 @@ export default function AdminFinance() {
                                   expanded={expanded}
                                   toggle={toggle}
                                   fmt={fmt}
+                                  onDelete={requestDelete}
                                 />
                               ))}
                             </TreeRow>
@@ -399,6 +436,38 @@ export default function AdminFinance() {
           </div>
         )}
       </div>
+
+      {deleteConfirm && (
+        <div
+          className="adm-modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && !deleting && setDeleteConfirm(null)}
+        >
+          <div className="adm-modal adm-modal--confirm" role="dialog" aria-modal="true">
+            <div className="adm-modal-body">
+              <h2>Da li ste sigurni da želite da obrišete ovu transakciju?</h2>
+              <p>
+                <strong>{txShortLabel(deleteConfirm)}</strong>
+                {' — '}
+                {deleteConfirm.entryType === 'Income' ? '+' : '−'}
+                {fmt(deleteConfirm.amount)} RSD
+                <br />
+                <span className="adm-modal-confirm-sub">{deleteConfirm.description}</span>
+              </p>
+              <p className="adm-field-hint">
+                Stavka će biti uklonjena iz evidencije. Povezani podaci (nabavka, prijem porudžbine) biće vraćeni gde je primenjivo.
+              </p>
+            </div>
+            <div className="adm-modal-footer">
+              <button type="button" className="adm-btn" disabled={deleting} onClick={() => setDeleteConfirm(null)}>
+                Odustani
+              </button>
+              <button type="button" className="adm-btn adm-btn-danger" disabled={deleting} onClick={confirmDelete}>
+                {deleting ? 'Brisanje…' : 'Da, obriši'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showManual && (
         <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowManual(false)}>

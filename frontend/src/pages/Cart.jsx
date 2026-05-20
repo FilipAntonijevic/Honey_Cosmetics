@@ -1,57 +1,35 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
-import { applyStockLimitsToCart, clampCartQuantity } from '../utils/stock'
+import { clampCartQuantity } from '../utils/stock'
 
 export default function Cart() {
-  const { cart, removeFromCart, setCart, user, setToast } = useStore()
+  const { checkoutCart, removeFromCart, setCart, user, setToast, refreshCartStock } = useStore()
   const navigate = useNavigate()
-  const [catalog, setCatalog] = useState([])
-  const [adjustedIds, setAdjustedIds] = useState(() => new Set())
 
   useEffect(() => {
-    if (!cart.length) return
-    api.get('/products').then(({ data }) => {
-      setCatalog(data)
-      const byId = new Map(data.map((p) => [p.id, p]))
-      const { cart: next, adjusted, message } = applyStockLimitsToCart(cart, byId)
-      if (adjusted) {
-        setCart(next)
-        if (message) setToast(message)
-        const ids = new Set()
-        cart.forEach((item) => {
-          const p = byId.get(item.id)
-          const capped = clampCartQuantity(item.quantity, p?.stockQuantity ?? 0)
-          if (capped !== item.quantity && capped > 0) ids.add(item.id)
-        })
-        setAdjustedIds(ids)
-        window.setTimeout(() => setAdjustedIds(new Set()), 2500)
-      }
-    }).catch(() => {})
-  }, [cart.length]) // eslint-disable-line react-hooks/exhaustive-deps
+    refreshCartStock()
+  }, [refreshCartStock])
 
-  const productsById = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog])
+  const price = (item) => Number(item.price)
 
-  const price = (item) => Number(productsById.get(item.id)?.price ?? item.price)
-
-  const total = cart.reduce((sum, item) => sum + price(item) * item.quantity, 0)
+  const total = checkoutCart.reduce((sum, item) => sum + price(item) * item.quantity, 0)
 
   const changeQty = (id, delta) => {
-    const product = productsById.get(id)
-    const stock = product?.stockQuantity ?? itemStock(id)
+    const item = checkoutCart.find((i) => i.id === id)
+    if (!item) return
+    const stock = item.stockQuantity ?? 0
     setCart((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item
-        const requested = item.quantity + delta
+      prev.map((row) => {
+        if (row.id !== id) return row
+        const requested = row.quantity + delta
         const nextQty = clampCartQuantity(requested, stock)
         if (nextQty < requested && delta > 0) {
           setToast('Nema dovoljno proizvoda na stanju.')
-          setAdjustedIds((s) => new Set(s).add(id))
-          window.setTimeout(() => setAdjustedIds(new Set()), 2500)
         }
-        return { ...item, quantity: Math.max(1, nextQty) }
+        return { ...row, quantity: Math.max(1, nextQty) }
       }),
     )
     if (user && delta !== 0) {
@@ -59,17 +37,21 @@ export default function Cart() {
     }
   }
 
-  function itemStock(id) {
-    return productsById.get(id)?.stockQuantity ?? cart.find((i) => i.id === id)?.stockQuantity ?? 999
-  }
-
   const fmt = (n) => Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  const goCheckout = () => {
+    if (!checkoutCart.length) {
+      setToast('U korpi nema proizvoda koji su na stanju.')
+      return
+    }
+    navigate('/checkout')
+  }
 
   return (
     <div className="cart-page shell">
-      {!cart.length ? (
+      {!checkoutCart.length ? (
         <div className="cart-empty">
-          <p>Vaša korpa je prazna.</p>
+          <p>Vaša korpa je prazna ili nema proizvoda na stanju.</p>
           <Link className="cta" to="/shop">Nastavi kupovinu</Link>
         </div>
       ) : (
@@ -81,8 +63,8 @@ export default function Cart() {
             </div>
             <div className="cart-divider" />
 
-            {cart.map((item) => {
-              const stock = itemStock(item.id)
+            {checkoutCart.map((item) => {
+              const stock = item.stockQuantity ?? 0
               const atMax = item.quantity >= stock
               return (
                 <div key={item.id} className="cart-row">
@@ -95,13 +77,8 @@ export default function Cart() {
                     <div className="cart-info">
                       <div className="cart-name">{item.name}</div>
                       <div className="cart-unit-price">{fmt(price(item))} RSD</div>
-                      {adjustedIds.has(item.id) && (
-                        <div className="cart-stock-notice" role="status">
-                          Količina je smanjena na dostupno stanje ({item.quantity} kom).
-                        </div>
-                      )}
                       <div className="cart-qty-row">
-                        <div className={`cart-qty${adjustedIds.has(item.id) ? ' cart-qty--adjusted' : ''}`}>
+                        <div className="cart-qty">
                           <button type="button" className="cart-qty-btn" onClick={() => changeQty(item.id, -1)}>−</button>
                           <span className="cart-qty-num">{item.quantity}</span>
                           <button
@@ -139,7 +116,7 @@ export default function Cart() {
               <button
                 type="button"
                 className="cart-checkout-btn"
-                onClick={() => navigate('/checkout')}
+                onClick={goCheckout}
               >
                 Nastavi na plaćanje
               </button>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
+import { isInStock } from '../utils/stock'
 import ApiImage from '../components/ApiImage'
 
 function CategoryStrip({ categories, selectedId, onSelect }) {
@@ -241,7 +242,9 @@ export default function Shop() {
 
     return (
       <div className="product-grid">
-        {products.map((product) => (
+        {products.map((product) => {
+          const outOfStock = !isInStock(product)
+          return (
           <article key={product.id} className="product-card">
             <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
               <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" variant="medium" />
@@ -252,12 +255,14 @@ export default function Shop() {
               </h3>
               <p>{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
               <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
-              {!product.inStock && product.stockQuantity <= 0 ? (
-                <p className="product-stock-badge product-stock-badge--out">Nije na stanju</p>
-              ) : null}
               <div className="card-actions">
-                <button type="button" onClick={() => addToCart(product)} disabled={!product.inStock && (product.stockQuantity ?? 0) <= 0}>
-                  Dodaj u korpu
+                <button
+                  type="button"
+                  className={outOfStock ? 'product-card-btn--out-of-stock' : undefined}
+                  onClick={() => addToCart(product)}
+                  disabled={outOfStock}
+                >
+                  {outOfStock ? 'Nije na stanju' : 'Dodaj u korpu'}
                 </button>
                 <button onClick={() => toggleWishlist(product)} className="ghost">
                   Wishlist
@@ -265,7 +270,8 @@ export default function Shop() {
               </div>
             </div>
           </article>
-        ))}
+          )
+        })}
       </div>
     )
   }, [loading, products, addToCart, toggleWishlist, bestsellersMode, isSearchMode, searchTerm, vrstaName])

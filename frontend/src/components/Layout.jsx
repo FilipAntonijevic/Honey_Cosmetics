@@ -38,11 +38,11 @@ const buildViberHref = (raw) => {
 }
 
 export default function Layout({ children }) {
-  const { cart, wishlist, user, logout, toast, removeFromCart, cartAddTick } = useStore()
+  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, cartAddTick, refreshCartStock } = useStore()
   const [vrste, setVrste] = useState([])
   const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
-  const cartTotal = cart.reduce((s, item) => s + Number(item.price) * item.quantity, 0)
+  const cartTotal = checkoutCart.reduce((s, item) => s + Number(item.price) * item.quantity, 0)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false)
   const [categoriesMenuOpen, setCategoriesMenuOpen] = useState(false)
@@ -95,6 +95,10 @@ export default function Layout({ children }) {
     setMiniCartClosing(false)
     setMiniCartOpen(true)
   }, [cartAddTick, isDesktop])
+
+  useEffect(() => {
+    if (miniCartOpen && !miniCartClosing) refreshCartStock()
+  }, [miniCartOpen, miniCartClosing, refreshCartStock])
 
   useEffect(() => {
     api
@@ -342,7 +346,7 @@ export default function Layout({ children }) {
               ) : (
                 <ul className="mini-cart-list">
                   {cart.map((item) => (
-                    <li key={item.id} className="mini-cart-item">
+                    <li key={item.id} className={`mini-cart-item${item.inStock === false ? ' mini-cart-item--out' : ''}`}>
                       {item.imageUrl && (
                         <ApiImage src={item.imageUrl} alt={item.name} className="mini-cart-img" variant="medium" />
                       )}
@@ -351,6 +355,9 @@ export default function Layout({ children }) {
                         <span className="mini-cart-qty-price">
                           {item.quantity} × {Number(item.price).toLocaleString('sr-RS')} RSD
                         </span>
+                        {item.inStock === false && (
+                          <span className="mini-cart-stock-warn" role="status">Nije na stanju</span>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -366,7 +373,7 @@ export default function Layout({ children }) {
               )}
             </div>
 
-            {cart.length > 0 && (
+            {checkoutCart.length > 0 && (
               <div className="mini-cart-drawer-footer">
                 <div className="mini-cart-divider" />
                 <p className="mini-cart-total">
@@ -383,8 +390,15 @@ export default function Layout({ children }) {
                   </Link>
                   <Link
                     to="/checkout"
-                    className="mini-cart-btn mini-cart-btn--fill"
-                    onClick={() => setMiniCartOpen(false)}
+                    className={`mini-cart-btn mini-cart-btn--fill${checkoutCart.length === 0 ? ' mini-cart-btn--disabled' : ''}`}
+                    onClick={(e) => {
+                      if (checkoutCart.length === 0) {
+                        e.preventDefault()
+                        return
+                      }
+                      setMiniCartOpen(false)
+                    }}
+                    aria-disabled={checkoutCart.length === 0}
                   >
                     Plaćanje
                   </Link>

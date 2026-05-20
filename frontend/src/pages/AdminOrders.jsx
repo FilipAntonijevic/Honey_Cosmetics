@@ -61,7 +61,7 @@ export default function AdminOrders() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(
-    () => new Set(ORDER_STATUSES),
+    () => new Set(['Pending']),
   )
   const [paymentFilter, setPaymentFilter] = useState('')
   const [updating, setUpdating] = useState(null)
@@ -129,7 +129,8 @@ export default function AdminOrders() {
     return arr
   }, [orders, sort, selectedStatuses, paymentFilter])
 
-  const statusFilterActive = selectedStatuses.size < ORDER_STATUSES.length
+  const allStatusesSelected = selectedStatuses.size === ORDER_STATUSES.length
+  const statusFilterActive = !allStatusesSelected
 
   const toggleStatusFilter = (status) => {
     setSelectedStatuses((prev) => {
@@ -140,7 +141,11 @@ export default function AdminOrders() {
     })
   }
 
-  const selectAllStatuses = () => setSelectedStatuses(new Set(ORDER_STATUSES))
+  const toggleSelectAllStatuses = () => {
+    setSelectedStatuses(
+      allStatusesSelected ? new Set() : new Set(ORDER_STATUSES),
+    )
+  }
 
   const updateStatus = async (orderId, status) => {
     setUpdating(orderId)
@@ -237,9 +242,9 @@ export default function AdminOrders() {
             <button
               type="button"
               className="adm-filter-popup-action"
-              onClick={selectAllStatuses}
+              onClick={toggleSelectAllStatuses}
             >
-              Označi sve
+              {allStatusesSelected ? 'Poništi sve' : 'Označi sve'}
             </button>
             {ORDER_STATUSES.map((status) => (
               <label key={status} className="adm-filter-check">

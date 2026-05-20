@@ -145,8 +145,6 @@ export default function ProductDetails() {
           <div className="pd-info">
             <h1 className="pd-title">{product.name}</h1>
             <p className="pd-price">{formatPrice(product.price)}</p>
-            {!inStock && <p className="product-stock-badge product-stock-badge--out">Nije na stanju</p>}
-
             <div className="pd-buy">
               <div className="pd-qty" aria-label="Količina">
                 <button
@@ -171,7 +169,12 @@ export default function ProductDetails() {
                   +
                 </button>
               </div>
-              <button type="button" className="pd-add-btn" onClick={addWithQty} disabled={!inStock}>
+              <button
+                type="button"
+                className={`pd-add-btn${!inStock ? ' pd-add-btn--out-of-stock' : ''}`}
+                onClick={addWithQty}
+                disabled={!inStock}
+              >
                 {inStock ? 'Dodaj u korpu' : 'Nije na stanju'}
               </button>
             </div>

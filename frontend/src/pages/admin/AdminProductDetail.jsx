@@ -14,6 +14,28 @@ function formatCalc(n) {
   return rounded === 0 ? '' : String(rounded)
 }
 
+function StatMetric({ label, value, highlight, sub }) {
+  return (
+    <div className={`adm-stats-metric${highlight ? ' adm-stats-metric--highlight' : ''}`}>
+      <span className="adm-stats-metric__label">{label}</span>
+      <span className="adm-stats-metric__value">{value}</span>
+      {sub && <span className="adm-stats-metric__sub">{sub}</span>}
+    </div>
+  )
+}
+
+function StatSection({ title, hint, children }) {
+  return (
+    <section className="adm-stats-section">
+      <div className="adm-stats-section__head">
+        <h3 className="adm-stats-section__title">{title}</h3>
+        {hint && <p className="adm-stats-section__hint">{hint}</p>}
+      </div>
+      <div className="adm-stats-section__grid">{children}</div>
+    </section>
+  )
+}
+
 const EMPTY_NABAVKA = {
   quantity: '',
   unitCost: '',
@@ -29,6 +51,8 @@ export default function AdminProductDetail() {
   const navigate = useNavigate()
   const [product, setProduct] = useState(null)
   const [stats, setStats] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [statsError, setStatsError] = useState('')
   const [loading, setLoading] = useState(true)
   const [showDelete, setShowDelete] = useState(false)
   const [showStats, setShowStats] = useState(false)
@@ -39,21 +63,42 @@ export default function AdminProductDetail() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  const loadStats = async () => {
+    setStatsLoading(true)
+    setStatsError('')
+    try {
+      const { data } = await api.get(`/admin/products/${id}/stats`)
+      setStats(data)
+      return data
+    } catch (err) {
+      setStats(null)
+      const msg = typeof err.response?.data === 'string'
+        ? err.response.data
+        : 'Statistika nije učitana. Proverite da li API radi sa najnovijom verzijom.'
+      setStatsError(msg)
+      return null
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
   const load = () => {
     setLoading(true)
-    Promise.all([
-      api.get(`/admin/products/${id}`),
-      api.get(`/admin/products/${id}/stats`),
-    ])
-      .then(([p, s]) => {
+    api.get(`/admin/products/${id}`)
+      .then((p) => {
         setProduct(p.data)
-        setStats(s.data)
+        return loadStats()
       })
       .catch(() => setProduct(null))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [id])
+
+  const openStats = async () => {
+    setShowStats(true)
+    await loadStats()
+  }
 
   const openNabavka = () => {
     merchTotalManual.current = false
@@ -158,7 +203,68 @@ export default function AdminProductDetail() {
   if (loading) return <div className="adm-page"><div className="adm-loading">Učitavanje…</div></div>
   if (!product) return <div className="adm-page"><p>Proizvod nije pronađen.</p><Link to="/admin/products">← Proizvodi</Link></div>
 
-  const fmt = (n) => Number(n).toLocaleString('sr-RS', { maximumFractionDigits: 0 })
+  const fmt = (n) => {
+    const x = Number(n)
+    if (!Number.isFinite(x)) return '—'
+    return x.toLocaleString('sr-RS', { maximumFractionDigits: 0 })
+  }
+  const fmtMoney = (n) => {
+    const x = Number(n)
+    if (!Number.isFinite(x)) return '—'
+    return `${fmt(x)} RSD`
+  }
+  const fmtPct = (n) => {
+    const x = Number(n)
+    if (!Number.isFinite(x)) return '—'
+    return `${x.toLocaleString('sr-RS', { maximumFractionDigits: 1 })} %`
+  }
+  const fmtQty = (n) => {
+    const x = Number(n)
+    if (!Number.isFinite(x)) return '—'
+    return `${x.toLocaleString('sr-RS')} kom`
+  }
+  const fmtCount = (n) => {
+    const x = Number(n)
+    if (!Number.isFinite(x)) return '—'
+    return x.toLocaleString('sr-RS')
+  }
+
+  const d = stats
+    ? {
+        price: stats.price,
+        unitCostPrice: stats.unitCostPrice ?? stats.averagePurchaseUnitCost,
+        averagePurchaseUnitCost: stats.averagePurchaseUnitCost,
+        unitMargin: stats.unitMargin,
+        marginPercent: stats.marginPercent,
+        totalSoldQuantity: stats.totalSoldQuantity,
+        deliveredOrderCount: stats.deliveredOrderCount,
+        totalOrdersWithProduct: stats.totalOrdersWithProduct,
+        totalRevenue: stats.totalRevenue,
+        averageSalePrice: stats.averageSalePrice,
+        totalCostOfGoods: stats.totalCostOfGoods,
+        totalProfit: stats.totalProfit,
+        profitMarginPercent: stats.profitMarginPercent,
+        profitPerUnitSold: stats.profitPerUnitSold,
+        activeOrderQuantity: stats.activeOrderQuantity,
+        returnedCancelledQuantity: stats.returnedCancelledQuantity,
+        wishlistCount: stats.wishlistCount,
+        stockQuantity: stats.stockQuantity,
+        orderedQuantity: stats.orderedQuantity,
+        pendingReceiptQuantity: stats.pendingReceiptQuantity,
+        stockRetailValue: stats.stockRetailValue,
+        stockCostValue: stats.stockCostValue,
+        totalPurchasedQuantity: stats.totalPurchasedQuantity,
+        totalPurchaseSpend: stats.totalPurchaseSpend,
+        purchaseReceiptCount: stats.purchaseReceiptCount,
+      }
+    : product
+      ? {
+          price: product.price,
+          unitCostPrice: product.unitCostPrice,
+          stockQuantity: product.stockQuantity,
+          orderedQuantity: product.orderedQuantity,
+        }
+      : null
 
   const qty = parseNum(nabavka.quantity)
   const unit = parseNum(nabavka.unitCost)
@@ -211,7 +317,7 @@ export default function AdminProductDetail() {
       <div className="adm-product-hub__actions">
         <button type="button" className="adm-btn adm-btn-blue" onClick={openNabavka}>Nabavka</button>
         <Link to={`/admin/products/${id}/edit`} className="adm-btn">Izmeni detalje o proizvodu</Link>
-        <button type="button" className="adm-btn" onClick={() => setShowStats(true)}>Statistika</button>
+        <button type="button" className="adm-btn" onClick={openStats}>Statistika</button>
         <button type="button" className="adm-btn adm-btn-danger" onClick={() => setShowDelete(true)}>Obriši proizvod</button>
       </div>
 
@@ -232,43 +338,96 @@ export default function AdminProductDetail() {
         </div>
       )}
 
-      {showStats && stats && (
+      {showStats && (
         <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowStats(false)}>
-          <div className="adm-modal adm-modal--stats" role="dialog">
-            <h2 className="adm-modal__title-center">Statistika</h2>
-            <p className="adm-modal__subtitle-center">{product.name}</p>
-            <div className="adm-stats-grid-panel">
-              <div className="adm-stats-grid-panel__item">
-                <span className="adm-stats-grid-panel__label">Prodata količina</span>
-                <span className="adm-stats-grid-panel__value">{stats.totalSoldQuantity} kom</span>
-              </div>
-              <div className="adm-stats-grid-panel__item">
-                <span className="adm-stats-grid-panel__label">Prihod od prodaje</span>
-                <span className="adm-stats-grid-panel__value">{fmt(stats.totalRevenue)} RSD</span>
-              </div>
-              <div className="adm-stats-grid-panel__item">
-                <span className="adm-stats-grid-panel__label">Nabavna vrednost prodatog</span>
-                <span className="adm-stats-grid-panel__value">{fmt(stats.totalCostOfGoods)} RSD</span>
-              </div>
-              <div className="adm-stats-grid-panel__item adm-stats-grid-panel__item--highlight">
-                <span className="adm-stats-grid-panel__label">Ukupan profit</span>
-                <span className="adm-stats-grid-panel__value">{fmt(stats.totalProfit)} RSD</span>
-              </div>
-              <div className="adm-stats-grid-panel__item">
-                <span className="adm-stats-grid-panel__label">Profit po komadu</span>
-                <span className="adm-stats-grid-panel__value">{fmt(stats.profitPerUnitSold)} RSD</span>
-              </div>
-              <div className="adm-stats-grid-panel__item">
-                <span className="adm-stats-grid-panel__label">Trenutno stanje</span>
-                <span className="adm-stats-grid-panel__value">{stats.stockQuantity} kom</span>
-              </div>
-              <div className="adm-stats-grid-panel__item adm-stats-grid-panel__item--wide">
-                <span className="adm-stats-grid-panel__label">Cena nabavke (prosek)</span>
-                <span className="adm-stats-grid-panel__value">
-                  {stats.unitCostPrice != null ? `${fmt(stats.unitCostPrice)} RSD` : '—'}
-                </span>
-              </div>
+          <div className="adm-modal adm-modal--stats" role="dialog" aria-labelledby="product-stats-title">
+            <header className="adm-stats-modal__header">
+              <h2 id="product-stats-title" className="adm-stats-modal__title">Statistika</h2>
+              <p className="adm-stats-modal__product">{product.name}</p>
+            </header>
+
+            <div className="adm-stats-modal__body">
+              {statsLoading && (
+                <p className="adm-stats-modal__status">Učitavanje podataka iz baze…</p>
+              )}
+              {statsError && !statsLoading && (
+                <p className="adm-stats-modal__error" role="alert">{statsError}</p>
+              )}
+              {stats && d && !statsLoading && (
+                <>
+                  <StatSection title="Proizvod i cene">
+                    <StatMetric label="Prodajna cena" value={fmtMoney(d.price)} />
+                    <StatMetric label="Nabavna cena (lager)" value={fmtMoney(stats?.unitCostPrice)} />
+                    <StatMetric
+                      label="Prosečna nabavna (iz nabavki)"
+                      value={fmtMoney(d.averagePurchaseUnitCost)}
+                    />
+                    <StatMetric label="Marža po komadu" value={fmtMoney(d.unitMargin)} />
+                    <StatMetric label="Marža (% od cene)" value={fmtPct(d.marginPercent)} />
+                  </StatSection>
+
+                  <StatSection
+                    title="Prodaja (dostavljeno)"
+                    hint="Samo porudžbine sa statusom „Dostavljeno“."
+                  >
+                    <StatMetric label="Prodata količina" value={fmtQty(d.totalSoldQuantity)} />
+                    <StatMetric label="Dostavljenih porudžbina" value={fmtCount(d.deliveredOrderCount)} />
+                    <StatMetric label="Prihod od prodaje" value={fmtMoney(d.totalRevenue)} />
+                    <StatMetric label="Prosečna prodajna cena" value={fmtMoney(d.averageSalePrice)} />
+                    <StatMetric label="Nabavna vrednost prodatog" value={fmtMoney(d.totalCostOfGoods)} />
+                    <StatMetric
+                      label="Ukupan profit"
+                      value={fmtMoney(d.totalProfit)}
+                      highlight
+                      sub={Number.isFinite(Number(d.profitMarginPercent))
+                        ? `Marža profita ${fmtPct(d.profitMarginPercent)}`
+                        : null}
+                    />
+                    <StatMetric label="Profit po komadu" value={fmtMoney(d.profitPerUnitSold)} />
+                  </StatSection>
+
+                  <StatSection title="Porudžbine">
+                    <StatMetric
+                      label="Ukupno porudžbina sa proizvodom"
+                      value={fmtCount(d.totalOrdersWithProduct)}
+                      sub="Svi statusi"
+                    />
+                    <StatMetric
+                      label="U aktivnim porudžbinama"
+                      value={fmtQty(d.activeOrderQuantity)}
+                      sub="Na čekanju, poslato i sl."
+                    />
+                    <StatMetric
+                      label="Vraćeno / otkazano"
+                      value={fmtQty(d.returnedCancelledQuantity)}
+                    />
+                    <StatMetric
+                      label="Na listi želja (korisnici)"
+                      value={fmtCount(d.wishlistCount)}
+                      sub="Ulogovani korisnici u bazi"
+                    />
+                  </StatSection>
+
+                  <StatSection title="Zalihe">
+                    <StatMetric label="Na lageru" value={fmtQty(d.stockQuantity)} />
+                    <StatMetric label="Poručeno (čeka stiglo)" value={fmtQty(d.orderedQuantity)} />
+                    <StatMetric
+                      label="Na čekanju prijema (nabavke)"
+                      value={fmtQty(d.pendingReceiptQuantity)}
+                    />
+                    <StatMetric label="Vrednost lagera (prodajno)" value={fmtMoney(d.stockRetailValue)} />
+                    <StatMetric label="Vrednost lagera (nabavno)" value={fmtMoney(d.stockCostValue)} />
+                  </StatSection>
+
+                  <StatSection title="Nabavke (iz baze)">
+                    <StatMetric label="Ukupno nabavljeno" value={fmtQty(d.totalPurchasedQuantity)} />
+                    <StatMetric label="Ukupan trošak nabavki" value={fmtMoney(d.totalPurchaseSpend)} />
+                    <StatMetric label="Broj evidencija nabavke" value={fmtCount(d.purchaseReceiptCount)} />
+                  </StatSection>
+                </>
+              )}
             </div>
+
             <div className="adm-modal-footer adm-modal-footer--center">
               <button type="button" className="adm-btn" onClick={() => setShowStats(false)}>Zatvori</button>
             </div>

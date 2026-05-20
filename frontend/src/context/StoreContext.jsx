@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../api'
-import { clampCartQuantity, isInStock } from '../utils/stock'
+import { clampCartQuantity, enrichCartItems, getCheckoutCart, isInStock } from '../utils/stock'
 
 const StoreContext = createContext(null)
 
@@ -21,7 +21,21 @@ const mapServerCartRows = (rows) =>
     price: item.price,
     imageUrl: item.imageUrl,
     quantity: item.quantity,
+    inStock: true,
   }))
+
+function cartStockUnchanged(prev, next) {
+  if (prev.length !== next.length) return false
+  for (let i = 0; i < prev.length; i += 1) {
+    const a = prev[i]
+    const b = next[i]
+    if (a.id !== b.id) return false
+    if (a.quantity !== b.quantity) return false
+    if (Boolean(a.inStock) !== Boolean(b.inStock)) return false
+    if ((a.stockQuantity ?? -1) !== (b.stockQuantity ?? -1)) return false
+  }
+  return true
+}
 
 export function StoreProvider({ children }) {
   const [user, setUser] = useState(fromStorage('honey_user', null))
@@ -160,10 +174,10 @@ export function StoreProvider({ children }) {
       added = nextQty - (existing?.quantity ?? 0)
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: nextQty, stockQuantity: stock } : item,
+          item.id === product.id ? { ...item, quantity: nextQty, stockQuantity: stock, inStock: true } : item,
         )
       }
-      return [...prev, { ...product, quantity: nextQty, stockQuantity: stock }]
+      return [...prev, { ...product, quantity: nextQty, stockQuantity: stock, inStock: true }]
     })
     if (added > 0) {
       if (user) api.post('/cart', { productId: product.id, quantity: added }).catch(() => {})
@@ -184,6 +198,42 @@ export function StoreProvider({ children }) {
     },
     [user],
   )
+
+  const refreshCartStock = useCallback(async () => {
+    try {
+      const { data: products } = await api.get('/products')
+      const byId = new Map(products.map((p) => [p.id, p]))
+      let oosIds = []
+      let checkoutSnapshot = []
+
+      setCart((prev) => {
+        if (!prev.length) {
+          checkoutSnapshot = []
+          return prev
+        }
+        const enriched = enrichCartItems(prev, byId)
+        checkoutSnapshot = getCheckoutCart(enriched)
+        oosIds = enriched.filter((i) => !i.inStock).map((i) => i.id)
+        if (cartStockUnchanged(prev, enriched)) return prev
+        return enriched
+      })
+
+      if (user && oosIds.length > 0) {
+        await Promise.all(oosIds.map((id) => api.delete(`/cart/${id}`).catch(() => {})))
+      }
+      return checkoutSnapshot
+    } catch {
+      return getCheckoutCart(cart)
+    }
+  }, [user, cart])
+
+  const checkoutCart = useMemo(() => getCheckoutCart(cart), [cart])
+
+  useEffect(() => {
+    if (initializing) return
+    const t = window.setTimeout(() => refreshCartStock(), 50)
+    return () => window.clearTimeout(t)
+  }, [cart, initializing, refreshCartStock])
 
   const toggleWishlist = useCallback((product) => {
     setWishlist((prev) => {
@@ -211,10 +261,12 @@ export function StoreProvider({ children }) {
       addToCart,
       removeFromCart,
       toggleWishlist,
+      refreshCartStock,
+      checkoutCart,
       setToast,
       setCart,
     }),
-    [user, cart, wishlist, toast, cartAddTick, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, setCart, setUser],
+    [user, cart, checkoutCart, wishlist, toast, cartAddTick, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

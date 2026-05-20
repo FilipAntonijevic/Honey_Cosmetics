@@ -1,4 +1,5 @@
 import {
+  PHONE_DEFAULT,
   clampPhoneSelection,
   normalizePhoneInput,
   phoneOrDefault,
@@ -19,6 +20,7 @@ export default function PhoneField({
   disabled = false,
   autoComplete = 'tel',
   ariaLabel = 'Broj telefona (opciono)',
+  placeholder = PHONE_DEFAULT,
 }) {
   const display = phoneOrDefault(value)
 
@@ -74,6 +76,7 @@ export default function PhoneField({
       disabled={disabled}
       autoComplete={autoComplete}
       aria-label={ariaLabel}
+      placeholder={placeholder}
     />
   )
 }
