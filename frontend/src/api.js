@@ -1,4 +1,13 @@
 import axios from 'axios'
+import {
+  clearAuthSession,
+  getAccessToken,
+  getRefreshToken,
+  migrateLegacyAuthFromLocalStorage,
+  setAuthSession,
+} from './utils/authStorage'
+
+migrateLegacyAuthFromLocalStorage()
 
 const BASE_URL = (
   import.meta.env.VITE_API_URL ||
@@ -14,7 +23,7 @@ const refreshApi = axios.create({ baseURL: BASE_URL })
 
 function applyRequestHeaders(config) {
   if (IS_NGROK) config.headers['ngrok-skip-browser-warning'] = 'true'
-  const token = localStorage.getItem('honey_access_token')
+  const token = getAccessToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 }
@@ -41,7 +50,7 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    const storedRefresh = localStorage.getItem('honey_refresh_token')
+    const storedRefresh = getRefreshToken()
     if (!storedRefresh) return Promise.reject(error)
 
     original._retry = true
@@ -55,15 +64,16 @@ api.interceptors.response.use(
       }
 
       const { data } = await refreshPromise
-      localStorage.setItem('honey_access_token', data.accessToken)
-      localStorage.setItem('honey_refresh_token', data.refreshToken)
+      setAuthSession({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user,
+      })
 
       original.headers.Authorization = `Bearer ${data.accessToken}`
       return api(original)
     } catch {
-      localStorage.removeItem('honey_access_token')
-      localStorage.removeItem('honey_refresh_token')
-      localStorage.removeItem('honey_user')
+      clearAuthSession()
       window.dispatchEvent(new Event('auth:logout'))
       return Promise.reject(error)
     }

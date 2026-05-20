@@ -1,7 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../api'
+import {
+  clearAuthSession,
+  getRefreshToken,
+  getStoredUser,
+  migrateLegacyAuthFromLocalStorage,
+  setAuthSession,
+} from '../utils/authStorage'
 import { clampCartQuantity, enrichCartItems, getCheckoutCart, isInStock } from '../utils/stock'
+
+migrateLegacyAuthFromLocalStorage()
 
 const StoreContext = createContext(null)
 
@@ -45,8 +54,10 @@ export function StoreProvider({ children }) {
   const [cartAddTick, setCartAddTick] = useState(0)
   const [initializing, setInitializing] = useState(true)
 
-  // Persist state to localStorage
-  useEffect(() => localStorage.setItem('honey_user', JSON.stringify(user)), [user])
+  // Auth u sessionStorage (po tabu); korpa/wishlist ostaju u localStorage
+  useEffect(() => {
+    setAuthSession({ accessToken: undefined, refreshToken: undefined, user })
+  }, [user])
   useEffect(() => localStorage.setItem('honey_cart', JSON.stringify(cart)), [cart])
   useEffect(() => localStorage.setItem('honey_wishlist', JSON.stringify(wishlist)), [wishlist])
 
@@ -60,12 +71,15 @@ export function StoreProvider({ children }) {
   // Session restore: validate stored refresh token on mount
   useEffect(() => {
     const restore = async () => {
-      const refreshToken = localStorage.getItem('honey_refresh_token')
+      const refreshToken = getRefreshToken()
       if (refreshToken) {
         try {
           const { data } = await api.post('/auth/refresh', { refreshToken })
-          localStorage.setItem('honey_access_token', data.accessToken)
-          localStorage.setItem('honey_refresh_token', data.refreshToken)
+          setAuthSession({
+            accessToken: data.accessToken,
+            refreshToken: data.refreshToken,
+            user: data.user,
+          })
           setUser(data.user)
           // Cart sync: server is source of truth for logged-in users
           try {
@@ -80,9 +94,7 @@ export function StoreProvider({ children }) {
             }
           } catch {}
         } catch {
-          localStorage.removeItem('honey_access_token')
-          localStorage.removeItem('honey_refresh_token')
-          localStorage.removeItem('honey_user')
+          clearAuthSession()
           setUser(null)
           /* Server korpa ostala u memoriji browsera kao “gost”; očisti da ne “curi”. */
           setCart([])
@@ -113,8 +125,11 @@ export function StoreProvider({ children }) {
 
   const login = useCallback(async (payload) => {
     const { data } = await api.post('/auth/login', payload)
-    localStorage.setItem('honey_access_token', data.accessToken)
-    localStorage.setItem('honey_refresh_token', data.refreshToken)
+    setAuthSession({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      user: data.user,
+    })
     setUser(data.user)
     setToast('Uspešno ste prijavljeni.')
     await Promise.all(
@@ -150,8 +165,7 @@ export function StoreProvider({ children }) {
     } catch {
       // Best-effort server logout
     }
-    localStorage.removeItem('honey_access_token')
-    localStorage.removeItem('honey_refresh_token')
+    clearAuthSession()
     setUser(null)
     setCart([])
     setToast('Odjavljeni ste.')

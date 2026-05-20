@@ -4,6 +4,7 @@ import api from '../api'
 import { useStore } from '../context/StoreContext'
 import PhoneField from '../components/PhoneField'
 import { PHONE_DEFAULT, cleanPhone, phoneOrDefault } from '../utils/phone'
+import { setStoredUser } from '../utils/authStorage'
 
 export default function Profile() {
   const { setToast, user, setUser } = useStore()
@@ -67,7 +68,7 @@ export default function Profile() {
         country: form.country || null,
       }
       setUser(updated)
-      localStorage.setItem('honey_user', JSON.stringify(updated))
+      setStoredUser(updated)
       setToast('Podaci su uspešno sačuvani.')
     } catch (err) {
       setError(err.response?.data ?? 'Greška pri čuvanju.')
