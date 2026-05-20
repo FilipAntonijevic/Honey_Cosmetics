@@ -127,20 +127,7 @@ public static class InventoryFinanceService
             Note = note?.Trim(),
         };
         db.StockReceipts.Add(receipt);
-
-        var oldQty = product.StockQuantity;
-        var oldCost = product.UnitCostPrice ?? unitCost;
-        product.StockQuantity += quantity;
-        if (quantity > 0)
-        {
-            product.UnitCostPrice = oldQty + quantity > 0
-                ? Math.Round((oldQty * oldCost + quantity * unitCost) / (oldQty + quantity), 2)
-                : unitCost;
-        }
-        else if (product.UnitCostPrice is null)
-        {
-            product.UnitCostPrice = unitCost;
-        }
+        product.OrderedQuantity += quantity;
 
         await db.SaveChangesAsync(ct);
 
@@ -150,8 +137,8 @@ public static class InventoryFinanceService
             EntryType = LedgerEntryType.Expense,
             Amount = totalCost,
             Description = transportTotal > 0
-                ? $"Nabavka: {product.Name} +{quantity} kom — ukupno {totalCost:N0} RSD (roba {merchandiseTotal:N0}, transport {transportTotal:N0})"
-                : $"Nabavka: {product.Name} +{quantity} kom — ukupno {totalCost:N0} RSD",
+                ? $"Nabavka (poručeno): {product.Name} {quantity} kom — ukupno {totalCost:N0} RSD (roba {merchandiseTotal:N0}, transport {transportTotal:N0})"
+                : $"Nabavka (poručeno): {product.Name} {quantity} kom — ukupno {totalCost:N0} RSD",
             Source = LedgerSource.StockPurchase,
             ProductId = product.Id,
             StockReceiptId = receipt.Id,
@@ -159,5 +146,42 @@ public static class InventoryFinanceService
 
         await db.SaveChangesAsync(ct);
         return receipt;
+    }
+
+    public static async Task<string?> ConfirmStockArrivalAsync(
+        AppDbContext db,
+        Product product,
+        CancellationToken ct = default)
+    {
+        var pending = await db.StockReceipts
+            .Where(r => r.ProductId == product.Id && r.ReceivedAt == null)
+            .OrderBy(r => r.CreatedAt)
+            .ToListAsync(ct);
+
+        if (pending.Count == 0)
+            return "Nema poručene robe koja čeka prijem.";
+
+        foreach (var receipt in pending)
+        {
+            var oldQty = product.StockQuantity;
+            var oldCost = product.UnitCostPrice ?? receipt.UnitCost;
+            product.StockQuantity += receipt.Quantity;
+            if (receipt.Quantity > 0)
+            {
+                product.UnitCostPrice = oldQty + receipt.Quantity > 0
+                    ? Math.Round((oldQty * oldCost + receipt.Quantity * receipt.UnitCost) / (oldQty + receipt.Quantity), 2)
+                    : receipt.UnitCost;
+            }
+            else if (product.UnitCostPrice is null)
+            {
+                product.UnitCostPrice = receipt.UnitCost;
+            }
+
+            receipt.ReceivedAt = DateTime.UtcNow;
+        }
+
+        product.OrderedQuantity = 0;
+        await db.SaveChangesAsync(ct);
+        return null;
     }
 }

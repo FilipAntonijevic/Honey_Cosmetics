@@ -8,6 +8,8 @@ public class Product
     public decimal Price { get; set; }
     public decimal? UnitCostPrice { get; set; }
     public int StockQuantity { get; set; }
+    /// <summary>Količina poručena kod dobavljača, još nije na lageru.</summary>
+    public int OrderedQuantity { get; set; }
     public string ImageUrl { get; set; } = string.Empty;
     public int ProductTypeId { get; set; }
     public ProductType? ProductType { get; set; }

@@ -225,7 +225,32 @@ public class AdminController(
             request.TotalPurchaseCost,
             request.Note);
 
-        return Ok(new { product.Id, product.StockQuantity, product.UnitCostPrice });
+        return Ok(new
+        {
+            product.Id,
+            product.StockQuantity,
+            product.OrderedQuantity,
+            product.UnitCostPrice,
+        });
+    }
+
+    [HttpPost("products/{id:int}/stock-arrival")]
+    public async Task<IActionResult> ConfirmStockArrival(int id)
+    {
+        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
+        if (product is null) return NotFound();
+
+        var error = await InventoryFinanceService.ConfirmStockArrivalAsync(db, product);
+        if (error is not null)
+            return BadRequest(error);
+
+        return Ok(new
+        {
+            product.Id,
+            product.StockQuantity,
+            product.OrderedQuantity,
+            product.UnitCostPrice,
+        });
     }
 
     [HttpDelete("products/{id:int}")]

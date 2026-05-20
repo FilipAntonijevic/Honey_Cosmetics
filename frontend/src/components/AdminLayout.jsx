@@ -8,8 +8,8 @@ const MOBILE_ADM_MQ = '(max-width: 768px)'
 const navItems = [
   { to: '/admin', label: 'Dashboard', icon: '⬛', exact: true },
   { to: '/admin/orders', label: 'Porudžbine', icon: '📦' },
-  { to: '/admin/products', label: 'Proizvodi', icon: '🧴' },
   { to: '/admin/finance', label: 'Prihodi', icon: '💰' },
+  { to: '/admin/products', label: 'Proizvodi', icon: '🧴' },
   { to: '/admin/categories', label: 'Kategorije', icon: '📁' },
   { to: '/admin/bestsellers', label: 'Bestsellers', icon: '★' },
   { to: '/admin/home-slideshow', label: 'Slideshow', icon: '🖼' },

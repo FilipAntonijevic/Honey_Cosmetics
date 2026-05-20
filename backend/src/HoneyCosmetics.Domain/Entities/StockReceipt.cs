@@ -11,4 +11,5 @@ public class StockReceipt
     public decimal TotalCost { get; set; }
     public string? Note { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ReceivedAt { get; set; }
 }

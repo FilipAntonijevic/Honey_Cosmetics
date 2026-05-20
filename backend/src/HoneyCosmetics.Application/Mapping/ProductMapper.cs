@@ -19,6 +19,7 @@ public static class ProductMapper
             p.IsBestseller,
             p.BestsellerSortOrder,
             p.StockQuantity,
+            p.OrderedQuantity,
             p.StockQuantity > 0,
             p.CreatedAt,
             p.AdditionalImages

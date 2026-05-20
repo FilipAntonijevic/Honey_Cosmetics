@@ -27,6 +27,7 @@ public record ProductResponse(
     bool IsBestseller,
     int BestsellerSortOrder,
     int StockQuantity,
+    int OrderedQuantity,
     bool InStock,
     DateTime CreatedAt,
     IReadOnlyList<string>? AdditionalImageUrls = null,

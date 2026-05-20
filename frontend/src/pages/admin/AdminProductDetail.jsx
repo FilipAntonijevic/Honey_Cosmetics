@@ -108,6 +108,19 @@ export default function AdminProductDetail() {
     }
   }
 
+  const confirmArrival = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      await api.post(`/admin/products/${id}/stock-arrival`)
+      load()
+    } catch (err) {
+      setError(typeof err.response?.data === 'string' ? err.response.data : 'Prijava robe nije uspela.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const submitNabavka = async (e) => {
     e.preventDefault()
     setError('')
@@ -172,10 +185,26 @@ export default function AdminProductDetail() {
           <p className="adm-page-sub">
             {product.productType}{product.category ? ` · ${product.category}` : ''} · {fmt(product.price)} RSD
           </p>
-          <p className="adm-product-hub__stock">
-            Na stanju: <strong>{product.stockQuantity ?? 0}</strong> kom
-            {product.unitCostPrice != null && <> · Nabavka: {fmt(product.unitCostPrice)} RSD/kom</>}
-          </p>
+          <div className="adm-product-hub__stock-row">
+            <p className="adm-product-hub__stock">
+              Na stanju: <strong>{product.stockQuantity ?? 0}</strong> kom
+            </p>
+            {(product.orderedQuantity ?? 0) > 0 && (
+              <div className="adm-product-ordered">
+                <span className="adm-product-ordered__badge">
+                  PORUČENO: {product.orderedQuantity} komada
+                </span>
+                <button
+                  type="button"
+                  className="adm-btn adm-btn-primary adm-btn--arrival"
+                  disabled={saving}
+                  onClick={confirmArrival}
+                >
+                  {saving ? '…' : 'Stiglo'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -251,6 +280,9 @@ export default function AdminProductDetail() {
         <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowNabavka(false)}>
           <div className="adm-modal adm-modal--wide" role="dialog">
             <h2>Nabavka — {product.name}</h2>
+            <p className="adm-modal-hint">
+              Trošak se evidentira odmah; količina na lageru raste tek kada pritisnete „Stiglo“ na stranici proizvoda.
+            </p>
             {error && <div className="adm-form-error">{error}</div>}
             <form onSubmit={submitNabavka} className="adm-form adm-form--nabavka">
               <div className="adm-form-row">
@@ -346,7 +378,7 @@ export default function AdminProductDetail() {
               <div className="adm-modal-footer">
                 <button type="button" className="adm-btn" onClick={() => setShowNabavka(false)}>Odustani</button>
                 <button type="submit" className="adm-btn adm-btn-primary" disabled={saving}>
-                  {saving ? 'Čuvanje…' : 'Evidentiraj nabavku'}
+                  {saving ? 'Čuvanje…' : 'Evidentiraj porudžbinu'}
                 </button>
               </div>
             </form>

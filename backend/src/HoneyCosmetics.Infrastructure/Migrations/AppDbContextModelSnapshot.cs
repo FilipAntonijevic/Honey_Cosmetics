@@ -459,6 +459,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("OrderedQuantity")
+                        .HasColumnType("integer");
+
                     b.Property<decimal>("Price")
                         .HasColumnType("numeric");
 
@@ -592,6 +595,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal>("TotalCost")
                         .HasColumnType("numeric");
