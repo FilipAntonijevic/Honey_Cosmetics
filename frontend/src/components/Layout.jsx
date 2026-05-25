@@ -303,6 +303,7 @@ export default function Layout({ children }) {
   }
 
   const headerPanelProps = {
+    isHome,
     vrste,
     siteLinks,
     user,

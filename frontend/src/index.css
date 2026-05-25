@@ -190,7 +190,7 @@ button, input, select { font-family: inherit; }
 }
 .section-gap { padding: 2.4rem 0; }
 .section-gap.pop-section {
-  padding-top: 0.75rem;
+  padding-top: 2rem;
 }
 .grid-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 .grid-three article, .order-card { background: rgba(255, 255, 255, 0.75); border: 1px solid #f1e5d8; border-radius: 16px; padding: 1rem; }
@@ -3599,7 +3599,73 @@ body.is-adm-modal-open {
   min-width: 0;
 }
 
+/* Početna — desktop header: centrirana grupa logo | search | ikone | korpa */
+@media (min-width: 769px) {
+  .main-header--home {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.85rem;
+    flex-wrap: nowrap;
+  }
+
+  .main-header--home .header-home-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    min-width: 0;
+    width: max-content;
+    flex: 0 0 auto;
+  }
+
+  .main-header--home .header-home-center .search-wrap {
+    flex: 0 0 auto;
+    width: min(535px, 63.5vw);
+    max-width: 535px;
+    min-width: 0;
+  }
+
+  .main-header--home .header-home-social {
+    flex: 0 0 auto;
+    gap: 0.95rem;
+  }
+
+  .main-header--home .header-home-social .cart-icon-btn {
+    margin-left: 0;
+  }
+
+  .main-header--home .header-home-cart {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding-left: 0.85rem;
+    margin-left: 0;
+    border-left: 1px solid #f0e8e0;
+  }
+
+  .main-header--home .header-home-cart .cart-icon-btn {
+    margin-left: 0;
+  }
+
+  .main-header--home .logo {
+    flex: 0 0 auto;
+  }
+
+  .main-header--home .header-home-mobile-stack {
+    display: none;
+  }
+}
+
+.header-home-center,
+.header-home-cart {
+  display: none;
+}
+
 @media (max-width: 768px) {
+  .main-header--home .header-home-mobile-stack {
+    display: contents;
+  }
   .category-nav--desktop { display: none; }
 
   .categories-menu-wrap { display: block; }
@@ -3626,16 +3692,19 @@ body.is-adm-modal-open {
   }
 
   .header-toolbar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    align-items: center;
+    justify-items: center;
     width: 100%;
-    justify-content: space-between;
   }
 
-  .icons {
-    order: unset;
-    flex: 1;
-    flex-wrap: nowrap;
-    justify-content: space-between;
-    gap: 0.35rem;
+  .header-toolbar .icons {
+    display: contents;
+  }
+
+  .header-toolbar .cart-icon-btn {
+    margin-left: 0;
   }
 
   .icon-btn,
@@ -3645,8 +3714,10 @@ body.is-adm-modal-open {
     flex: 0 0 40px;
   }
 
-  .icons {
-    overflow: visible;
+  .categories-menu-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
   }
 
   .user-menu-wrap,
@@ -3807,7 +3878,7 @@ body.is-adm-modal-open {
   position: relative;
   width: 100%;
   max-width: 100%;
-  margin: 0 0 0.75rem;
+  margin: 0;
   overflow: hidden;
   background: #f4ebe0;
   outline: none;
@@ -5217,20 +5288,22 @@ body.is-adm-modal-open {
 
 @media (max-width: 768px) {
   .user-menu-wrap .user-menu {
-    left: auto;
-    right: 0;
+    left: 50%;
+    right: auto;
+    translate: -50% 0;
     min-width: 0;
-    width: max(11.5rem, min(220px, calc(100vw - 1.5rem)));
+    width: min(260px, calc(100vw - 1.5rem));
     max-width: calc(100vw - 1.5rem);
-    animation: menu-in-mobile 0.15s ease;
+    animation: user-menu-in-mobile 0.15s ease;
   }
   .phone-menu-wrap .phone-menu {
-    left: auto;
-    right: 0;
+    left: 50%;
+    right: auto;
+    translate: -50% 0;
     min-width: 0;
-    width: max(12rem, min(260px, calc(100vw - 1.5rem)));
+    width: min(280px, calc(100vw - 1.5rem));
     max-width: calc(100vw - 1.5rem);
-    animation: menu-in-mobile 0.15s ease;
+    animation: user-menu-in-mobile 0.15s ease;
   }
   .categories-menu-wrap .categories-dropdown {
     right: 0;
@@ -5240,9 +5313,9 @@ body.is-adm-modal-open {
   }
 }
 
-@keyframes menu-in-mobile {
-  from { opacity: 0; translate: 0 -6px; }
-  to { opacity: 1; translate: 0 0; }
+@keyframes user-menu-in-mobile {
+  from { opacity: 0; translate: -50% -6px; }
+  to { opacity: 1; translate: -50% 0; }
 }
 
 /* ===== PHONE MENU POPUP ===== */
