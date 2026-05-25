@@ -359,6 +359,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<bool>("FinanceRecorded")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("FreeShippingApplied")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("GuestEmail")
                         .HasColumnType("text");
 
@@ -602,6 +605,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<string>("EmailAddress")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<decimal>("FreeShippingThreshold")
+                        .HasColumnType("numeric");
 
                     b.Property<string>("InstagramUrl")
                         .IsRequired()

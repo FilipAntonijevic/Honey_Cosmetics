@@ -56,7 +56,8 @@ public record SiteLinksResponse(
     string ComplaintsEmail,
     string WhatsAppNumber,
     string ViberNumber,
-    string NotificationsEmail);
+    string NotificationsEmail,
+    decimal FreeShippingThreshold);
 
 public record SiteLinksUpdateRequest(
     string? InstagramUrl,
@@ -66,4 +67,5 @@ public record SiteLinksUpdateRequest(
     string? ComplaintsEmail,
     string? WhatsAppNumber,
     string? ViberNumber,
-    string? NotificationsEmail);
+    string? NotificationsEmail,
+    decimal? FreeShippingThreshold);

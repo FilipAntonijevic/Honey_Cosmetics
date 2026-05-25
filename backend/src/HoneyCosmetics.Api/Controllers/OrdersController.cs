@@ -116,6 +116,9 @@ public class OrdersController(
 
         var total = Math.Max(0, subtotal - discount);
 
+        var freeShippingThreshold = await GetFreeShippingThresholdAsync();
+        var freeShippingApplied = freeShippingThreshold > 0 && total >= freeShippingThreshold;
+
         var stockError = await InventoryFinanceService.ValidateAndApplyStockForOrderAsync(
             db,
             cartItems.Select(x => (x.ProductId, x.Quantity)));
@@ -132,6 +135,7 @@ public class OrdersController(
             Discount = discount,
             CouponCode = coupon?.Code,
             Total = total,
+            FreeShippingApplied = freeShippingApplied,
             Status = OrderStatus.Pending,
             Items = cartItems.Select(x => new OrderItem { ProductId = x.ProductId, Quantity = x.Quantity, UnitPrice = x.Product!.Price }).ToList()
         };
@@ -161,7 +165,7 @@ public class OrdersController(
         {
             var body = BuildUserConfirmationEmail(
                 user.FullName, order.Id, orderItems, order.Subtotal, order.Discount,
-                order.CouponCode, order.Total, order.DeliveryAddress, order.Phone,
+                order.CouponCode, order.Total, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
                 order.PaymentMethod.ToString(), order.CreatedAt);
             await emailService.SendAsync(user.Email, $"Honey Cosmetics — Potvrda porudžbine #{order.Id}", body);
             logger.LogInformation("[Order {OrderId}] User email sent OK", order.Id);
@@ -175,7 +179,7 @@ public class OrdersController(
         {
             var body = BuildAdminNotificationEmail(
                 user.FullName, user.Email, order.Id, orderItems, order.Subtotal, order.Discount,
-                order.CouponCode, order.Total, order.DeliveryAddress, order.Phone,
+                order.CouponCode, order.Total, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
                 order.PaymentMethod.ToString(), order.CreatedAt);
             await emailService.SendAsync(notificationsEmail, $"Nova porudžbina #{order.Id} — {user.FullName}", body);
             logger.LogInformation("[Order {OrderId}] Admin email sent OK", order.Id);
@@ -217,6 +221,9 @@ public class OrdersController(
 
         var total = subtotal;
 
+        var freeShippingThreshold = await GetFreeShippingThresholdAsync();
+        var freeShippingApplied = freeShippingThreshold > 0 && total >= freeShippingThreshold;
+
         var stockError = await InventoryFinanceService.ValidateAndApplyStockForOrderAsync(
             db,
             request.Items.Select(i => (i.ProductId, i.Quantity)));
@@ -234,6 +241,7 @@ public class OrdersController(
             Subtotal = subtotal,
             Discount = discount,
             Total = total,
+            FreeShippingApplied = freeShippingApplied,
             Status = OrderStatus.Pending,
             Items = request.Items.Select(i => new OrderItem
             {
@@ -271,6 +279,7 @@ public class OrdersController(
                         order.Discount,
                         order.CouponCode,
                         order.Total,
+                        order.FreeShippingApplied,
                         order.DeliveryAddress,
                         order.Phone,
                         order.PaymentMethod.ToString(),
@@ -295,6 +304,7 @@ public class OrdersController(
                     order.Discount,
                     order.CouponCode,
                     order.Total,
+                    order.FreeShippingApplied,
                     order.DeliveryAddress,
                     order.Phone,
                     order.PaymentMethod.ToString(),
@@ -348,8 +358,15 @@ public class OrdersController(
     }
 
     private static OrderResponse MapOrder(Order order) =>
-        new(order.Id, order.DeliveryAddress, order.Phone, order.PaymentMethod, order.Status.ToString(), order.Subtotal, order.Discount, order.CouponCode, order.Total, order.CreatedAt,
+        new(order.Id, order.DeliveryAddress, order.Phone, order.PaymentMethod, order.Status.ToString(), order.Subtotal, order.Discount, order.CouponCode, order.Total, order.FreeShippingApplied, order.CreatedAt,
             order.Items.Select(x => new OrderItemResponse(x.ProductId, x.Product?.Name ?? string.Empty, x.Product?.ImageUrl, x.Quantity, x.UnitPrice)).ToList());
+
+    private async Task<decimal> GetFreeShippingThresholdAsync()
+    {
+        var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+        var threshold = s?.FreeShippingThreshold ?? 10000m;
+        return threshold > 0 ? threshold : 0;
+    }
 
     // Resolves the inbox where order/shipment notifications should be delivered.
     // Falls back to appsettings SendGrid:AdminEmail when SiteSettings has no value.
@@ -402,11 +419,14 @@ public class OrdersController(
         string name, int orderId,
         List<(string Name, int Qty, decimal Price)> items,
         decimal subtotal, decimal discount, string? couponCode,
-        decimal total, string address, string? phone,
+        decimal total, bool freeShippingApplied, string address, string? phone,
         string paymentMethod, DateTime createdAt)
     {
         var discountRow = discount > 0
             ? $"""<tr><td style="color:#c0392b;padding:3px 0;">Popust{(string.IsNullOrEmpty(couponCode) ? "" : $" ({couponCode})")}</td><td style="text-align:right;color:#c0392b;">&minus;{discount:N0} RSD</td></tr>"""
+            : "";
+        var shippingRow = freeShippingApplied
+            ? $"""<tr><td style="color:#16a34a;padding:3px 0;">Dostava</td><td style="text-align:right;color:#16a34a;font-weight:600;">Besplatna</td></tr>"""
             : "";
         var phoneRow = string.IsNullOrWhiteSpace(phone)
             ? ""
@@ -433,6 +453,7 @@ public class OrdersController(
           <table style="width:100%;margin-top:1rem;font-size:0.9rem;">
             <tr><td style="color:#6b6b6b;padding:3px 0;">Međuzbir</td><td style="text-align:right;">{subtotal:N0} RSD</td></tr>
             {discountRow}
+            {shippingRow}
             <tr style="font-weight:700;font-size:1rem;border-top:1px solid #f1e5d8;">
               <td style="padding-top:8px;">Ukupno</td>
               <td style="text-align:right;padding-top:8px;">{total:N0} RSD</td>
@@ -456,11 +477,14 @@ public class OrdersController(
         string customerName, string customerEmail, int orderId,
         List<(string Name, int Qty, decimal Price)> items,
         decimal subtotal, decimal discount, string? couponCode,
-        decimal total, string address, string? phone,
+        decimal total, bool freeShippingApplied, string address, string? phone,
         string paymentMethod, DateTime createdAt)
     {
         var discountRow = discount > 0
             ? $"""<tr><td style="color:#dc2626;padding:3px 0;">Popust{(string.IsNullOrEmpty(couponCode) ? "" : $" ({couponCode})")}</td><td style="text-align:right;color:#dc2626;">&minus;{discount:N0} RSD</td></tr>"""
+            : "";
+        var shippingRow = freeShippingApplied
+            ? $"""<tr><td style="color:#16a34a;padding:3px 0;">Dostava</td><td style="text-align:right;color:#16a34a;font-weight:600;">Besplatna</td></tr>"""
             : "";
         var phoneRow = string.IsNullOrWhiteSpace(phone)
             ? ""
@@ -487,6 +511,7 @@ public class OrdersController(
           <table style="width:100%;margin-top:1rem;font-size:0.9rem;">
             <tr><td style="color:#6b7280;padding:3px 0;">Međuzbir</td><td style="text-align:right;">{subtotal:N0} RSD</td></tr>
             {discountRow}
+            {shippingRow}
             <tr style="font-weight:700;font-size:1rem;border-top:1px solid #e5e7eb;">
               <td style="padding-top:8px;">Ukupno</td>
               <td style="text-align:right;padding-top:8px;">{total:N0} RSD</td>

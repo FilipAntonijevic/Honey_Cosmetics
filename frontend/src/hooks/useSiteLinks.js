@@ -10,6 +10,7 @@ const EMPTY = {
   notificationsEmail: '',
   whatsAppNumber: '',
   viberNumber: '',
+  freeShippingThreshold: 10000,
 }
 
 /**
@@ -36,6 +37,7 @@ export default function useSiteLinks() {
           notificationsEmail: data?.notificationsEmail ?? '',
           whatsAppNumber: data?.whatsAppNumber ?? '',
           viberNumber: data?.viberNumber ?? '',
+          freeShippingThreshold: data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000,
         })
       })
       .catch(() => {

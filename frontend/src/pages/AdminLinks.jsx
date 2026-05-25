@@ -11,6 +11,7 @@ const EMPTY = {
   notificationsEmail: '',
   whatsAppNumber: '',
   viberNumber: '',
+  freeShippingThreshold: '10000',
 }
 
 const isLikelyUrl = (s) => /^https?:\/\//i.test(s.trim())
@@ -39,6 +40,7 @@ export default function AdminLinks() {
           notificationsEmail: data?.notificationsEmail ?? '',
           whatsAppNumber: data?.whatsAppNumber ?? '',
           viberNumber: data?.viberNumber ?? '',
+          freeShippingThreshold: String(data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000),
         }
         setForm(next)
         setInitial(next)
@@ -67,7 +69,8 @@ export default function AdminLinks() {
     form.complaintsEmail !== initial.complaintsEmail ||
     form.notificationsEmail !== initial.notificationsEmail ||
     form.whatsAppNumber !== initial.whatsAppNumber ||
-    form.viberNumber !== initial.viberNumber
+    form.viberNumber !== initial.viberNumber ||
+    form.freeShippingThreshold !== initial.freeShippingThreshold
 
   const submit = async (e) => {
     e.preventDefault()
@@ -82,6 +85,8 @@ export default function AdminLinks() {
     const ne = form.notificationsEmail.trim()
     const wa = form.whatsAppNumber.trim()
     const vb = form.viberNumber.trim()
+    const fstRaw = form.freeShippingThreshold.trim().replace(/\s/g, '').replace(',', '.')
+    const fst = fstRaw === '' ? 10000 : Number(fstRaw)
 
     if (ig && !isLikelyUrl(ig)) {
       setError('Instagram link mora počinjati sa http:// ili https://')
@@ -103,6 +108,10 @@ export default function AdminLinks() {
       setError('Email za notifikacije mora sadržati @.')
       return
     }
+    if (!Number.isFinite(fst) || fst < 0) {
+      setError('Vrednost korpe za besplatnu dostavu mora biti broj veći ili jednak 0.')
+      return
+    }
 
     setSaving(true)
     try {
@@ -115,6 +124,7 @@ export default function AdminLinks() {
         notificationsEmail: ne,
         whatsAppNumber: wa,
         viberNumber: vb,
+        freeShippingThreshold: fst,
       })
       const next = {
         instagramUrl: data?.instagramUrl ?? '',
@@ -125,6 +135,7 @@ export default function AdminLinks() {
         notificationsEmail: data?.notificationsEmail ?? '',
         whatsAppNumber: data?.whatsAppNumber ?? '',
         viberNumber: data?.viberNumber ?? '',
+        freeShippingThreshold: String(data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000),
       }
       setForm(next)
       setInitial(next)
@@ -228,6 +239,19 @@ export default function AdminLinks() {
           type="text"
         />
 
+        <p className="adm-links-section-heading adm-links-section-heading--spaced">Kupovina</p>
+
+        <LinkField
+          icon={<CartIcon />}
+          label="Vrednost korpe za besplatnu dostavu (RSD)"
+          placeholder="10000"
+          value={form.freeShippingThreshold}
+          onChange={set('freeShippingThreshold')}
+          type="number"
+          min="0"
+          step="1"
+        />
+
         {error && <div className="adm-links-error">{String(error)}</div>}
         {message && <div className="adm-links-ok">{message}</div>}
 
@@ -245,7 +269,7 @@ export default function AdminLinks() {
   )
 }
 
-function LinkField({ icon, label, placeholder, value, onChange, type }) {
+function LinkField({ icon, label, placeholder, value, onChange, type, min, step }) {
   return (
     <label className="adm-links-row">
       <span className="adm-links-icon" aria-hidden="true">{icon}</span>
@@ -258,6 +282,8 @@ function LinkField({ icon, label, placeholder, value, onChange, type }) {
           placeholder={placeholder}
           onChange={onChange}
           autoComplete="off"
+          min={min}
+          step={step}
         />
       </span>
     </label>
@@ -305,6 +331,16 @@ function PhoneIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 11.9a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.59a16 16 0 0 0 6.03 6.03l.96-.86a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+    </svg>
+  )
+}
+
+function CartIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
     </svg>
   )
 }

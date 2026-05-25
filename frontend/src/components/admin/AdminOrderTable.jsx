@@ -268,6 +268,12 @@ export default function AdminOrderTable({
                             {order.discount > 0
                               ? `−${fmtMoney(order.discount)} RSD`
                               : '—'}
+                            <br />
+                            {order.freeShippingApplied && (
+                              <>
+                                <strong>Dostava:</strong> Besplatna<br />
+                              </>
+                            )}
                           </div>
                           <div className="adm-order-items">
                             <strong>Stavke:</strong>

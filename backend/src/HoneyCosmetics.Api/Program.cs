@@ -224,7 +224,16 @@ using (var scope = app.Services.CreateScope())
     //
     if (!db.SiteSettings.Any())
     {
-        db.SiteSettings.Add(new SiteSettings { Id = 1 });
+        db.SiteSettings.Add(new SiteSettings { Id = 1, FreeShippingThreshold = 10000m });
+    }
+    else
+    {
+        var siteRow = db.SiteSettings.First(s => s.Id == 1);
+        if (siteRow.FreeShippingThreshold <= 0)
+        {
+            siteRow.FreeShippingThreshold = 10000m;
+            db.SaveChanges();
+        }
     }
 
     if (!db.ProductTypes.Any())

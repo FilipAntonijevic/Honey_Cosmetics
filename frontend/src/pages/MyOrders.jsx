@@ -129,6 +129,9 @@ export default function MyOrders() {
                       Popust{order.couponCode ? ` (${order.couponCode})` : ''}: −{fmt(order.discount)} RSD
                     </span>
                   )}
+                  {order.freeShippingApplied && (
+                    <span className="order-shipping-free">Besplatna dostava</span>
+                  )}
                   <span className="order-total">Ukupno: <strong>{fmt(order.total)} RSD</strong></span>
                 </div>
               </button>
@@ -172,6 +175,12 @@ export default function MyOrders() {
                           {order.couponCode ? ` (${order.couponCode})` : ''}
                         </dt>
                         <dd>−{fmt(order.discount)} RSD</dd>
+                      </div>
+                    )}
+                    {order.freeShippingApplied && (
+                      <div className="order-details-totals__row order-details-totals__row--shipping">
+                        <dt>Dostava</dt>
+                        <dd>Besplatna</dd>
                       </div>
                     )}
                     <div className="order-details-totals__row order-details-totals__row--total">

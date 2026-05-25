@@ -33,7 +33,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
             s?.ComplaintsEmail ?? string.Empty,
             s?.WhatsAppNumber ?? string.Empty,
             s?.ViberNumber ?? string.Empty,
-            s?.NotificationsEmail ?? string.Empty));
+            s?.NotificationsEmail ?? string.Empty,
+            s?.FreeShippingThreshold ?? 10000m));
     }
 
     [AllowAnonymous]

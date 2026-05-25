@@ -17,6 +17,7 @@ public class Order
     /// <summary>Code of the coupon applied at checkout (e.g. SUMMER10), if any.</summary>
     public string? CouponCode { get; set; }
     public decimal Total { get; set; }
+    public bool FreeShippingApplied { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
     public bool FinanceRecorded { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

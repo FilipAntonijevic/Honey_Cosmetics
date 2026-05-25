@@ -1,12 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
+import FreeShippingBar from '../components/FreeShippingBar'
+import useSiteLinks from '../hooks/useSiteLinks'
 import { clampCartQuantity } from '../utils/stock'
 
 export default function Cart() {
   const { checkoutCart, removeFromCart, setCart, user, setToast, refreshCartStock } = useStore()
+  const { freeShippingThreshold } = useSiteLinks()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -55,7 +58,9 @@ export default function Cart() {
           <Link className="cta" to="/shop">Nastavi kupovinu</Link>
         </div>
       ) : (
-        <div className="cart-grid">
+        <>
+          <FreeShippingBar cartTotal={total} threshold={freeShippingThreshold} />
+          <div className="cart-grid">
           <div className="cart-left">
             <div className="cart-col-headers">
               <span>PROIZVOD</span>
@@ -112,7 +117,6 @@ export default function Cart() {
                 <div className="cart-estimate-label">Procenjeni ukupan iznos</div>
                 <div className="cart-estimate-value">{fmt(total)} RSD</div>
               </div>
-              <div className="cart-shipping-note">Dostava će biti izračunata na kasi</div>
               <button
                 type="button"
                 className="cart-checkout-btn"
@@ -123,6 +127,7 @@ export default function Cart() {
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   )

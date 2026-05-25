@@ -4,10 +4,13 @@ import api from '../api'
 import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
 import PhoneField from '../components/PhoneField'
+import FreeShippingBar from '../components/FreeShippingBar'
+import useSiteLinks from '../hooks/useSiteLinks'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
 
 export default function Checkout() {
   const { user, checkoutCart, setCart, setToast, refreshCartStock } = useStore()
+  const { freeShippingThreshold } = useSiteLinks()
   const navigate = useNavigate()
 
   const [couponInput, setCouponInput] = useState('')
@@ -318,6 +321,8 @@ export default function Checkout() {
           <div className="co-summary">
             <div className="co-summary-title">Rezime porudžbine</div>
 
+            <FreeShippingBar cartTotal={grandTotal} threshold={freeShippingThreshold} compact />
+
             <div className="co-summary-items">
               {checkoutCart.map((item) => (
                 <div key={item.id} className="co-sum-item">
@@ -390,6 +395,12 @@ export default function Checkout() {
               <div className="co-total-row" style={{ color: '#c0392b' }}>
                 <span>Popust ({coupon.code})</span>
                 <span>&minus;{fmt(discountAmt)} RSD</span>
+              </div>
+            )}
+            {grandTotal >= freeShippingThreshold && freeShippingThreshold > 0 && (
+              <div className="co-total-row" style={{ color: '#16a34a' }}>
+                <span>Dostava</span>
+                <span>Besplatna</span>
               </div>
             )}
             <div className="co-sum-divider" />

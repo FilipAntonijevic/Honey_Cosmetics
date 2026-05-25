@@ -5,6 +5,8 @@ import ApiImage from './ApiImage'
 import { publicUrl } from '../lib/assets'
 import { useStore } from '../context/StoreContext'
 import SiteHeaderPanel from './SiteHeaderPanel'
+import FreeShippingBar from './FreeShippingBar'
+import { clampCartQuantity } from '../utils/stock'
 
 const EMPTY_LINKS = {
   instagramUrl: '',
@@ -13,6 +15,7 @@ const EMPTY_LINKS = {
   phoneNumber: '',
   whatsAppNumber: '',
   viberNumber: '',
+  freeShippingThreshold: 10000,
 }
 
 const cleanDigits = (v) => (v || '').replace(/[^+\d]/g, '')
@@ -38,7 +41,7 @@ const buildViberHref = (raw) => {
 }
 
 export default function Layout({ children }) {
-  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, cartAddTick, refreshCartStock } = useStore()
+  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock } = useStore()
   const [vrste, setVrste] = useState([])
   const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
@@ -119,6 +122,7 @@ export default function Layout({ children }) {
         phoneNumber: data?.phoneNumber ?? '',
         whatsAppNumber: data?.whatsAppNumber ?? '',
         viberNumber: data?.viberNumber ?? '',
+        freeShippingThreshold: data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000,
       }))
       .catch(() => setSiteLinks(EMPTY_LINKS))
   }, [])
@@ -257,6 +261,33 @@ export default function Layout({ children }) {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  const changeMiniCartQty = (id, delta) => {
+    const item = cart.find((i) => i.id === id)
+    if (!item) return
+
+    if (delta < 0 && item.quantity <= 1) {
+      removeFromCart(id)
+      return
+    }
+
+    const stock = item.stockQuantity ?? 0
+    setCart((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row
+        const requested = row.quantity + delta
+        const nextQty = clampCartQuantity(requested, stock)
+        if (nextQty < requested && delta > 0) {
+          setToast('Nema dovoljno proizvoda na stanju.')
+        }
+        return { ...row, quantity: Math.max(1, nextQty) }
+      }),
+    )
+
+    if (user && delta > 0) {
+      api.post('/cart', { productId: id, quantity: delta }).catch(() => {})
+    }
+  }
+
   const headerPanelProps = {
     vrste,
     siteLinks,
@@ -330,6 +361,7 @@ export default function Layout({ children }) {
             aria-label="Korpa"
           >
             <div className="mini-cart-drawer-top">
+              <h2 className="mini-cart-drawer-title">Tvoja korpa</h2>
               <button
                 type="button"
                 className="mini-cart-close"
@@ -340,21 +372,60 @@ export default function Layout({ children }) {
               </button>
             </div>
 
+            {checkoutCart.length > 0 && (
+              <div className="mini-cart-shipping">
+                <FreeShippingBar
+                  cartTotal={cartTotal}
+                  threshold={siteLinks.freeShippingThreshold}
+                  compact
+                />
+              </div>
+            )}
+
             <div className="mini-cart-drawer-body">
               {cart.length === 0 ? (
                 <p className="mini-cart-empty">Korpa je prazna.</p>
               ) : (
                 <ul className="mini-cart-list">
-                  {cart.map((item) => (
+                  {cart.map((item) => {
+                    const stock = item.stockQuantity ?? 0
+                    const atMax = item.quantity >= stock
+                    const lineTotal = Number(item.price) * item.quantity
+                    return (
                     <li key={item.id} className={`mini-cart-item${item.inStock === false ? ' mini-cart-item--out' : ''}`}>
                       {item.imageUrl && (
                         <ApiImage src={item.imageUrl} alt={item.name} className="mini-cart-img" variant="medium" />
                       )}
                       <div className="mini-cart-info">
                         <span className="mini-cart-name">{item.name}</span>
-                        <span className="mini-cart-qty-price">
-                          {item.quantity} × {Number(item.price).toLocaleString('sr-RS')} RSD
+                        <span className="mini-cart-unit-price">
+                          {Number(item.price).toLocaleString('sr-RS')} RSD
                         </span>
+                        <div className="mini-cart-qty-row">
+                          <div className="mini-cart-qty">
+                            <button
+                              type="button"
+                              className="mini-cart-qty-btn"
+                              aria-label={`Smanji količinu: ${item.name}`}
+                              onClick={() => changeMiniCartQty(item.id, -1)}
+                            >
+                              −
+                            </button>
+                            <span className="mini-cart-qty-num">{item.quantity}</span>
+                            <button
+                              type="button"
+                              className="mini-cart-qty-btn"
+                              aria-label={`Povećaj količinu: ${item.name}`}
+                              disabled={atMax || item.inStock === false}
+                              onClick={() => changeMiniCartQty(item.id, 1)}
+                            >
+                              +
+                            </button>
+                          </div>
+                          <span className="mini-cart-line-total">
+                            {lineTotal.toLocaleString('sr-RS')} RSD
+                          </span>
+                        </div>
                         {item.inStock === false && (
                           <span className="mini-cart-stock-warn" role="status">Nije na stanju</span>
                         )}
@@ -368,7 +439,8 @@ export default function Layout({ children }) {
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                       </button>
                     </li>
-                  ))}
+                    )
+                  })}
                 </ul>
               )}
             </div>

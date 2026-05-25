@@ -21,4 +21,7 @@ public class SiteSettings
     /// the system falls back to <c>SendGrid:AdminEmail</c> from appsettings.
     /// </summary>
     public string NotificationsEmail { get; set; } = string.Empty;
+
+    /// <summary>Minimum cart total (after coupon) for free shipping.</summary>
+    public decimal FreeShippingThreshold { get; set; } = 10000m;
 }

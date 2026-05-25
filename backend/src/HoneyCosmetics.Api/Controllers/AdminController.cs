@@ -586,7 +586,8 @@ public class AdminController(
             s?.ComplaintsEmail ?? string.Empty,
             s?.WhatsAppNumber ?? string.Empty,
             s?.ViberNumber ?? string.Empty,
-            s?.NotificationsEmail ?? string.Empty));
+            s?.NotificationsEmail ?? string.Empty,
+            s?.FreeShippingThreshold ?? 10000m));
     }
 
     [HttpPut("site/links")]
@@ -608,6 +609,13 @@ public class AdminController(
         s.ViberNumber = (request.ViberNumber ?? string.Empty).Trim();
         s.NotificationsEmail = (request.NotificationsEmail ?? string.Empty).Trim();
 
+        if (request.FreeShippingThreshold is decimal threshold)
+        {
+            if (threshold < 0)
+                return BadRequest("Vrednost korpe za besplatnu dostavu mora biti 0 ili više.");
+            s.FreeShippingThreshold = threshold;
+        }
+
         await db.SaveChangesAsync();
         return Ok(new SiteLinksResponse(
             s.InstagramUrl,
@@ -617,7 +625,8 @@ public class AdminController(
             s.ComplaintsEmail,
             s.WhatsAppNumber,
             s.ViberNumber,
-            s.NotificationsEmail));
+            s.NotificationsEmail,
+            s.FreeShippingThreshold));
     }
 
     // ── Slideshow (početna) ────────────────────────────────────────────────
@@ -737,6 +746,7 @@ public class AdminController(
         o.Discount,
         o.CouponCode,
         o.Total,
+        o.FreeShippingApplied,
         o.CreatedAt,
         o.Items.Select(i => new OrderItemResponse(i.ProductId, i.Product?.Name ?? "—", i.Product?.ImageUrl, i.Quantity, i.UnitPrice)).ToList());
 }
@@ -755,6 +765,7 @@ public record AdminOrderResponse(
     decimal Discount,
     string? CouponCode,
     decimal Total,
+    bool FreeShippingApplied,
     DateTime CreatedAt,
     IReadOnlyCollection<OrderItemResponse> Items);
 
