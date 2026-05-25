@@ -36,6 +36,17 @@ refreshApi.interceptors.request.use((config) => {
 
 let refreshPromise = null
 
+/** Refresh access token without sending a (possibly expired) Bearer header. */
+export async function refreshSession(refreshToken) {
+  const { data } = await refreshApi.post('/auth/refresh', { refreshToken })
+  setAuthSession({
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    user: data.user,
+  })
+  return data
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -58,17 +69,11 @@ api.interceptors.response.use(
     try {
       // Deduplicate concurrent refresh calls
       if (!refreshPromise) {
-        refreshPromise = refreshApi
-          .post('/auth/refresh', { refreshToken: storedRefresh })
+        refreshPromise = refreshSession(storedRefresh)
           .finally(() => { refreshPromise = null })
       }
 
-      const { data } = await refreshPromise
-      setAuthSession({
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        user: data.user,
-      })
+      const data = await refreshPromise
 
       original.headers.Authorization = `Bearer ${data.accessToken}`
       return api(original)

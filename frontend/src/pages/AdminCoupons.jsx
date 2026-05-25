@@ -75,6 +75,30 @@ export default function AdminCoupons() {
   const fmt = (c) =>
     c.isPercentage ? `${c.discountValue}%` : `${Number(c.discountValue).toLocaleString('sr-RS')} RSD`
 
+  const fmtExpiry = (expiresAt) =>
+    expiresAt ? new Date(expiresAt).toLocaleDateString('sr-RS') : '—'
+
+  const renderCouponActions = (c) => (
+    <>
+      {c.isActive ? (
+        <button
+          type="button"
+          className="adm-btn-sm adm-coupon-btn adm-coupon-btn--deactivate"
+          onClick={() => deactivateCoupon(c.id)}
+        >
+          Deaktiviraj
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="adm-btn-sm adm-coupon-btn adm-coupon-btn--delete"
+        onClick={() => deleteCoupon(c.id)}
+      >
+        Obriši
+      </button>
+    </>
+  )
+
   return (
     <div className="adm-page">
       <div className="adm-page-header">
@@ -162,63 +186,49 @@ export default function AdminCoupons() {
         <p className="adm-empty">Nema kupona.</p>
       ) : (
         <div className="adm-table-wrap adm-table-wrap--coupons">
-          <table className="adm-table">
+          <table className="adm-table adm-table--coupons">
             <thead>
               <tr>
                 <th>Kod</th>
                 <th>Popust</th>
-                <th>Tip</th>
                 <th>Ističe</th>
-                <th>Prva narudžbina</th>
-                <th>Korišćenje</th>
-                <th>Iskorišćen</th>
+                <th>Prva nar.</th>
+                <th>Limit</th>
+                <th>Iskorišć.</th>
                 <th>Status</th>
-                <th>Deaktiviraj</th>
-                <th></th>
+                <th>Akcije</th>
               </tr>
             </thead>
             <tbody>
               {coupons.map(c => (
                 <tr key={c.id}>
-                  <td><strong style={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}>{c.code}</strong></td>
-                  <td>{fmt(c)}</td>
-                  <td>{c.isPercentage ? 'Procenat' : 'Fiksni iznos'}</td>
-                  <td>{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('sr-RS') : '—'}</td>
-                  <td>{c.firstOrderOnly ? '✓' : '—'}</td>
-                  <td>{c.oneTimePerUser ? 'Jednom' : 'Neograničeno'}</td>
-                  <td>{c.usageCount}×</td>
-                  <td>
-                    <span style={{
-                      fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.6rem', borderRadius: 999,
-                      background: c.isActive ? '#d1fae5' : '#f3f4f6',
-                      color: c.isActive ? '#065f46' : '#6b7280'
-                    }}>
+                  <td data-label="Kod" className="adm-coupon-cell-code">
+                    <strong className="adm-coupon-code">{c.code}</strong>
+                  </td>
+                  <td data-label="Popust">
+                    {fmt(c)}
+                    <span className="adm-coupon-type-hint">
+                      {c.isPercentage ? ' · procenat' : ' · fiksni'}
+                    </span>
+                  </td>
+                  <td data-label="Ističe">{fmtExpiry(c.expiresAt)}</td>
+                  <td data-label="Prva narudžbina">{c.firstOrderOnly ? 'Da' : 'Ne'}</td>
+                  <td data-label="Limit">
+                    {c.oneTimePerUser ? 'Jednom' : (
+                      <>
+                        <span className="adm-coupon-limit-full">Neograničeno</span>
+                        <span className="adm-coupon-limit-short">Neogr.</span>
+                      </>
+                    )}
+                  </td>
+                  <td data-label="Iskorišćeno">{c.usageCount}×</td>
+                  <td data-label="Status" className="adm-coupon-cell-status">
+                    <span className={`adm-coupon-status${c.isActive ? ' adm-coupon-status--active' : ''}`}>
                       {c.isActive ? 'Aktivan' : 'Neaktivan'}
                     </span>
                   </td>
-                  <td>
-                    {c.isActive ? (
-                      <button
-                        type="button"
-                        className="adm-btn-sm"
-                        style={{ background: '#fef3c7', color: '#b45309', border: 'none', borderRadius: 6, padding: '0.3rem 0.7rem', cursor: 'pointer' }}
-                        onClick={() => deactivateCoupon(c.id)}
-                      >
-                        Deaktiviraj
-                      </button>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="adm-btn-sm"
-                      style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '0.3rem 0.7rem', cursor: 'pointer' }}
-                      onClick={() => deleteCoupon(c.id)}
-                    >
-                      Obriši
-                    </button>
+                  <td data-label="Akcije" className="adm-coupon-cell-actions">
+                    {renderCouponActions(c)}
                   </td>
                 </tr>
               ))}

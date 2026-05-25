@@ -5,7 +5,7 @@ import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
 import FreeShippingBar from '../components/FreeShippingBar'
 import useSiteLinks from '../hooks/useSiteLinks'
-import { clampCartQuantity } from '../utils/stock'
+import { clampCartQuantity, isInStock } from '../utils/stock'
 
 export default function Cart() {
   const { checkoutCart, removeFromCart, setCart, user, setToast, refreshCartStock } = useStore()
@@ -23,11 +23,21 @@ export default function Cart() {
   const changeQty = (id, delta) => {
     const item = checkoutCart.find((i) => i.id === id)
     if (!item) return
-    const stock = item.stockQuantity ?? 0
+    if (delta > 0 && !isInStock(item)) {
+      setToast('Proizvod trenutno nije na stanju.')
+      return
+    }
+    const stock = Number(item.stockQuantity) || 0
+    const currentQty = Number(item.quantity) || 0
+    if (delta > 0 && currentQty >= stock) {
+      setToast('Nema dovoljno proizvoda na stanju.')
+      return
+    }
     setCart((prev) =>
       prev.map((row) => {
         if (row.id !== id) return row
-        const requested = row.quantity + delta
+        const rowQty = Number(row.quantity) || 0
+        const requested = rowQty + delta
         const nextQty = clampCartQuantity(requested, stock)
         if (nextQty < requested && delta > 0) {
           setToast('Nema dovoljno proizvoda na stanju.')
@@ -35,8 +45,11 @@ export default function Cart() {
         return { ...row, quantity: Math.max(1, nextQty) }
       }),
     )
-    if (user && delta !== 0) {
-      api.post('/cart', { productId: id, quantity: delta }).catch(() => {})
+    if (user && delta > 0) {
+      api.post('/cart', { productId: id, quantity: delta }).catch(() => {
+        setToast('Nema dovoljno proizvoda na stanju.')
+        refreshCartStock()
+      })
     }
   }
 
@@ -69,8 +82,8 @@ export default function Cart() {
             <div className="cart-divider" />
 
             {checkoutCart.map((item) => {
-              const stock = item.stockQuantity ?? 0
-              const atMax = item.quantity >= stock
+              const stock = Number(item.stockQuantity) || 0
+              const atMax = !isInStock(item) || (Number(item.quantity) || 0) >= stock
               return (
                 <div key={item.id} className="cart-row">
                   <div className="cart-row-left">

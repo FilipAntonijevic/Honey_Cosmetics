@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from 'react'
+import AdminModal from './AdminModal'
 
 const ORDER_STATUSES = ['Pending', 'Shipped', 'Returned', 'Cancelled', 'Delivered']
 
@@ -56,6 +57,21 @@ function statusLabel(status) {
 
 function fmtMoney(n) {
   return Number(n).toLocaleString('sr-RS', { maximumFractionDigits: 0 })
+}
+
+export function OrderShippingBadge({ freeShippingApplied, compact = false }) {
+  if (freeShippingApplied) {
+    return (
+      <span className={`adm-shipping-badge adm-shipping-badge--free${compact ? ' adm-shipping-badge--compact' : ''}`}>
+        OSTVARENA BESPLATNA DOSTAVA
+      </span>
+    )
+  }
+  return (
+    <span className={`adm-shipping-badge adm-shipping-badge--paid${compact ? ' adm-shipping-badge--compact' : ''}`}>
+      Dostavu plaća korisnik
+    </span>
+  )
 }
 
 function SortTh({ col, sort, onSort, children }) {
@@ -186,7 +202,7 @@ export default function AdminOrderTable({
     )
   }
 
-  const colSpan = showCustomer ? 6 : 5
+  const colSpan = showCustomer ? 7 : 6
 
   return (
     <>
@@ -203,6 +219,7 @@ export default function AdminOrderTable({
                   <SortTh col="date" sort={sort} onSort={toggleSort}>Datum</SortTh>
                   <th>Plaćanje</th>
                   <SortTh col="total" sort={sort} onSort={toggleSort}>Ukupno</SortTh>
+                  <th>Dostava</th>
                   <th>Status</th>
                 </>
               ) : (
@@ -212,6 +229,7 @@ export default function AdminOrderTable({
                   <th>Datum</th>
                   <th>Plaćanje</th>
                   <th>Ukupno</th>
+                  <th>Dostava</th>
                   <th>Status</th>
                 </>
               )}
@@ -247,6 +265,9 @@ export default function AdminOrderTable({
                     <td>{new Date(order.createdAt).toLocaleDateString('sr-RS')}</td>
                     <td>{order.paymentMethod === 'CashOnDelivery' ? 'Pouzećem' : 'Bankovni prenos'}</td>
                     <td className="adm-td-total">{fmtMoney(order.total)} RSD</td>
+                    <td className="adm-td-shipping">
+                      <OrderShippingBadge freeShippingApplied={order.freeShippingApplied} compact />
+                    </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {renderStatusCell(order)}
                     </td>
@@ -269,11 +290,8 @@ export default function AdminOrderTable({
                               ? `−${fmtMoney(order.discount)} RSD`
                               : '—'}
                             <br />
-                            {order.freeShippingApplied && (
-                              <>
-                                <strong>Dostava:</strong> Besplatna<br />
-                              </>
-                            )}
+                            <strong>Dostava:</strong>{' '}
+                            <OrderShippingBadge freeShippingApplied={order.freeShippingApplied} />
                           </div>
                           <div className="adm-order-items">
                             <strong>Stavke:</strong>
@@ -297,32 +315,31 @@ export default function AdminOrderTable({
       </div>
 
       {deliveredConfirm && !readOnly && (
-        <div
-          className="adm-modal-overlay"
-          onClick={(e) => e.target === e.currentTarget && setDeliveredConfirm(null)}
+        <AdminModal
+          open
+          onClose={() => setDeliveredConfirm(null)}
+          className="adm-modal--confirm"
         >
-          <div className="adm-modal adm-modal--confirm" role="dialog" aria-modal="true">
-            <div className="adm-modal-body">
-              <h2>Da li ste sigurni da želite da evidentirate da je pošiljka dostavljena?</h2>
-              <p>
-                Porudžbina <strong>#{deliveredConfirm.orderId}</strong>
-                {deliveredConfirm.customerName ? <> ({deliveredConfirm.customerName})</> : null}
-                {' '}biće označena kao dostavljena. Status je finalan, a uplata korisnika biće evidentirana u prihodima.
-              </p>
-            </div>
-            <div className="adm-modal-footer">
-              <button type="button" className="adm-btn" onClick={() => setDeliveredConfirm(null)}>Odustani</button>
-              <button
-                type="button"
-                className="adm-btn adm-btn-primary adm-btn--delivered"
-                disabled={updating === deliveredConfirm.orderId}
-                onClick={confirmDelivered}
-              >
-                {updating === deliveredConfirm.orderId ? 'Čuvanje…' : 'Da, evidentiraj dostavu'}
-              </button>
-            </div>
+          <div className="adm-modal-body">
+            <h2>Da li ste sigurni da želite da evidentirate da je pošiljka dostavljena?</h2>
+            <p>
+              Porudžbina <strong>#{deliveredConfirm.orderId}</strong>
+              {deliveredConfirm.customerName ? <> ({deliveredConfirm.customerName})</> : null}
+              {' '}biće označena kao dostavljena. Status je finalan, a uplata korisnika biće evidentirana u prihodima.
+            </p>
           </div>
-        </div>
+          <div className="adm-modal-footer">
+            <button type="button" className="adm-btn" onClick={() => setDeliveredConfirm(null)}>Odustani</button>
+            <button
+              type="button"
+              className="adm-btn adm-btn-primary adm-btn--delivered"
+              disabled={updating === deliveredConfirm.orderId}
+              onClick={confirmDelivered}
+            >
+              {updating === deliveredConfirm.orderId ? 'Čuvanje…' : 'Da, evidentiraj dostavu'}
+            </button>
+          </div>
+        </AdminModal>
       )}
     </>
   )

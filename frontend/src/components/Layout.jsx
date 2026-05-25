@@ -6,7 +6,7 @@ import { publicUrl } from '../lib/assets'
 import { useStore } from '../context/StoreContext'
 import SiteHeaderPanel from './SiteHeaderPanel'
 import FreeShippingBar from './FreeShippingBar'
-import { clampCartQuantity } from '../utils/stock'
+import { clampCartQuantity, isInStock } from '../utils/stock'
 
 const EMPTY_LINKS = {
   instagramUrl: '',
@@ -41,11 +41,11 @@ const buildViberHref = (raw) => {
 }
 
 export default function Layout({ children }) {
-  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock } = useStore()
+  const { cart, checkoutCart, checkoutGrandTotal, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock } = useStore()
   const [vrste, setVrste] = useState([])
   const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
-  const cartTotal = checkoutCart.reduce((s, item) => s + Number(item.price) * item.quantity, 0)
+  const cartTotal = checkoutGrandTotal
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false)
   const [categoriesMenuOpen, setCategoriesMenuOpen] = useState(false)
@@ -265,16 +265,27 @@ export default function Layout({ children }) {
     const item = cart.find((i) => i.id === id)
     if (!item) return
 
-    if (delta < 0 && item.quantity <= 1) {
+    if (delta > 0 && !isInStock(item)) {
+      setToast('Proizvod trenutno nije na stanju.')
+      return
+    }
+
+    if (delta < 0 && (Number(item.quantity) || 0) <= 1) {
       removeFromCart(id)
       return
     }
 
-    const stock = item.stockQuantity ?? 0
+    const stock = Number(item.stockQuantity) || 0
+    const currentQty = Number(item.quantity) || 0
+    if (delta > 0 && currentQty >= stock) {
+      setToast('Nema dovoljno proizvoda na stanju.')
+      return
+    }
     setCart((prev) =>
       prev.map((row) => {
         if (row.id !== id) return row
-        const requested = row.quantity + delta
+        const rowQty = Number(row.quantity) || 0
+        const requested = rowQty + delta
         const nextQty = clampCartQuantity(requested, stock)
         if (nextQty < requested && delta > 0) {
           setToast('Nema dovoljno proizvoda na stanju.')
@@ -284,7 +295,10 @@ export default function Layout({ children }) {
     )
 
     if (user && delta > 0) {
-      api.post('/cart', { productId: id, quantity: delta }).catch(() => {})
+      api.post('/cart', { productId: id, quantity: delta }).catch(() => {
+        setToast('Nema dovoljno proizvoda na stanju.')
+        refreshCartStock()
+      })
     }
   }
 
@@ -388,11 +402,12 @@ export default function Layout({ children }) {
               ) : (
                 <ul className="mini-cart-list">
                   {cart.map((item) => {
-                    const stock = item.stockQuantity ?? 0
-                    const atMax = item.quantity >= stock
+                    const inStock = isInStock(item)
+                    const stock = Number(item.stockQuantity) || 0
+                    const atMax = !inStock || (Number(item.quantity) || 0) >= stock
                     const lineTotal = Number(item.price) * item.quantity
                     return (
-                    <li key={item.id} className={`mini-cart-item${item.inStock === false ? ' mini-cart-item--out' : ''}`}>
+                    <li key={item.id} className={`mini-cart-item${!inStock ? ' mini-cart-item--out' : ''}`}>
                       {item.imageUrl && (
                         <ApiImage src={item.imageUrl} alt={item.name} className="mini-cart-img" variant="medium" />
                       )}
@@ -416,7 +431,7 @@ export default function Layout({ children }) {
                               type="button"
                               className="mini-cart-qty-btn"
                               aria-label={`Povećaj količinu: ${item.name}`}
-                              disabled={atMax || item.inStock === false}
+                              disabled={atMax}
                               onClick={() => changeMiniCartQty(item.id, 1)}
                             >
                               +
@@ -426,7 +441,7 @@ export default function Layout({ children }) {
                             {lineTotal.toLocaleString('sr-RS')} RSD
                           </span>
                         </div>
-                        {item.inStock === false && (
+                        {!inStock && (
                           <span className="mini-cart-stock-warn" role="status">Nije na stanju</span>
                         )}
                       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
+import AdminModal from '../components/admin/AdminModal'
 
 const emptyForm = { name: '', imageUrl: '' }
 
@@ -227,14 +228,12 @@ export default function AdminCategories() {
         </div>
       )}
 
-      {showForm && (
-        <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && closeForm()}>
-          <div className="adm-modal">
+      <AdminModal open={showForm} onClose={closeForm}>
             <div className="adm-modal-header">
               <h2>{editId ? 'Izmeni kategoriju' : 'Nova kategorija'}</h2>
               <button type="button" className="adm-modal-close" onClick={closeForm}>✕</button>
             </div>
-            <p style={{ margin: '0 1rem', fontSize: '0.85rem', color: '#6b7280' }}>
+            <p className="adm-modal-intro">
               Vrsta: <strong>{selectedTypeLabel}</strong>
             </p>
             <form onSubmit={save} className="adm-form">
@@ -268,9 +267,7 @@ export default function AdminCategories() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </AdminModal>
     </div>
   )
 }

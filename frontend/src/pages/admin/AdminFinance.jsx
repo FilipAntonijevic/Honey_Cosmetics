@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../../api'
+import AdminModal from '../../components/admin/AdminModal'
 
 const LEDGER_ENTRY_TYPE = { Income: 0, Expense: 1 }
 
@@ -71,6 +72,7 @@ function buildTree(entries) {
 }
 
 function txShortLabel(entry) {
+  if (!entry) return ''
   if (entry.source === 'StockPurchase' && entry.productName) return `Nabavka — ${entry.productName}`
   if (entry.source === 'StockPurchase') return 'Nabavka'
   if (entry.source === 'StockWriteOff' && entry.productName) return `Otpis — ${entry.productName}`
@@ -456,11 +458,11 @@ export default function AdminFinance() {
       </div>
 
       {deleteConfirm && (
-        <div
-          className="adm-modal-overlay"
-          onClick={(e) => e.target === e.currentTarget && !deleting && setDeleteConfirm(null)}
+        <AdminModal
+          open
+          onClose={() => !deleting && setDeleteConfirm(null)}
+          className="adm-modal--confirm"
         >
-          <div className="adm-modal adm-modal--confirm" role="dialog" aria-modal="true">
             <div className="adm-modal-body">
               <h2>Da li ste sigurni da želite da obrišete ovu transakciju?</h2>
               <p>
@@ -483,15 +485,14 @@ export default function AdminFinance() {
                 {deleting ? 'Brisanje…' : 'Da, obriši'}
               </button>
             </div>
-          </div>
-        </div>
+        </AdminModal>
       )}
 
-      {showManual && (
-        <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowManual(false)}>
-          <div className="adm-modal" role="dialog">
-            <h2>Ručni unos</h2>
-            <p className="adm-field-hint" style={{ padding: '0 1.6rem' }}>
+      <AdminModal open={showManual} onClose={() => setShowManual(false)}>
+            <div className="adm-modal-header">
+              <h2>Ručni unos</h2>
+            </div>
+            <p className="adm-modal-intro">
               Unos se automatski evidentira za današnji dan (najnoviji u listi).
             </p>
             <form onSubmit={submitManual} className="adm-form">
@@ -519,9 +520,7 @@ export default function AdminFinance() {
                 <button type="submit" className="adm-btn adm-btn-primary" disabled={saving}>Sačuvaj</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </AdminModal>
     </div>
   )
 }

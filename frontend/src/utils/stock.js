@@ -1,8 +1,9 @@
 /** Ograniči količinu u korpi prema stanju na lageru. */
 export function clampCartQuantity(quantity, stockQuantity) {
   const stock = Math.max(0, Number(stockQuantity) || 0)
+  const qty = Number(quantity) || 0
   if (stock <= 0) return 0
-  return Math.min(Math.max(1, quantity), stock)
+  return Math.min(Math.max(1, qty), stock)
 }
 
 export function isInStock(product) {
@@ -18,7 +19,7 @@ export function enrichCartItems(cart, productsById) {
     if (!p) continue
     const stock = p.stockQuantity ?? 0
     const inStock = isInStock(p)
-    const qty = inStock ? clampCartQuantity(item.quantity, stock) : item.quantity
+    const qty = inStock ? clampCartQuantity(item.quantity, stock) : Number(item.quantity) || 0
     next.push({
       ...item,
       name: p.name ?? item.name,
@@ -36,9 +37,9 @@ export function enrichCartItems(cart, productsById) {
 /** Samo stavke koje mogu u porudžbinu. */
 export function getCheckoutCart(cart) {
   return cart.filter((item) => {
-    if (item.inStock === false) return false
-    if (item.stockQuantity != null) return item.stockQuantity > 0
-    return item.inStock === true
+    if (!isInStock(item)) return false
+    const stock = item.stockQuantity ?? 0
+    return stock > 0 && item.quantity > 0
   })
 }
 

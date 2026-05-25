@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
@@ -9,12 +9,23 @@ import useSiteLinks from '../hooks/useSiteLinks'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
 
 export default function Checkout() {
-  const { user, checkoutCart, setCart, setToast, refreshCartStock } = useStore()
+  const {
+    user,
+    checkoutCart,
+    checkoutCoupon,
+    setCheckoutCoupon,
+    checkoutSubtotal,
+    checkoutDiscount,
+    checkoutGrandTotal,
+    setCart,
+    setToast,
+    refreshCartStock,
+  } = useStore()
   const { freeShippingThreshold } = useSiteLinks()
   const navigate = useNavigate()
 
   const [couponInput, setCouponInput] = useState('')
-  const [coupon, setCoupon] = useState(null) // { code, discount, isPercentage }
+  const coupon = checkoutCoupon
   const [couponError, setCouponError] = useState('')
   const [couponLoading, setCouponLoading] = useState(false)
   const [form, setForm] = useState({
@@ -42,16 +53,13 @@ export default function Checkout() {
 
   useEffect(() => {
     if (user) return
-    setCoupon(null)
+    setCheckoutCoupon(null)
     setCouponInput('')
     setCouponError('')
     setForm((f) => ({ ...f, couponCode: '' }))
-  }, [user])
+  }, [user, setCheckoutCoupon])
 
-  const subtotal = useMemo(
-    () => checkoutCart.reduce((s, item) => s + Number(item.price) * item.quantity, 0),
-    [checkoutCart],
-  )
+  const subtotal = checkoutSubtotal
 
   const applyCoupon = async () => {
     if (!user) {
@@ -67,11 +75,11 @@ export default function Checkout() {
         headers: { 'Content-Type': 'application/json' }
       })
       if (data.isValid) {
-        setCoupon({ code, discountValue: data.discountValue, isPercentage: data.isPercentage })
+        setCheckoutCoupon({ code, discountValue: data.discountValue, isPercentage: data.isPercentage })
         setForm(f => ({ ...f, couponCode: code }))
         setCouponError('')
       } else {
-        setCoupon(null)
+        setCheckoutCoupon(null)
         setForm(f => ({ ...f, couponCode: '' }))
         setCouponError(data.message || 'Izabrali ste nepostojeci kupon.')
       }
@@ -83,7 +91,7 @@ export default function Checkout() {
   }
 
   const removeCoupon = () => {
-    setCoupon(null)
+    setCheckoutCoupon(null)
     setCouponInput('')
     setForm(f => ({ ...f, couponCode: '' }))
     setCouponError('')
@@ -119,6 +127,7 @@ export default function Checkout() {
           couponCode: form.couponCode || null,
         })
         setCart([])
+        setCheckoutCoupon(null)
         navigate('/my-orders')
       } else {
         await api.post('/orders/guest-checkout', {
@@ -131,6 +140,7 @@ export default function Checkout() {
           guestEmail: form.email || null,
         })
         setCart([])
+        setCheckoutCoupon(null)
         navigate('/')
       }
       setToast('Porudžbina je uspešno kreirana!')
@@ -143,12 +153,8 @@ export default function Checkout() {
 
   const fmt = (n) =>
     Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const discountAmt = coupon
-    ? coupon.isPercentage
-      ? subtotal * (coupon.discountValue / 100)
-      : coupon.discountValue
-    : 0
-  const grandTotal = Math.max(0, subtotal - discountAmt)
+  const discountAmt = checkoutDiscount
+  const grandTotal = checkoutGrandTotal
 
   if (!checkoutCart.length) {
     return (

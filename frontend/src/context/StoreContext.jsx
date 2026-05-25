@@ -1,16 +1,17 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import api from '../api'
+import api, { refreshSession } from '../api'
 import {
   clearAuthSession,
+  getAccessToken,
   getRefreshToken,
-  getStoredUser,
   migrateLegacyAuthFromLocalStorage,
   setAuthSession,
 } from '../utils/authStorage'
 import { clampCartQuantity, enrichCartItems, getCheckoutCart, isInStock } from '../utils/stock'
 
 migrateLegacyAuthFromLocalStorage()
+localStorage.removeItem('honey_user')
 
 const StoreContext = createContext(null)
 
@@ -23,14 +24,35 @@ const fromStorage = (key, fallback) => {
   }
 }
 
+/** Guest korpa u ovom tabu — snapshot pre logina, vraća se pri logout-u. */
+const GUEST_CART_SNAPSHOT_KEY = 'honey_guest_cart_snapshot'
+
+const saveGuestCartSnapshot = (items) => {
+  try {
+    sessionStorage.setItem(GUEST_CART_SNAPSHOT_KEY, JSON.stringify(items))
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+const loadGuestCartSnapshot = () => {
+  try {
+    const raw = sessionStorage.getItem(GUEST_CART_SNAPSHOT_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
 const mapServerCartRows = (rows) =>
   rows.map((item) => ({
     id: item.productId,
     name: item.name,
     price: item.price,
     imageUrl: item.imageUrl,
-    quantity: item.quantity,
-    inStock: true,
+    quantity: Number(item.quantity) || 0,
+    stockQuantity: item.stockQuantity ?? 0,
+    inStock: item.inStock ?? (item.stockQuantity ?? 0) > 0,
   }))
 
 const mapServerWishlistRows = (rows) =>
@@ -68,18 +90,19 @@ function cartStockUnchanged(prev, next) {
   return true
 }
 
+function canSyncWithServer(user, initializing) {
+  return Boolean(user && !initializing && getAccessToken())
+}
+
 export function StoreProvider({ children }) {
-  const [user, setUser] = useState(fromStorage('honey_user', null))
+  const [user, setUser] = useState(null)
   const [cart, setCart] = useState(fromStorage('honey_cart', []))
   const [wishlist, setWishlist] = useState(fromStorage('honey_wishlist', []))
   const [toast, setToast] = useState('')
   const [cartAddTick, setCartAddTick] = useState(0)
+  const [checkoutCoupon, setCheckoutCoupon] = useState(null)
   const [initializing, setInitializing] = useState(true)
 
-  // Auth u sessionStorage (po tabu); korpa/wishlist ostaju u localStorage
-  useEffect(() => {
-    setAuthSession({ accessToken: undefined, refreshToken: undefined, user })
-  }, [user])
   useEffect(() => localStorage.setItem('honey_cart', JSON.stringify(cart)), [cart])
   useEffect(() => localStorage.setItem('honey_wishlist', JSON.stringify(wishlist)), [wishlist])
 
@@ -96,12 +119,7 @@ export function StoreProvider({ children }) {
       const refreshToken = getRefreshToken()
       if (refreshToken) {
         try {
-          const { data } = await api.post('/auth/refresh', { refreshToken })
-          setAuthSession({
-            accessToken: data.accessToken,
-            refreshToken: data.refreshToken,
-            user: data.user,
-          })
+          const data = await refreshSession(refreshToken)
           setUser(data.user)
           // Cart sync: server is source of truth for logged-in users
           try {
@@ -122,8 +140,8 @@ export function StoreProvider({ children }) {
         } catch {
           clearAuthSession()
           setUser(null)
-          /* Server korpa ostala u memoriji browsera kao “gost”; očisti da ne “curi”. */
-          setCart([])
+          setCart(loadGuestCartSnapshot())
+          setToast('Sesija je istekla. Prijavite se ponovo.')
         }
       } else {
         // Guest: remove cart items that no longer exist in the DB
@@ -142,7 +160,7 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     const handleForcedLogout = () => {
       setUser(null)
-      setCart([])
+      setCart(loadGuestCartSnapshot())
       setToast('Sesija je istekla. Prijavite se ponovo.')
     }
     window.addEventListener('auth:logout', handleForcedLogout)
@@ -150,6 +168,9 @@ export function StoreProvider({ children }) {
   }, [])
 
   const login = useCallback(async (payload) => {
+    // Sačuvaj gost korpu ovog taba pre nego što učitamo serversku
+    saveGuestCartSnapshot(cart.map((item) => ({ ...item })))
+
     const { data } = await api.post('/auth/login', payload)
     setAuthSession({
       accessToken: data.accessToken,
@@ -197,7 +218,8 @@ export function StoreProvider({ children }) {
     }
     clearAuthSession()
     setUser(null)
-    setCart([])
+    setCheckoutCoupon(null)
+    setCart(loadGuestCartSnapshot())
     setToast('Odjavljeni ste.')
   }, [])
 
@@ -206,26 +228,29 @@ export function StoreProvider({ children }) {
       setToast('Proizvod trenutno nije na stanju.')
       return false
     }
-    const stock = product.stockQuantity ?? 0
-    let added = 0
-    let limited = false
+    const stock = Number(product.stockQuantity) || 0
+    let addedQty = 0
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id)
-      const requested = (existing?.quantity ?? 0) + 1
+      const currentQty = Number(existing?.quantity) || 0
+      const requested = currentQty + 1
       const nextQty = clampCartQuantity(requested, stock)
-      if (nextQty < requested) limited = true
-      if (nextQty <= 0) return prev
-      added = nextQty - (existing?.quantity ?? 0)
+      if (nextQty <= currentQty) return prev
+      addedQty = nextQty - currentQty
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: nextQty, stockQuantity: stock, inStock: true } : item,
+          item.id === product.id
+            ? { ...item, quantity: nextQty, stockQuantity: stock, inStock: true }
+            : item,
         )
       }
       return [...prev, { ...product, quantity: nextQty, stockQuantity: stock, inStock: true }]
     })
-    if (added > 0) {
-      if (user) api.post('/cart', { productId: product.id, quantity: added }).catch(() => {})
-      setToast(limited ? 'Nema dovoljno proizvoda na stanju.' : 'Proizvod dodat u korpu.')
+    if (addedQty > 0) {
+      if (canSyncWithServer(user, false)) {
+        api.post('/cart', { productId: product.id, quantity: addedQty }).catch(() => {})
+      }
+      setToast('Proizvod dodat u korpu.')
       setCartAddTick((t) => t + 1)
       return true
     }
@@ -236,7 +261,7 @@ export function StoreProvider({ children }) {
   const removeFromCart = useCallback(
     (productId) => {
       setCart((prev) => prev.filter((item) => item.id !== productId))
-      if (user) {
+      if (canSyncWithServer(user, false)) {
         api.delete(`/cart/${productId}`).catch(() => {})
       }
     },
@@ -262,7 +287,7 @@ export function StoreProvider({ children }) {
         return enriched
       })
 
-      if (user && oosIds.length > 0) {
+      if (canSyncWithServer(user, false) && oosIds.length > 0) {
         await Promise.all(oosIds.map((id) => api.delete(`/cart/${id}`).catch(() => {})))
       }
       return checkoutSnapshot
@@ -273,6 +298,26 @@ export function StoreProvider({ children }) {
 
   const checkoutCart = useMemo(() => getCheckoutCart(cart), [cart])
 
+  const checkoutSubtotal = useMemo(
+    () => checkoutCart.reduce((s, item) => s + Number(item.price) * Number(item.quantity), 0),
+    [checkoutCart],
+  )
+
+  const checkoutDiscount = useMemo(() => {
+    if (!checkoutCoupon) return 0
+    const val = Number(checkoutCoupon.discountValue) || 0
+    return checkoutCoupon.isPercentage ? checkoutSubtotal * (val / 100) : val
+  }, [checkoutCoupon, checkoutSubtotal])
+
+  const checkoutGrandTotal = useMemo(
+    () => Math.max(0, checkoutSubtotal - checkoutDiscount),
+    [checkoutSubtotal, checkoutDiscount],
+  )
+
+  useEffect(() => {
+    if (!checkoutCart.length) setCheckoutCoupon(null)
+  }, [checkoutCart.length])
+
   useEffect(() => {
     if (initializing) return
     const t = window.setTimeout(() => refreshCartStock(), 50)
@@ -280,9 +325,10 @@ export function StoreProvider({ children }) {
   }, [cart, initializing, refreshCartStock])
 
   const toggleWishlist = useCallback((product) => {
+    const syncWithServer = canSyncWithServer(user, initializing)
     setWishlist((prev) => {
       const exists = prev.some((item) => item.id === product.id)
-      if (user) {
+      if (syncWithServer) {
         if (exists) api.delete(`/wishlist/${product.id}`).catch(() => {})
         else api.post(`/wishlist/${product.id}`).catch(() => {})
       }
@@ -293,7 +339,7 @@ export function StoreProvider({ children }) {
       setToast('Dodato u wishlist.')
       return [...prev, product]
     })
-  }, [user])
+  }, [user, initializing])
 
   const value = useMemo(
     () => ({
@@ -312,10 +358,15 @@ export function StoreProvider({ children }) {
       toggleWishlist,
       refreshCartStock,
       checkoutCart,
+      checkoutCoupon,
+      setCheckoutCoupon,
+      checkoutSubtotal,
+      checkoutDiscount,
+      checkoutGrandTotal,
       setToast,
       setCart,
     }),
-    [user, cart, checkoutCart, wishlist, toast, cartAddTick, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser],
+    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

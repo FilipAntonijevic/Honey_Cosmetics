@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api'
+import { OrderShippingBadge } from '../components/admin/AdminOrderTable'
+import AdminModal from '../components/admin/AdminModal'
 
 /** Redosled u padajućem meniju (Dostavljeno poslednje). */
 const ORDER_STATUSES = ['Pending', 'Shipped', 'Returned', 'Cancelled', 'Delivered']
@@ -55,6 +57,74 @@ function isFinalStatus(status) {
 
 function statusLabel(status) {
   return STATUS_LABELS[status] ?? STATUS_LABELS[normalizeStatus(status)] ?? status
+}
+
+function AdminOrderRows({
+  order,
+  expanded,
+  onToggleExpanded,
+  renderStatusCell,
+}) {
+  const isExpanded = expanded === order.id
+
+  return (
+    <>
+      <tr
+        className={`adm-table-row${isExpanded ? ' expanded' : ''}`}
+        onClick={() => onToggleExpanded(order.id)}
+      >
+        <td className="adm-td-id">#{order.id}</td>
+        <td>
+          <div className="adm-customer-name">{order.customerName}</div>
+          <div className="adm-customer-email">{order.customerEmail}</div>
+        </td>
+        <td>{new Date(order.createdAt).toLocaleDateString('sr-RS')}</td>
+        <td>{order.paymentMethod === 'CashOnDelivery' ? 'Pouzećem' : 'Bankovni prenos'}</td>
+        <td className="adm-td-total">{Number(order.total).toLocaleString('sr-RS')} RSD</td>
+        <td className="adm-td-shipping">
+          <OrderShippingBadge freeShippingApplied={order.freeShippingApplied} compact />
+        </td>
+        <td onClick={(e) => e.stopPropagation()}>
+          {renderStatusCell(order)}
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr className="adm-expanded-row">
+          <td colSpan={7}>
+            <div className="adm-order-detail">
+              <div className="adm-order-detail-col">
+                <strong>Adresa dostave:</strong> {order.deliveryAddress}<br />
+                <strong>Telefon:</strong> {order.phone ?? '—'}<br />
+                <strong>Međuzbir:</strong> {Number(order.subtotal).toLocaleString('sr-RS')} RSD<br />
+                {order.couponCode && (
+                  <>
+                    <strong>Kupon:</strong> {order.couponCode}<br />
+                  </>
+                )}
+                <strong>Popust:</strong>{' '}
+                {order.discount > 0
+                  ? `−${Number(order.discount).toLocaleString('sr-RS')} RSD`
+                  : '—'}
+                <br />
+                <strong>Dostava:</strong>{' '}
+                <OrderShippingBadge freeShippingApplied={order.freeShippingApplied} />
+              </div>
+              <div className="adm-order-items">
+                <strong>Stavke:</strong>
+                <ul>
+                  {order.items.map((item) => (
+                    <li key={item.productId}>
+                      {item.productName} × {item.quantity} — {(item.unitPrice * item.quantity).toLocaleString('sr-RS')} RSD
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
 }
 
 export default function AdminOrders() {
@@ -337,106 +407,62 @@ export default function AdminOrders() {
                 Plaćanje
               </FilterTh>
               <SortTh col="total">Ukupno</SortTh>
+              <th>Dostava</th>
               <StatusFilterTh />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
                   Učitavanje...
                 </td>
               </tr>
             ) : displayed.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
                   Nema porudžbina.
                 </td>
               </tr>
-            ) : displayed.map(order => (
-              <>
-                <tr
-                  key={order.id}
-                  className={`adm-table-row${expanded === order.id ? ' expanded' : ''}`}
-                  onClick={() => setExpanded(expanded === order.id ? null : order.id)}
-                >
-                  <td className="adm-td-id">#{order.id}</td>
-                  <td>
-                    <div className="adm-customer-name">{order.customerName}</div>
-                    <div className="adm-customer-email">{order.customerEmail}</div>
-                  </td>
-                  <td>{new Date(order.createdAt).toLocaleDateString('sr-RS')}</td>
-                  <td>{order.paymentMethod === 'CashOnDelivery' ? 'Pouzećem' : 'Bankovni prenos'}</td>
-                  <td className="adm-td-total">{Number(order.total).toLocaleString('sr-RS')} RSD</td>
-                  <td onClick={e => e.stopPropagation()}>
-                    {renderStatusCell(order)}
-                  </td>
-                </tr>
-                {expanded === order.id && (
-                  <tr key={`${order.id}-detail`} className="adm-expanded-row">
-                    <td colSpan={6}>
-                      <div className="adm-order-detail">
-                        <div className="adm-order-detail-col">
-                          <strong>Adresa dostave:</strong> {order.deliveryAddress}<br />
-                          <strong>Telefon:</strong> {order.phone ?? '—'}<br />
-                          <strong>Međuzbir:</strong> {Number(order.subtotal).toLocaleString('sr-RS')} RSD<br />
-                          {order.couponCode && (
-                            <>
-                              <strong>Kupon:</strong> {order.couponCode}<br />
-                            </>
-                          )}
-                          <strong>Popust:</strong>{' '}
-                          {order.discount > 0
-                            ? `−${Number(order.discount).toLocaleString('sr-RS')} RSD`
-                            : '—'}
-                        </div>
-                        <div className="adm-order-items">
-                          <strong>Stavke:</strong>
-                          <ul>
-                            {order.items.map(item => (
-                              <li key={item.productId}>
-                                {item.productName} × {item.quantity} — {(item.unitPrice * item.quantity).toLocaleString('sr-RS')} RSD
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </>
+            ) : displayed.map((order) => (
+              <AdminOrderRows
+                key={order.id}
+                order={order}
+                expanded={expanded}
+                onToggleExpanded={(orderId) => setExpanded(expanded === orderId ? null : orderId)}
+                renderStatusCell={renderStatusCell}
+              />
             ))}
           </tbody>
         </table>
       </div>
 
       {deliveredConfirm && (
-        <div
-          className="adm-modal-overlay"
-          onClick={(e) => e.target === e.currentTarget && setDeliveredConfirm(null)}
+        <AdminModal
+          open
+          onClose={() => setDeliveredConfirm(null)}
+          className="adm-modal--confirm"
         >
-          <div className="adm-modal adm-modal--confirm" role="dialog" aria-modal="true">
-            <div className="adm-modal-body">
-              <h2>Da li ste sigurni da želite da evidentirate da je pošiljka dostavljena?</h2>
-              <p>
-                Porudžbina <strong>#{deliveredConfirm.orderId}</strong>
-                {deliveredConfirm.customerName ? <> ({deliveredConfirm.customerName})</> : null}
-                {' '}biće označena kao dostavljena. Status je finalan, a uplata korisnika biće evidentirana u prihodima.
-              </p>
-            </div>
-            <div className="adm-modal-footer">
-              <button type="button" className="adm-btn" onClick={() => setDeliveredConfirm(null)}>Odustani</button>
-              <button
-                type="button"
-                className="adm-btn adm-btn-primary adm-btn--delivered"
-                disabled={updating === deliveredConfirm.orderId}
-                onClick={confirmDelivered}
-              >
-                {updating === deliveredConfirm.orderId ? 'Čuvanje…' : 'Da, evidentiraj dostavu'}
-              </button>
-            </div>
+          <div className="adm-modal-body">
+            <h2>Da li ste sigurni da želite da evidentirate da je pošiljka dostavljena?</h2>
+            <p>
+              Porudžbina <strong>#{deliveredConfirm.orderId}</strong>
+              {deliveredConfirm.customerName ? <> ({deliveredConfirm.customerName})</> : null}
+              {' '}biće označena kao dostavljena. Status je finalan, a uplata korisnika biće evidentirana u prihodima.
+            </p>
           </div>
-        </div>
+          <div className="adm-modal-footer">
+            <button type="button" className="adm-btn" onClick={() => setDeliveredConfirm(null)}>Odustani</button>
+            <button
+              type="button"
+              className="adm-btn adm-btn-primary adm-btn--delivered"
+              disabled={updating === deliveredConfirm.orderId}
+              onClick={confirmDelivered}
+            >
+              {updating === deliveredConfirm.orderId ? 'Čuvanje…' : 'Da, evidentiraj dostavu'}
+            </button>
+          </div>
+        </AdminModal>
       )}
     </div>
   )

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import api from '../../api'
 import ApiImage from '../../components/ApiImage'
+import AdminModal from '../../components/admin/AdminModal'
 
 function parseNum(v) {
   const n = parseFloat(String(v).replace(',', '.'))
@@ -252,25 +253,22 @@ export default function AdminProductDetail() {
   const submitOtpis = async (e) => {
     e.preventDefault()
     setError('')
-    setSaving(true)
     const qty = parseInt(otpis.quantity, 10)
     if (!Number.isFinite(qty) || qty <= 0) {
       setError('Unesite ispravnu količinu.')
-      setSaving(false)
       return
     }
     const available = product?.stockQuantity ?? 0
     if (qty > available) {
       setError(`Na stanju je samo ${available} komada.`)
-      setSaving(false)
       return
     }
     const note = otpis.note?.trim()
     if (!note) {
-      setError('Napomena je obavezna (evidentira se u Prihodima).')
-      setSaving(false)
+      setError('Unesite napomenu za otpis.')
       return
     }
+    setSaving(true)
     try {
       const { data } = await api.post(`/admin/products/${id}/stock-write-off`, {
         quantity: qty,
@@ -447,9 +445,7 @@ export default function AdminProductDetail() {
         )}
       </div>
 
-      {showDelete && (
-        <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowDelete(false)}>
-          <div className="adm-modal adm-modal--confirm" role="dialog" aria-modal="true">
+      <AdminModal open={showDelete} onClose={() => setShowDelete(false)} className="adm-modal--confirm">
             <div className="adm-modal-body">
               <h2>Da li ste sigurni da želite da obrišete proizvod?</h2>
               <p>Proizvod „{product.name}” biće uklonjen iz prodavnice. Istorija porudžbina ostaje sačuvana; isto ime možete ponovo koristiti da ga vratite.</p>
@@ -460,13 +456,14 @@ export default function AdminProductDetail() {
                 {saving ? 'Brisanje…' : 'Da, obriši'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </AdminModal>
 
-      {showStats && (
-        <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowStats(false)}>
-          <div className="adm-modal adm-modal--stats" role="dialog" aria-labelledby="product-stats-title">
+      <AdminModal
+        open={showStats}
+        onClose={() => setShowStats(false)}
+        className="adm-modal--stats"
+        labelledBy="product-stats-title"
+      >
             <header className="adm-stats-modal__header">
               <h2 id="product-stats-title" className="adm-stats-modal__title">Statistika</h2>
               <p className="adm-stats-modal__product">{product.name}</p>
@@ -557,14 +554,12 @@ export default function AdminProductDetail() {
             <div className="adm-modal-footer adm-modal-footer--center">
               <button type="button" className="adm-btn" onClick={() => setShowStats(false)}>Zatvori</button>
             </div>
-          </div>
-        </div>
-      )}
+      </AdminModal>
 
-      {showNabavka && (
-        <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowNabavka(false)}>
-          <div className="adm-modal adm-modal--wide" role="dialog">
-            <h2>Nabavka — {product.name}</h2>
+      <AdminModal open={showNabavka} onClose={() => setShowNabavka(false)} className="adm-modal--wide">
+            <div className="adm-modal-header">
+              <h2>Nabavka — {product.name}</h2>
+            </div>
             <p className="adm-modal-hint">
               Trošak se evidentira odmah; količina na lageru raste tek kada pritisnete „Stiglo“ na stranici proizvoda.
             </p>
@@ -667,36 +662,34 @@ export default function AdminProductDetail() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </AdminModal>
 
-      {showOtpis && (
-        <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowOtpis(false)}>
-          <div className="adm-modal" role="dialog">
-            <h2>Otpis — {product.name}</h2>
+      <AdminModal open={showOtpis} onClose={() => setShowOtpis(false)}>
+            <div className="adm-modal-header">
+              <h2>Otpis — {product.name}</h2>
+            </div>
             <p className="adm-modal-hint">
               Smanjuje stanje na lageru odmah i evidentira otpis u Prihodima (iznos −0 RSD). Na stanju trenutno: <strong>{product.stockQuantity ?? 0} kom</strong>.
             </p>
             {error && <div className="adm-form-error">{error}</div>}
-            <form onSubmit={submitOtpis} className="adm-form">
+            <form onSubmit={submitOtpis} className="adm-form" noValidate>
               <div className="adm-form-row">
-                <label>Količina za otpis *</label>
+                <label htmlFor="otpis-qty">Količina za otpis *</label>
                 <input
+                  id="otpis-qty"
                   className="adm-input"
                   type="number"
                   min="1"
                   max={product.stockQuantity ?? 0}
-                  required
                   value={otpis.quantity}
                   onChange={(e) => setOtpis((o) => ({ ...o, quantity: e.target.value }))}
                 />
               </div>
               <div className="adm-form-row">
-                <label>Napomena *</label>
+                <label htmlFor="otpis-note">Napomena *</label>
                 <input
+                  id="otpis-note"
                   className="adm-input"
-                  required
                   value={otpis.note}
                   onChange={(e) => setOtpis((o) => ({ ...o, note: e.target.value }))}
                   placeholder="npr. oštećeno, istekao rok…"
@@ -709,9 +702,7 @@ export default function AdminProductDetail() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </AdminModal>
     </div>
   )
 }
