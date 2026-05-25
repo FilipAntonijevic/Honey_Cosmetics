@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Net;
 
 namespace HoneyCosmetics.Api.Controllers;
 
@@ -160,13 +161,14 @@ public class OrdersController(
         var orderItems = cartItems.Select(x => (x.Product!.Name, x.Quantity, x.Product.Price)).ToList();
 
         logger.LogInformation("[Order {OrderId}] Sending confirmation to user {Email}", order.Id, user.Email);
+        var contactEmail = await ResolveContactEmailAsync();
         // Confirmation to user
         try
         {
             var body = BuildUserConfirmationEmail(
                 user.FullName, order.Id, orderItems, order.Subtotal, order.Discount,
                 order.CouponCode, order.Total, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
-                order.PaymentMethod.ToString(), order.CreatedAt);
+                order.PaymentMethod.ToString(), order.CreatedAt, contactEmail);
             await emailService.SendAsync(user.Email, $"Honey Cosmetics — Potvrda porudžbine #{order.Id}", body);
             logger.LogInformation("[Order {OrderId}] User email sent OK", order.Id);
         }
@@ -263,6 +265,7 @@ public class OrdersController(
         var guestName = order.GuestName ?? "Gost";
         // Build from products dict — Product nav property is not loaded on order.Items
         var orderItemsGuest = request.Items.Select(i => (products[i.ProductId].Name, i.Quantity, products[i.ProductId].Price)).ToList();
+        var contactEmailGuest = await ResolveContactEmailAsync();
         // Confirmation to guest
         if (!string.IsNullOrWhiteSpace(order.GuestEmail))
         {
@@ -283,7 +286,8 @@ public class OrdersController(
                         order.DeliveryAddress,
                         order.Phone,
                         order.PaymentMethod.ToString(),
-                        order.CreatedAt));
+                        order.CreatedAt,
+                        contactEmailGuest));
             }
             catch (Exception ex) { logger.LogError(ex, "Failed to send guest confirmation email for order {OrderId}", order.Id); }
         }
@@ -377,6 +381,13 @@ public class OrdersController(
         return string.IsNullOrEmpty(fromDb) ? sendGridOptions.Value.AdminEmail : fromDb;
     }
 
+    private async Task<string> ResolveContactEmailAsync()
+    {
+        var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+        var fromDb = (s?.EmailAddress ?? string.Empty).Trim();
+        return string.IsNullOrEmpty(fromDb) ? sendGridOptions.Value.AdminEmail : fromDb;
+    }
+
     private static string ItemsTableHtml(List<(string Name, int Qty, decimal Price)> items)
     {
         var rows = string.Concat(items.Select(i => $"""
@@ -420,7 +431,7 @@ public class OrdersController(
         List<(string Name, int Qty, decimal Price)> items,
         decimal subtotal, decimal discount, string? couponCode,
         decimal total, bool freeShippingApplied, string address, string? phone,
-        string paymentMethod, DateTime createdAt)
+        string paymentMethod, DateTime createdAt, string contactEmail)
     {
         var discountRow = discount > 0
             ? $"""<tr><td style="color:#c0392b;padding:3px 0;">Popust{(string.IsNullOrEmpty(couponCode) ? "" : $" ({couponCode})")}</td><td style="text-align:right;color:#c0392b;">&minus;{discount:N0} RSD</td></tr>"""
@@ -431,6 +442,7 @@ public class OrdersController(
         var phoneRow = string.IsNullOrWhiteSpace(phone)
             ? ""
             : $"""<p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Telefon:</strong> {phone}</p>""";
+        var encodedContact = WebUtility.HtmlEncode(contactEmail);
 
         return $"""
         <div style="font-family:Georgia,serif;max-width:560px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
@@ -468,7 +480,7 @@ public class OrdersController(
           <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Način plaćanja:</strong> {paymentMethod}</p>
 
           <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.2rem 0;">
-          <p style="color:#9b8276;font-size:0.8rem;margin:0;">Ukoliko imate pitanja, slobodno nas kontaktirajte na <a href="mailto:filipdantonijevic@gmail.com" style="color:#3f2b22;">filipdantonijevic@gmail.com</a>.</p>
+          <p style="color:#9b8276;font-size:0.8rem;margin:0;">Ukoliko imate pitanja, slobodno nas kontaktirajte na <a href="mailto:{encodedContact}" style="color:#3f2b22;">{encodedContact}</a>.</p>
         </div>
         """;
     }
