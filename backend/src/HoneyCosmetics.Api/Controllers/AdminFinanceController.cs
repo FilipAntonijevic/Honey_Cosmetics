@@ -94,6 +94,15 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
                 order.FinanceRecorded = false;
         }
 
+        if (entry.Source == LedgerSource.StockWriteOff
+            && entry.ProductId is not null
+            && entry.WriteOffQuantity is > 0)
+        {
+            var product = await db.Products.FindAsync(entry.ProductId.Value);
+            if (product is not null)
+                product.StockQuantity += entry.WriteOffQuantity.Value;
+        }
+
         db.LedgerEntries.Remove(entry);
         if (receiptToRemove is not null)
             db.StockReceipts.Remove(receiptToRemove);
@@ -104,6 +113,7 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
     private static LedgerEntryResponse MapLedger(LedgerEntry e)
     {
         var receipt = e.StockReceipt;
+        var isWriteOff = e.Source == LedgerSource.StockWriteOff;
         decimal? merchandise = null;
         if (receipt is not null)
             merchandise = Math.Round(receipt.UnitCost * receipt.Quantity, 2);
@@ -119,11 +129,11 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
             e.ProductId,
             e.StockReceiptId,
             e.Product?.Name,
-            receipt?.Quantity,
-            receipt?.UnitCost,
+            isWriteOff ? e.WriteOffQuantity : receipt?.Quantity,
+            isWriteOff ? null : receipt?.UnitCost,
             merchandise,
-            receipt?.TransportCost,
-            receipt?.TotalCost,
-            receipt?.Note);
+            isWriteOff ? null : receipt?.TransportCost,
+            isWriteOff ? null : receipt?.TotalCost,
+            isWriteOff ? e.WriteOffNote : receipt?.Note);
     }
 }

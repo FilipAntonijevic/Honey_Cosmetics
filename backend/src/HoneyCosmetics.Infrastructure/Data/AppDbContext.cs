@@ -24,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<HomeSlideshowSlide> HomeSlideshowSlides => Set<HomeSlideshowSlide>();
     public DbSet<StockReceipt> StockReceipts => Set<StockReceipt>();
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
+    public DbSet<CustomerProfile> CustomerProfiles => Set<CustomerProfile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -112,5 +113,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<LedgerEntry>()
             .HasIndex(x => x.OccurredAt);
+
+        modelBuilder.Entity<CustomerProfile>()
+            .HasIndex(x => x.Email)
+            .IsUnique();
+
+        modelBuilder.Entity<CustomerProfile>()
+            .HasOne(x => x.User)
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

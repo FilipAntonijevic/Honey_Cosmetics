@@ -26,20 +26,6 @@ public class AdminController(
     IOptions<SendGridSettings> sendGridOptions,
     ILogger<AdminController> logger) : ControllerBase
 {
-    // ── Dashboard ────────────────────────────────────────────────────────────
-    [HttpGet("dashboard")]
-    public async Task<IActionResult> Dashboard()
-    {
-        var totalOrders = await db.Orders.CountAsync();
-        var pendingOrders = await db.Orders.CountAsync(x => x.Status == OrderStatus.Pending);
-        var totalProducts = await db.Products.ActiveProducts().CountAsync();
-        var totalRevenue = await db.Orders
-            .Where(x => x.Status != OrderStatus.Cancelled && x.Status != OrderStatus.Returned)
-            .SumAsync(x => (decimal?)x.Total) ?? 0;
-
-        return Ok(new { totalOrders, pendingOrders, totalProducts, totalRevenue });
-    }
-
     // ── Orders ───────────────────────────────────────────────────────────────
     [HttpGet("orders")]
     public async Task<ActionResult<IReadOnlyCollection<AdminOrderResponse>>> GetOrders(
@@ -56,14 +42,38 @@ public class AdminController(
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim().ToLower();
+            var raw = search.Trim();
+            var term = raw.ToLower();
+            var idTerm = raw.TrimStart('#');
+            var searchById = idTerm.Length > 0 && idTerm.All(char.IsDigit);
+
             query = query.Where(x =>
-                x.User!.Email.ToLower().Contains(term) ||
-                (x.User.FirstName + " " + x.User.LastName).ToLower().Contains(term));
+                (searchById && x.Id.ToString().Contains(idTerm))
+                || (x.User != null && (
+                    x.User.Email.ToLower().Contains(term) ||
+                    (x.User.FirstName + " " + x.User.LastName).ToLower().Contains(term)))
+                || (x.GuestEmail != null && x.GuestEmail.ToLower().Contains(term))
+                || (x.GuestName != null && x.GuestName.ToLower().Contains(term)));
         }
 
         var orders = await query.OrderByDescending(x => x.CreatedAt).ToListAsync();
         return Ok(orders.Select(MapAdminOrder));
+    }
+
+    // ── Users / Customers ──────────────────────────────────────────────────────
+    [HttpGet("users")]
+    public async Task<ActionResult<IReadOnlyCollection<AdminCustomerListItem>>> GetUsers([FromQuery] string? search)
+    {
+        var customers = await AdminCustomerService.GetListAsync(db, search);
+        return Ok(customers);
+    }
+
+    [HttpGet("users/{profileId:int}")]
+    public async Task<ActionResult<AdminCustomerDetailResponse>> GetUserDetail(int profileId)
+    {
+        var detail = await AdminCustomerService.GetDetailAsync(db, profileId);
+        if (detail is null) return NotFound();
+        return Ok(detail);
     }
 
     [HttpPut("orders/{orderId:int}/status")]
@@ -280,6 +290,29 @@ public class AdminController(
             stockCostValue));
     }
 
+    [HttpGet("products/{id:int}/pending-receipts")]
+    public async Task<ActionResult<IReadOnlyCollection<PendingStockReceiptResponse>>> GetPendingReceipts(int id)
+    {
+        var exists = await db.Products.ActiveProducts().AnyAsync(p => p.Id == id);
+        if (!exists) return NotFound();
+
+        var list = await db.StockReceipts
+            .AsNoTracking()
+            .Where(r => r.ProductId == id && r.ReceivedAt == null)
+            .OrderBy(r => r.CreatedAt)
+            .Select(r => new PendingStockReceiptResponse(
+                r.Id,
+                r.Quantity,
+                r.UnitCost,
+                r.TransportCost,
+                r.TotalCost,
+                r.Note,
+                r.CreatedAt))
+            .ToListAsync();
+
+        return Ok(list);
+    }
+
     [HttpPost("products/{id:int}/stock-purchase")]
     public async Task<IActionResult> StockPurchase(int id, [FromBody] StockPurchaseRequest request)
     {
@@ -313,19 +346,79 @@ public class AdminController(
         });
     }
 
+    [HttpPost("products/{id:int}/stock-write-off")]
+    public async Task<IActionResult> StockWriteOff(int id, [FromBody] StockWriteOffRequest request)
+    {
+        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
+        if (product is null) return NotFound();
+
+        var error = await InventoryFinanceService.ApplyStockWriteOffAsync(
+            db, product, request.Quantity, request.Note);
+        if (error is not null)
+            return BadRequest(error);
+
+        return Ok(new
+        {
+            product.Id,
+            product.StockQuantity,
+            product.OrderedQuantity,
+            product.UnitCostPrice,
+        });
+    }
+
     [HttpPost("products/{id:int}/stock-arrival")]
     public async Task<IActionResult> ConfirmStockArrival(int id)
     {
         var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
         if (product is null) return NotFound();
 
-        var stockBefore = product.StockQuantity;
-        var error = await InventoryFinanceService.ConfirmStockArrivalAsync(db, product);
+        var (error, stockBefore) = await InventoryFinanceService.ConfirmStockArrivalAsync(db, product);
         if (error is not null)
             return BadRequest(error);
 
         await WishlistStockNotificationService.TryNotifyBackInStockAsync(
             db, emailService, configuration, sendGridOptions, product, stockBefore, logger);
+
+        return Ok(new
+        {
+            product.Id,
+            product.StockQuantity,
+            product.OrderedQuantity,
+            product.UnitCostPrice,
+        });
+    }
+
+    [HttpPost("products/{id:int}/stock-receipts/{receiptId:int}/arrival")]
+    public async Task<IActionResult> ConfirmStockReceiptArrival(int id, int receiptId)
+    {
+        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
+        if (product is null) return NotFound();
+
+        var (error, stockBefore) = await InventoryFinanceService.ConfirmSingleStockArrivalAsync(db, product, receiptId);
+        if (error is not null)
+            return BadRequest(error);
+
+        await WishlistStockNotificationService.TryNotifyBackInStockAsync(
+            db, emailService, configuration, sendGridOptions, product, stockBefore, logger);
+
+        return Ok(new
+        {
+            product.Id,
+            product.StockQuantity,
+            product.OrderedQuantity,
+            product.UnitCostPrice,
+        });
+    }
+
+    [HttpDelete("products/{id:int}/stock-receipts/{receiptId:int}")]
+    public async Task<IActionResult> CancelPendingStockReceipt(int id, int receiptId)
+    {
+        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
+        if (product is null) return NotFound();
+
+        var error = await InventoryFinanceService.CancelPendingStockReceiptAsync(db, product, receiptId);
+        if (error is not null)
+            return BadRequest(error);
 
         return Ok(new
         {

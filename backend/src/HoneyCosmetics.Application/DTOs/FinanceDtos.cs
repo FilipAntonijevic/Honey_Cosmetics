@@ -58,6 +58,24 @@ public class StockPurchaseRequest
     public string? Note { get; set; }
 }
 
+public class StockWriteOffRequest
+{
+    [Range(1, 100000)]
+    public int Quantity { get; set; }
+
+    [Required, MaxLength(500)]
+    public string Note { get; set; } = string.Empty;
+}
+
+public record PendingStockReceiptResponse(
+    int Id,
+    int Quantity,
+    decimal UnitCost,
+    decimal TransportCost,
+    decimal TotalCost,
+    string? Note,
+    DateTime CreatedAt);
+
 public record ProductStatsResponse(
     int ProductId,
     string Name,

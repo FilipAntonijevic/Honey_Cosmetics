@@ -148,6 +148,9 @@ public class OrdersController(
 
         await db.SaveChangesAsync();
 
+        await CustomerProfileService.UpsertFromRegisteredOrderAsync(db, user, order);
+        await db.SaveChangesAsync();
+
         var settings = sendGridOptions.Value;
         // Build from cartItems — Product nav property is already loaded there
         var orderItems = cartItems.Select(x => (x.Product!.Name, x.Quantity, x.Product.Price)).ToList();
@@ -245,6 +248,8 @@ public class OrdersController(
         db.Notifications.Add(new Notification { Message = $"Nova gost porudžbina #{order.Id}" });
 
         await db.SaveChangesAsync();
+
+        await CustomerProfileService.UpsertFromGuestOrderAsync(db, order);
 
         var settings = sendGridOptions.Value;
         var guestName = order.GuestName ?? "Gost";

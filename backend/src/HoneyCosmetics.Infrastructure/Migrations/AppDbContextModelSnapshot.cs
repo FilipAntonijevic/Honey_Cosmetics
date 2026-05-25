@@ -180,6 +180,56 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.ToTable("CouponUsages");
                 });
 
+            modelBuilder.Entity("HoneyCosmetics.Domain.Entities.CustomerProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("City")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Country")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("FirstSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PostalCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Street")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("CustomerProfiles");
+                });
+
             modelBuilder.Entity("HoneyCosmetics.Domain.Entities.HomeSlideshowSlide", b =>
                 {
                     b.Property<int>("Id")
@@ -236,6 +286,12 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int?>("StockReceiptId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("WriteOffNote")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("WriteOffQuantity")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -761,6 +817,16 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Coupon");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("HoneyCosmetics.Domain.Entities.CustomerProfile", b =>
+                {
+                    b.HasOne("HoneyCosmetics.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("User");
                 });

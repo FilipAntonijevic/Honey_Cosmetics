@@ -14,6 +14,20 @@ function formatCalc(n) {
   return rounded === 0 ? '' : String(rounded)
 }
 
+function apiErrorMessage(err, fallback) {
+  const data = err.response?.data
+  if (typeof data === 'string' && data.trim()) return data
+  if (data?.errors) {
+    const msgs = Object.values(data.errors).flat().filter(Boolean)
+    if (msgs.length) return msgs.join(' ')
+  }
+  if (typeof data?.title === 'string' && data.title.trim()) return data.title
+  if (err.response?.status === 404) {
+    return 'API ruta nije pronađena — ponovo pokrenite backend (dotnet run).'
+  }
+  return fallback
+}
+
 function StatMetric({ label, value, highlight, sub }) {
   return (
     <div className={`adm-stats-metric${highlight ? ' adm-stats-metric--highlight' : ''}`}>
@@ -45,6 +59,8 @@ const EMPTY_NABAVKA = {
   note: '',
 }
 
+const EMPTY_OTPIS = { quantity: '', note: '' }
+
 export default function AdminProductDetail() {
   const { id } = useParams()
   const location = useLocation()
@@ -53,11 +69,14 @@ export default function AdminProductDetail() {
   const [stats, setStats] = useState(null)
   const [statsLoading, setStatsLoading] = useState(false)
   const [statsError, setStatsError] = useState('')
+  const [pendingReceipts, setPendingReceipts] = useState([])
   const [loading, setLoading] = useState(true)
   const [showDelete, setShowDelete] = useState(false)
   const [showStats, setShowStats] = useState(false)
   const [showNabavka, setShowNabavka] = useState(false)
+  const [showOtpis, setShowOtpis] = useState(false)
   const [nabavka, setNabavka] = useState(EMPTY_NABAVKA)
+  const [otpis, setOtpis] = useState(EMPTY_OTPIS)
   const merchTotalManual = useRef(false)
   const transportTotalManual = useRef(false)
   const [saving, setSaving] = useState(false)
@@ -82,15 +101,25 @@ export default function AdminProductDetail() {
     }
   }
 
-  const load = () => {
-    setLoading(true)
-    api.get(`/admin/products/${id}`)
+  const loadPendingReceipts = () =>
+    api.get(`/admin/products/${id}/pending-receipts`)
+      .then(({ data }) => setPendingReceipts(data ?? []))
+      .catch(() => setPendingReceipts([]))
+
+  const load = ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
+    return api.get(`/admin/products/${id}`)
       .then((p) => {
         setProduct(p.data)
-        return loadStats()
+        return Promise.all([loadStats(), loadPendingReceipts()])
       })
-      .catch(() => setProduct(null))
-      .finally(() => setLoading(false))
+      .catch(() => {
+        if (!silent) setProduct(null)
+        throw new Error('load failed')
+      })
+      .finally(() => {
+        if (!silent) setLoading(false)
+      })
   }
 
   useEffect(() => { load() }, [id])
@@ -109,6 +138,12 @@ export default function AdminProductDetail() {
     })
     setError('')
     setShowNabavka(true)
+  }
+
+  const openOtpis = () => {
+    setOtpis(EMPTY_OTPIS)
+    setError('')
+    setShowOtpis(true)
   }
 
   const handleNabavkaChange = (field, value) => {
@@ -153,14 +188,28 @@ export default function AdminProductDetail() {
     }
   }
 
-  const confirmArrival = async () => {
+  const confirmArrival = async (receiptId) => {
     setSaving(true)
     setError('')
     try {
-      await api.post(`/admin/products/${id}/stock-arrival`)
+      await api.post(`/admin/products/${id}/stock-receipts/${receiptId}/arrival`)
       load()
     } catch (err) {
       setError(typeof err.response?.data === 'string' ? err.response.data : 'Prijava robe nije uspela.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const removePendingReceipt = async (receiptId) => {
+    if (!window.confirm('Ukloniti ovu evidenciju nabavke? Roba neće ući na lager.')) return
+    setSaving(true)
+    setError('')
+    try {
+      await api.delete(`/admin/products/${id}/stock-receipts/${receiptId}`)
+      load()
+    } catch (err) {
+      setError(typeof err.response?.data === 'string' ? err.response.data : 'Uklanjanje nije uspelo.')
     } finally {
       setSaving(false)
     }
@@ -195,6 +244,49 @@ export default function AdminProductDetail() {
       load()
     } catch (err) {
       setError(typeof err.response?.data === 'string' ? err.response.data : 'Nabavka nije sačuvana.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const submitOtpis = async (e) => {
+    e.preventDefault()
+    setError('')
+    setSaving(true)
+    const qty = parseInt(otpis.quantity, 10)
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setError('Unesite ispravnu količinu.')
+      setSaving(false)
+      return
+    }
+    const available = product?.stockQuantity ?? 0
+    if (qty > available) {
+      setError(`Na stanju je samo ${available} komada.`)
+      setSaving(false)
+      return
+    }
+    const note = otpis.note?.trim()
+    if (!note) {
+      setError('Napomena je obavezna (evidentira se u Prihodima).')
+      setSaving(false)
+      return
+    }
+    try {
+      const { data } = await api.post(`/admin/products/${id}/stock-write-off`, {
+        quantity: qty,
+        note,
+      })
+      setProduct((prev) => prev ? {
+        ...prev,
+        stockQuantity: data.stockQuantity,
+        orderedQuantity: data.orderedQuantity,
+        unitCostPrice: data.unitCostPrice,
+      } : prev)
+      setOtpis(EMPTY_OTPIS)
+      setShowOtpis(false)
+      await load({ silent: true })
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Otpis nije sačuvan.'))
     } finally {
       setSaving(false)
     }
@@ -295,30 +387,64 @@ export default function AdminProductDetail() {
             <p className="adm-product-hub__stock">
               Na stanju: <strong>{product.stockQuantity ?? 0}</strong> kom
             </p>
-            {(product.orderedQuantity ?? 0) > 0 && (
-              <div className="adm-product-ordered">
-                <span className="adm-product-ordered__badge">
-                  PORUČENO: {product.orderedQuantity} komada
-                </span>
-                <button
-                  type="button"
-                  className="adm-btn adm-btn-primary adm-btn--arrival"
-                  disabled={saving}
-                  onClick={confirmArrival}
-                >
-                  {saving ? '…' : 'Stiglo'}
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      <div className="adm-product-hub__actions">
-        <button type="button" className="adm-btn adm-btn-blue" onClick={openNabavka}>Nabavka</button>
-        <Link to={`/admin/products/${id}/edit`} className="adm-btn">Izmeni detalje o proizvodu</Link>
-        <button type="button" className="adm-btn" onClick={openStats}>Statistika</button>
-        <button type="button" className="adm-btn adm-btn-danger" onClick={() => setShowDelete(true)}>Obriši proizvod</button>
+      <div className="adm-product-detail-toolbar">
+        {error && !showNabavka && !showOtpis && (
+          <p className="adm-form-error" role="alert">{error}</p>
+        )}
+
+        <div className="adm-product-hub__actions">
+          <button type="button" className="adm-btn adm-btn-blue" onClick={openNabavka}>Nabavka</button>
+          <button type="button" className="adm-btn adm-btn-writeoff" onClick={openOtpis}>Otpis</button>
+          <Link to={`/admin/products/${id}/edit`} className="adm-btn">Izmeni detalje o proizvodu</Link>
+          <button type="button" className="adm-btn" onClick={openStats}>Statistika</button>
+          <button type="button" className="adm-btn adm-btn-danger" onClick={() => setShowDelete(true)}>Obriši proizvod</button>
+        </div>
+
+        {pendingReceipts.length > 0 && (
+          <div className="adm-pending-receipts-wrap">
+            <ul className="adm-pending-receipts">
+              {pendingReceipts.map((receipt) => (
+                <li key={receipt.id} className="adm-pending-receipt-card">
+                  <div className="adm-pending-receipt-card__main">
+                    <span className="adm-pending-receipt-card__badge">
+                      PORUČENO: {receipt.quantity} komada
+                    </span>
+                    {receipt.totalCost > 0 && (
+                      <span className="adm-pending-receipt-card__meta">
+                        {fmtMoney(receipt.totalCost)}
+                      </span>
+                    )}
+                    {receipt.note && (
+                      <span className="adm-pending-receipt-card__note">{receipt.note}</span>
+                    )}
+                  </div>
+                  <div className="adm-pending-receipt-card__actions">
+                    <button
+                      type="button"
+                      className="adm-btn adm-btn-primary adm-btn--arrival"
+                      disabled={saving}
+                      onClick={() => confirmArrival(receipt.id)}
+                    >
+                      {saving ? '…' : 'Stiglo'}
+                    </button>
+                    <button
+                      type="button"
+                      className="adm-btn adm-btn-danger adm-btn--compact"
+                      disabled={saving}
+                      onClick={() => removePendingReceipt(receipt.id)}
+                    >
+                      Ukloni
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {showDelete && (
@@ -538,6 +664,48 @@ export default function AdminProductDetail() {
                 <button type="button" className="adm-btn" onClick={() => setShowNabavka(false)}>Odustani</button>
                 <button type="submit" className="adm-btn adm-btn-primary" disabled={saving}>
                   {saving ? 'Čuvanje…' : 'Evidentiraj porudžbinu'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showOtpis && (
+        <div className="adm-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowOtpis(false)}>
+          <div className="adm-modal" role="dialog">
+            <h2>Otpis — {product.name}</h2>
+            <p className="adm-modal-hint">
+              Smanjuje stanje na lageru odmah i evidentira otpis u Prihodima (iznos −0 RSD). Na stanju trenutno: <strong>{product.stockQuantity ?? 0} kom</strong>.
+            </p>
+            {error && <div className="adm-form-error">{error}</div>}
+            <form onSubmit={submitOtpis} className="adm-form">
+              <div className="adm-form-row">
+                <label>Količina za otpis *</label>
+                <input
+                  className="adm-input"
+                  type="number"
+                  min="1"
+                  max={product.stockQuantity ?? 0}
+                  required
+                  value={otpis.quantity}
+                  onChange={(e) => setOtpis((o) => ({ ...o, quantity: e.target.value }))}
+                />
+              </div>
+              <div className="adm-form-row">
+                <label>Napomena *</label>
+                <input
+                  className="adm-input"
+                  required
+                  value={otpis.note}
+                  onChange={(e) => setOtpis((o) => ({ ...o, note: e.target.value }))}
+                  placeholder="npr. oštećeno, istekao rok…"
+                />
+              </div>
+              <div className="adm-modal-footer">
+                <button type="button" className="adm-btn" onClick={() => setShowOtpis(false)}>Odustani</button>
+                <button type="submit" className="adm-btn adm-btn-writeoff" disabled={saving || (product.stockQuantity ?? 0) <= 0}>
+                  {saving ? 'Čuvanje…' : 'Potvrdi otpis'}
                 </button>
               </div>
             </form>

@@ -5,6 +5,7 @@ using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Domain.Enums;
 using HoneyCosmetics.Infrastructure.Data;
+using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -158,10 +159,14 @@ public class AuthController(
             var activated = await db.Users.FirstAsync(x => x.Email == email);
             await RemovePendingByEmailAsync(email);
             await TryAddWelcomeCouponAsync(activated);
+            await CustomerProfileService.UpsertFromUserAsync(db, activated);
+            await db.SaveChangesAsync();
             return Ok(await CreateAuthResponseAsync(activated));
         }
 
         await TryAddWelcomeCouponAsync(user);
+        await CustomerProfileService.UpsertFromUserAsync(db, user);
+        await db.SaveChangesAsync();
         return Ok(await CreateAuthResponseAsync(user));
     }
 

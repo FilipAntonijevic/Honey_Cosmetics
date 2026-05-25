@@ -148,7 +148,55 @@ public static class InventoryFinanceService
         return receipt;
     }
 
-    public static async Task<string?> ConfirmStockArrivalAsync(
+    public static async Task<(string? Error, int StockBefore)> ConfirmSingleStockArrivalAsync(
+        AppDbContext db,
+        Product product,
+        int receiptId,
+        CancellationToken ct = default)
+    {
+        var receipt = await db.StockReceipts
+            .FirstOrDefaultAsync(
+                r => r.Id == receiptId && r.ProductId == product.Id && r.ReceivedAt == null,
+                ct);
+
+        if (receipt is null)
+            return ("Evidencija nabavke nije pronađena ili je roba već primljena.", 0);
+
+        var stockBefore = product.StockQuantity;
+        ApplyReceiptToStock(product, receipt);
+        receipt.ReceivedAt = DateTime.UtcNow;
+        product.OrderedQuantity = Math.Max(0, product.OrderedQuantity - receipt.Quantity);
+        await db.SaveChangesAsync(ct);
+        return (null, stockBefore);
+    }
+
+    public static async Task<string?> CancelPendingStockReceiptAsync(
+        AppDbContext db,
+        Product product,
+        int receiptId,
+        CancellationToken ct = default)
+    {
+        var receipt = await db.StockReceipts
+            .FirstOrDefaultAsync(r => r.Id == receiptId && r.ProductId == product.Id, ct);
+
+        if (receipt is null)
+            return "Evidencija nabavke nije pronađena.";
+
+        if (receipt.ReceivedAt is not null)
+            return "Roba je već primljena na lager i ne može se ukloniti ovim putem.";
+
+        var ledger = await db.LedgerEntries
+            .FirstOrDefaultAsync(e => e.StockReceiptId == receiptId, ct);
+        if (ledger is not null)
+            db.LedgerEntries.Remove(ledger);
+
+        product.OrderedQuantity = Math.Max(0, product.OrderedQuantity - receipt.Quantity);
+        db.StockReceipts.Remove(receipt);
+        await db.SaveChangesAsync(ct);
+        return null;
+    }
+
+    public static async Task<(string? Error, int StockBefore)> ConfirmStockArrivalAsync(
         AppDbContext db,
         Product product,
         CancellationToken ct = default)
@@ -159,29 +207,71 @@ public static class InventoryFinanceService
             .ToListAsync(ct);
 
         if (pending.Count == 0)
-            return "Nema poručene robe koja čeka prijem.";
+            return ("Nema poručene robe koja čeka prijem.", 0);
+
+        var stockBefore = product.StockQuantity;
 
         foreach (var receipt in pending)
         {
-            var oldQty = product.StockQuantity;
-            var oldCost = product.UnitCostPrice ?? receipt.UnitCost;
-            product.StockQuantity += receipt.Quantity;
-            if (receipt.Quantity > 0)
-            {
-                product.UnitCostPrice = oldQty + receipt.Quantity > 0
-                    ? Math.Round((oldQty * oldCost + receipt.Quantity * receipt.UnitCost) / (oldQty + receipt.Quantity), 2)
-                    : receipt.UnitCost;
-            }
-            else if (product.UnitCostPrice is null)
-            {
-                product.UnitCostPrice = receipt.UnitCost;
-            }
-
+            ApplyReceiptToStock(product, receipt);
             receipt.ReceivedAt = DateTime.UtcNow;
+            product.OrderedQuantity = Math.Max(0, product.OrderedQuantity - receipt.Quantity);
         }
 
-        product.OrderedQuantity = 0;
+        await db.SaveChangesAsync(ct);
+        return (null, stockBefore);
+    }
+
+    public static async Task<string?> ApplyStockWriteOffAsync(
+        AppDbContext db,
+        Product product,
+        int quantity,
+        string? note,
+        CancellationToken ct = default)
+    {
+        if (quantity <= 0)
+            return "Količina mora biti veća od nule.";
+
+        if (product.StockQuantity < quantity)
+            return $"Na stanju je samo {product.StockQuantity} komada.";
+
+        product.StockQuantity -= quantity;
+
+        var trimmedNote = note?.Trim();
+        var desc = string.IsNullOrWhiteSpace(trimmedNote)
+            ? $"Otpis: {product.Name} — {quantity} kom"
+            : $"Otpis: {product.Name} — {quantity} kom — {trimmedNote}";
+
+        db.LedgerEntries.Add(new LedgerEntry
+        {
+            OccurredAt = DateTime.UtcNow,
+            EntryType = LedgerEntryType.Expense,
+            Amount = 0,
+            Description = desc,
+            Source = LedgerSource.StockWriteOff,
+            ProductId = product.Id,
+            WriteOffQuantity = quantity,
+            WriteOffNote = string.IsNullOrWhiteSpace(trimmedNote) ? null : trimmedNote,
+        });
+
         await db.SaveChangesAsync(ct);
         return null;
+    }
+
+    private static void ApplyReceiptToStock(Product product, StockReceipt receipt)
+    {
+        var oldQty = product.StockQuantity;
+        var oldCost = product.UnitCostPrice ?? receipt.UnitCost;
+        product.StockQuantity += receipt.Quantity;
+        if (receipt.Quantity > 0)
+        {
+            product.UnitCostPrice = oldQty + receipt.Quantity > 0
+                ? Math.Round((oldQty * oldCost + receipt.Quantity * receipt.UnitCost) / (oldQty + receipt.Quantity), 2)
+                : receipt.UnitCost;
+        }
+        else if (product.UnitCostPrice is null)
+        {
+            product.UnitCostPrice = receipt.UnitCost;
+        }
     }
 }

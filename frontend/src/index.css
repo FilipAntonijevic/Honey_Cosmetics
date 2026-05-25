@@ -1387,6 +1387,139 @@ button, input, select { font-family: inherit; }
 .adm-customer-name { font-weight: 500; color: #111827; }
 .adm-customer-email { font-size: 0.78rem; color: #9ca3af; }
 
+.adm-user-role {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.adm-user-role--admin { background: #ede9fe; color: #5b21b6; }
+.adm-user-role--user { background: #ecfdf5; color: #047857; }
+.adm-user-role--guest { background: #fef3c7; color: #92400e; }
+.adm-users-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.25fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+.adm-users-list,
+.adm-users-detail {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+  min-height: 320px;
+}
+.adm-users-detail__empty {
+  color: #9ca3af;
+  font-size: 0.9rem;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+.adm-users-detail__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+.adm-users-detail__title {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #111827;
+}
+.adm-users-detail__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+.adm-users-product {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.adm-users-product__img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.adm-users-wishlist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.adm-users-wishlist__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.adm-users-wishlist__item:last-child { border-bottom: none; }
+.adm-users-wishlist__img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.adm-users-wishlist__name { font-weight: 500; color: #111827; font-size: 0.875rem; }
+.adm-users-wishlist__meta {
+  font-size: 0.8rem;
+  color: #6b7280;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.adm-users-wishlist__oos {
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+.adm-table--compact th,
+.adm-table--compact td {
+  padding: 0.55rem 0.65rem;
+  font-size: 0.82rem;
+}
+@media (max-width: 960px) {
+  .adm-users-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.adm-table-detail-row td {
+  padding: 0 1rem 0.85rem;
+  background: #f0f4ff;
+  border-bottom: 1px solid #e5e7eb;
+}
+.adm-user-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  padding: 0.75rem 0 0.25rem;
+  font-size: 0.875rem;
+  color: #374151;
+}
+.adm-user-detail__label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  margin-bottom: 0.15rem;
+}
+.adm-user-detail__link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+.adm-user-detail__link:hover { text-decoration: underline; }
+
 .adm-status-badge {
   display: inline-block;
   padding: 0.25rem 0.65rem;
@@ -1953,6 +2086,139 @@ button, input, select { font-family: inherit; }
 .adm-td-total { font-weight: 600; color: #1a1a2e; white-space: nowrap; }
 .adm-customer-name { font-weight: 500; color: #111827; }
 .adm-customer-email { font-size: 0.78rem; color: #9ca3af; }
+
+.adm-user-role {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.adm-user-role--admin { background: #ede9fe; color: #5b21b6; }
+.adm-user-role--user { background: #ecfdf5; color: #047857; }
+.adm-user-role--guest { background: #fef3c7; color: #92400e; }
+.adm-users-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.25fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+.adm-users-list,
+.adm-users-detail {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+  min-height: 320px;
+}
+.adm-users-detail__empty {
+  color: #9ca3af;
+  font-size: 0.9rem;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+.adm-users-detail__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+.adm-users-detail__title {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #111827;
+}
+.adm-users-detail__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+.adm-users-product {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.adm-users-product__img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.adm-users-wishlist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.adm-users-wishlist__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.adm-users-wishlist__item:last-child { border-bottom: none; }
+.adm-users-wishlist__img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.adm-users-wishlist__name { font-weight: 500; color: #111827; font-size: 0.875rem; }
+.adm-users-wishlist__meta {
+  font-size: 0.8rem;
+  color: #6b7280;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.adm-users-wishlist__oos {
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+.adm-table--compact th,
+.adm-table--compact td {
+  padding: 0.55rem 0.65rem;
+  font-size: 0.82rem;
+}
+@media (max-width: 960px) {
+  .adm-users-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.adm-table-detail-row td {
+  padding: 0 1rem 0.85rem;
+  background: #f0f4ff;
+  border-bottom: 1px solid #e5e7eb;
+}
+.adm-user-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  padding: 0.75rem 0 0.25rem;
+  font-size: 0.875rem;
+  color: #374151;
+}
+.adm-user-detail__label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  margin-bottom: 0.15rem;
+}
+.adm-user-detail__link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+.adm-user-detail__link:hover { text-decoration: underline; }
 
 .adm-status-badge {
   display: inline-block;
@@ -5655,25 +5921,81 @@ button, input, select { font-family: inherit; }
   font-size: 0.95rem;
   color: #374151;
 }
-.adm-product-ordered {
+.adm-product-detail-toolbar {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-  padding-left: 1.25rem;
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
 }
-.adm-product-ordered__badge {
+.adm-pending-receipts-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
+}
+.adm-pending-receipts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.75rem;
+  width: max-content;
+  min-width: 100%;
+}
+.adm-pending-receipt-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+  width: 220px;
+  padding: 0.85rem 1rem;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  background: #f0fdf4;
+  box-sizing: border-box;
+}
+.adm-pending-receipt-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.adm-pending-receipt-card__badge {
   display: inline-block;
-  padding: 0.5rem 1.15rem;
-  border-radius: 999px;
-  background: #dcfce7;
-  color: #15803d;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 700;
   letter-spacing: 0.03em;
-  white-space: nowrap;
-  box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.2);
+  color: #15803d;
+}
+.adm-pending-receipt-card__meta {
+  font-size: 0.82rem;
+  color: #4b5563;
+  font-weight: 600;
+}
+.adm-pending-receipt-card__note {
+  font-size: 0.78rem;
+  color: #6b7280;
+  line-height: 1.35;
+}
+.adm-pending-receipt-card__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  margin-top: auto;
+}
+.adm-pending-receipt-card__actions .adm-btn {
+  width: 100%;
+  justify-content: center;
+}
+.adm-btn--compact {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
 }
 .adm-btn--arrival {
   padding: 0.4rem 1rem;
@@ -5703,6 +6025,15 @@ button, input, select { font-family: inherit; }
 .adm-btn-blue:hover {
   background: #1d4ed8;
   border-color: #1d4ed8;
+}
+.adm-btn-writeoff {
+  background: #ea580c;
+  color: #fff;
+  border-color: #c2410c;
+}
+.adm-btn-writeoff:hover:not(:disabled) {
+  background: #c2410c;
+  border-color: #9a3412;
 }
 .adm-back-link {
   display: inline-block;

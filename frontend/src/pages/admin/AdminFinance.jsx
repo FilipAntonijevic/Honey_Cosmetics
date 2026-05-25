@@ -7,6 +7,7 @@ const SOURCE_LABELS = {
   Manual: 'Ručni unos',
   StockPurchase: 'Nabavka',
   OrderDelivered: 'Porudžbina (dostavljeno)',
+  StockWriteOff: 'Otpis',
 }
 
 function signedAmount(entry) {
@@ -72,6 +73,8 @@ function buildTree(entries) {
 function txShortLabel(entry) {
   if (entry.source === 'StockPurchase' && entry.productName) return `Nabavka — ${entry.productName}`
   if (entry.source === 'StockPurchase') return 'Nabavka'
+  if (entry.source === 'StockWriteOff' && entry.productName) return `Otpis — ${entry.productName}`
+  if (entry.source === 'StockWriteOff') return 'Otpis'
   if (entry.source === 'Manual') return entry.entryType === 'Income' ? 'Ručni prihod' : 'Ručni trošak'
   if (entry.source === 'OrderDelivered' && entry.entryType === 'Income') return 'Uplata korisnika (dostavljeno)'
   if (entry.source === 'OrderDelivered') return 'Porudžbina (stari zapis troška)'
@@ -80,7 +83,7 @@ function txShortLabel(entry) {
 
 function AmountCell({ value }) {
   if (value == null) return <span className="ledger-tree-row__amount-empty">—</span>
-  const pos = value >= 0
+  const pos = value > 0
   const fmt = (n) => Number(n).toLocaleString('sr-RS', { maximumFractionDigits: 0 })
   return (
     <span className={pos ? 'ledger-amt--in' : 'ledger-amt--out'}>
@@ -140,6 +143,7 @@ function TreeRow({
 function EntryDetailInline({ entry, fmt, onDelete }) {
   const isIncome = entry.entryType === 'Income'
   const isPurchase = entry.source === 'StockPurchase'
+  const isWriteOff = entry.source === 'StockWriteOff'
 
   return (
     <div className="ledger-detail-inline">
@@ -176,6 +180,20 @@ function EntryDetailInline({ entry, fmt, onDelete }) {
             <dd>{fmt(entry.purchaseTransportCost ?? 0)} RSD</dd>
             <dt>Ukupan trošak nabavke</dt>
             <dd><strong>{fmt(entry.purchaseTotalCost ?? entry.amount)} RSD</strong></dd>
+            {entry.purchaseNote && (
+              <>
+                <dt>Napomena</dt>
+                <dd>{entry.purchaseNote}</dd>
+              </>
+            )}
+          </>
+        )}
+        {isWriteOff && (
+          <>
+            <dt>Proizvod</dt>
+            <dd>{entry.productName ?? '—'}</dd>
+            <dt>Količina</dt>
+            <dd>{entry.purchaseQuantity ?? '—'} kom</dd>
             {entry.purchaseNote && (
               <>
                 <dt>Napomena</dt>

@@ -21,8 +21,9 @@ import Contact from './pages/Contact'
 import Delivery from './pages/Delivery'
 import Collaboration from './pages/Collaboration'
 import Wishlist from './pages/Wishlist'
-import AdminDashboard from './pages/AdminDashboard'
 import AdminOrders from './pages/AdminOrders'
+import AdminUsers from './pages/AdminUsers'
+import AdminUserDetail from './pages/admin/AdminUserDetail'
 import AdminProducts from './pages/AdminProducts'
 import AdminProductDetail from './pages/admin/AdminProductDetail'
 import AdminProductFormPage from './pages/admin/AdminProductFormPage'
@@ -100,7 +101,7 @@ function AuthRoute({ children }) {
   const location = useLocation()
   if (initializing) return null
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
-  if (user.role === 'Admin') return <Navigate to="/admin" replace />
+  if (user.role === 'Admin') return <Navigate to="/admin/orders" replace />
   return children
 }
 
@@ -148,19 +149,21 @@ function AdminRoutes() {
     <AdminRoute>
       <AdminLayout>
         <Routes>
-          <Route index element={<AdminDashboard />} />
+          <Route index element={<Navigate to="/admin/orders" replace />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="products" element={<AdminProducts />} />
           <Route path="products/new" element={<AdminProductFormPage />} />
           <Route path="products/:id/edit" element={<AdminProductFormPage />} />
           <Route path="products/:id" element={<AdminProductDetail />} />
           <Route path="finance" element={<AdminFinance />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="users/:id" element={<AdminUserDetail />} />
           <Route path="categories" element={<AdminCategories />} />
           <Route path="bestsellers" element={<AdminBestsellers />} />
           <Route path="home-slideshow" element={<AdminHomeSlideshow />} />
           <Route path="coupons" element={<AdminCoupons />} />
           <Route path="links" element={<AdminLinks />} />
-          <Route path="*" element={<Navigate to="/admin" replace />} />
+          <Route path="*" element={<Navigate to="/admin/orders" replace />} />
         </Routes>
       </AdminLayout>
     </AdminRoute>

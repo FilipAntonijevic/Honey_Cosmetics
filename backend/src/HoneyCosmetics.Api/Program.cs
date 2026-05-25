@@ -284,6 +284,7 @@ using (var scope = app.Services.CreateScope())
     }
 
     db.SaveChanges();
+    await CustomerProfileService.BackfillAsync(db);
 }
 
 //

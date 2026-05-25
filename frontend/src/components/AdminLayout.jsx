@@ -6,10 +6,10 @@ import { publicUrl } from '../lib/assets'
 const MOBILE_ADM_MQ = '(max-width: 768px)'
 
 const navItems = [
-  { to: '/admin', label: 'Dashboard', icon: '⬛', exact: true },
   { to: '/admin/orders', label: 'Porudžbine', icon: '📦' },
-  { to: '/admin/finance', label: 'Prihodi', icon: '💰' },
   { to: '/admin/products', label: 'Proizvodi', icon: '🧴' },
+  { to: '/admin/finance', label: 'Prihodi', icon: '💰' },
+  { to: '/admin/users', label: 'Korisnici', icon: '👤' },
   { to: '/admin/categories', label: 'Kategorije', icon: '📁' },
   { to: '/admin/bestsellers', label: 'Bestsellers', icon: '★' },
   { to: '/admin/home-slideshow', label: 'Slideshow', icon: '🖼' },
@@ -111,11 +111,10 @@ export default function AdminLayout({ children }) {
         </div>
 
         <nav className="adm-nav">
-          {navItems.map(({ to, label, icon, exact }) => (
+          {navItems.map(({ to, label, icon }) => (
             <NavLink
               key={to}
               to={to}
-              end={exact}
               className={({ isActive }) => `adm-nav-item${isActive ? ' active' : ''}`}
               onClick={closeSidebarOnNav}
             >

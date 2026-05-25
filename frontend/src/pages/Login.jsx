@@ -55,7 +55,7 @@ export default function Account({ initialMode = 'login' }) {
   if (initializing) return null
 
   const from = location.state?.from ?? '/'
-  if (user) return <Navigate to={user.role === 'Admin' ? '/admin' : from} replace />
+  if (user) return <Navigate to={user.role === 'Admin' ? '/admin/orders' : from} replace />
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -98,7 +98,7 @@ export default function Account({ initialMode = 'login' }) {
     try {
       if (mode === 'login') {
         const result = await login({ email: form.email, password: form.password })
-        navigate(result?.role === 'Admin' ? '/admin' : from, { replace: true })
+        navigate(result?.role === 'Admin' ? '/admin/orders' : from, { replace: true })
       } else {
         const data = await register({
           email: form.email,

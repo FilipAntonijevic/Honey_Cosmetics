@@ -16,5 +16,7 @@ public class LedgerEntry
     public Product? Product { get; set; }
     public int? StockReceiptId { get; set; }
     public StockReceipt? StockReceipt { get; set; }
+    public int? WriteOffQuantity { get; set; }
+    public string? WriteOffNote { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

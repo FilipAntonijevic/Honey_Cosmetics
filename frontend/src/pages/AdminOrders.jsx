@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../api'
 
 /** Redosled u padajućem meniju (Dostavljeno poslednje). */
@@ -57,9 +58,10 @@ function statusLabel(status) {
 }
 
 export default function AdminOrders() {
+  const [searchParams] = useSearchParams()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [selectedStatuses, setSelectedStatuses] = useState(
     () => new Set(['Pending']),
   )
@@ -310,7 +312,7 @@ export default function AdminOrders() {
       <div className="adm-toolbar">
         <input
           className="adm-search"
-          placeholder="Pretraži po imenu ili emailu..."
+          placeholder="Pretraži po ID-u porudžbine"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
