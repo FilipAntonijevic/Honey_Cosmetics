@@ -2,11 +2,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
-import { apiImageUrl, publicUrl } from '../lib/assets'
+import { publicUrl } from '../lib/assets'
 import {
   attachResolvedImageSrc,
   attachResolvedImageSrcPartial,
+  preloadDirectImagesAwait,
   preloadProductImagesMediumAwait,
+  resolveDirectImageSrc,
 } from '../lib/imagePreload'
 import { isInStock } from '../utils/stock'
 
@@ -762,12 +764,16 @@ export default function Home() {
     let cancelled = false
     api
       .get('/home-slideshow')
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (cancelled) return
-        const urls = (data ?? [])
+        const paths = (data ?? [])
           .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((s) => apiImageUrl(s.imageUrl))
+          .map((s) => s.imageUrl)
           .filter(Boolean)
+        if (paths.length === 0) return
+        await preloadDirectImagesAwait(paths)
+        if (cancelled) return
+        const urls = paths.map((p) => resolveDirectImageSrc(p)).filter(Boolean)
         if (urls.length > 0) setHeroImages(urls)
       })
       .catch(() => {})

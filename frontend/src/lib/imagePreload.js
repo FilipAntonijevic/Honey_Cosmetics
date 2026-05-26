@@ -130,3 +130,18 @@ export function preloadProductImagesAwait(products) {
   if (!Array.isArray(products) || products.length === 0) return Promise.resolve()
   return Promise.all(products.map((p) => preloadOne(p?.imageUrl)))
 }
+
+/** Slideshow / direktne slike iz baze — puna rezolucija, bez WebP varijanti. */
+export function resolveDirectImageSrc(imageUrl) {
+  return getPreloadedImage(imageUrl) || apiImageUrl(imageUrl) || ''
+}
+
+export function preloadDirectImagesAwait(imageUrls) {
+  if (!Array.isArray(imageUrls) || imageUrls.length === 0) return Promise.resolve()
+  return Promise.all(
+    imageUrls.map((url) => {
+      const key = apiImageUrl(url)
+      return key ? preloadUrlOnce(key) : Promise.resolve()
+    }),
+  )
+}
