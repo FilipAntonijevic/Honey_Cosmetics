@@ -220,6 +220,9 @@ export default function Layout({ children }) {
 
   const [revealVisible, setRevealVisible] = useState(false)
   const lastScrollY = useRef(0)
+  const flowHeaderRef = useRef(null)
+  /** Jednom aktiviran reveal ostaje dok korisnik ne skroluje nadole — flow header ne gasi visibility. */
+  const revealLockedRef = useRef(false)
 
   const getScrollY = () =>
     Math.max(
@@ -228,8 +231,16 @@ export default function Layout({ children }) {
       document.body.scrollTop,
     )
 
+  /** Donji deo flow headera je na ekranu — blokira samo pojavu reveal-a, ne i visibility. */
+  const isFlowHeaderBottomVisible = () => {
+    const el = flowHeaderRef.current
+    if (!el) return true
+    return el.getBoundingClientRect().bottom > 0
+  }
+
   useEffect(() => {
     lastScrollY.current = getScrollY()
+    revealLockedRef.current = false
     setRevealVisible(false)
     setUserMenuOpen(false)
     setPhoneMenuOpen(false)
@@ -242,23 +253,40 @@ export default function Layout({ children }) {
   }, [])
 
   useEffect(() => {
+    const SCROLL_DOWN_DISMISS = 12
+
     const onScroll = () => {
       const y = getScrollY()
       const delta = y - lastScrollY.current
       lastScrollY.current = y
 
-      if (delta < 0) {
-        setRevealVisible(true)
-      } else if (delta > 0) {
-        setRevealVisible(false)
+      if (delta > 0) {
+        if (revealLockedRef.current && delta >= SCROLL_DOWN_DISMISS) {
+          revealLockedRef.current = false
+          setRevealVisible(false)
+        }
         setUserMenuOpen(false)
         setPhoneMenuOpen(false)
         setCategoriesMenuOpen(false)
+        return
+      }
+
+      if (delta < 0) {
+        if (revealLockedRef.current) {
+          setRevealVisible(true)
+          return
+        }
+        if (!isFlowHeaderBottomVisible()) {
+          revealLockedRef.current = true
+          setRevealVisible(true)
+        }
       }
     }
 
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+    }
   }, [])
 
   const changeMiniCartQty = (id, delta) => {
@@ -303,7 +331,6 @@ export default function Layout({ children }) {
   }
 
   const headerPanelProps = {
-    isHome,
     vrste,
     siteLinks,
     user,
@@ -350,6 +377,7 @@ export default function Layout({ children }) {
 
       <SiteHeaderPanel
         variant="flow"
+        panelRef={flowHeaderRef}
         attachRefs={!revealVisible}
         userMenuRef={userMenuRef}
         phoneMenuRef={phoneMenuRef}

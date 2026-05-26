@@ -307,34 +307,6 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.ToTable("LedgerEntries");
                 });
 
-            modelBuilder.Entity("HoneyCosmetics.Domain.Entities.Notification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Notifications");
-                });
-
             modelBuilder.Entity("HoneyCosmetics.Domain.Entities.Order", b =>
                 {
                     b.Property<int>("Id")
@@ -858,15 +830,6 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("StockReceipt");
-                });
-
-            modelBuilder.Entity("HoneyCosmetics.Domain.Entities.Notification", b =>
-                {
-                    b.HasOne("HoneyCosmetics.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("HoneyCosmetics.Domain.Entities.Order", b =>

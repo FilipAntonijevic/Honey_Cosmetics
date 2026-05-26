@@ -48,11 +48,6 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddSingleton<ImageThumbnailService>();
 
 //
-// Background Services
-//
-builder.Services.AddHostedService<OrderNotificationBackgroundService>();
-
-//
 // CORS
 //
 builder.Services.AddCors(options =>

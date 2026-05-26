@@ -9,13 +9,13 @@ import ViberIcon from './icons/ViberIcon'
  */
 export default function SiteHeaderPanel({
   variant,
+  panelRef,
   bodyRef,
   attachRefs,
   userMenuRef,
   phoneMenuRef,
   categoriesMenuRef,
   visible = true,
-  isHome = false,
   vrste,
   siteLinks,
   user,
@@ -266,7 +266,7 @@ export default function SiteHeaderPanel({
 
   const mainBand = (
     <div className="main-header-band">
-      <div className={`main-header shell${isHome ? ' main-header--home' : ''}`}>
+      <div className="main-header shell main-header--home">
         <Link
           to="/"
           className="logo"
@@ -277,40 +277,25 @@ export default function SiteHeaderPanel({
           <img src={publicUrl('/logo.png')} alt="Honey Nail Innovations" className="logo-img" />
         </Link>
 
-        {isHome ? (
-          <>
-            <div className="header-home-center">
-              {searchForm}
-              <div className="icons header-home-social">
-                {socialIcons}
-              </div>
-            </div>
-            <div className="header-home-cart">
+        <div className="header-home-center">
+          {searchForm}
+          <div className="icons header-home-social">
+            {socialIcons}
+          </div>
+        </div>
+        <div className="header-home-cart">
+          {cartControl}
+        </div>
+        <div className="header-home-mobile-stack">
+          {searchForm}
+          <div className="header-toolbar">
+            <div className="icons">
+              {socialIcons}
               {cartControl}
             </div>
-            <div className="header-home-mobile-stack">
-              {searchForm}
-              <div className="header-toolbar">
-                <div className="icons">
-                  {socialIcons}
-                  {cartControl}
-                </div>
-                {categoriesMenu}
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {searchForm}
-            <div className="header-toolbar">
-              <div className="icons">
-                {socialIcons}
-                {cartControl}
-              </div>
-              {categoriesMenu}
-            </div>
-          </>
-        )}
+            {categoriesMenu}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -330,6 +315,7 @@ export default function SiteHeaderPanel({
 
   return (
     <header
+      ref={panelRef}
       className={headerClass}
       aria-hidden={inactive}
     >

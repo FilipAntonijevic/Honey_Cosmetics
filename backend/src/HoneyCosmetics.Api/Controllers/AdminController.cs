@@ -366,28 +366,6 @@ public class AdminController(
         });
     }
 
-    [HttpPost("products/{id:int}/stock-arrival")]
-    public async Task<IActionResult> ConfirmStockArrival(int id)
-    {
-        var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
-        if (product is null) return NotFound();
-
-        var (error, stockBefore) = await InventoryFinanceService.ConfirmStockArrivalAsync(db, product);
-        if (error is not null)
-            return BadRequest(error);
-
-        await WishlistStockNotificationService.TryNotifyBackInStockAsync(
-            db, emailService, configuration, sendGridOptions, product, stockBefore, logger);
-
-        return Ok(new
-        {
-            product.Id,
-            product.StockQuantity,
-            product.OrderedQuantity,
-            product.UnitCostPrice,
-        });
-    }
-
     [HttpPost("products/{id:int}/stock-receipts/{receiptId:int}/arrival")]
     public async Task<IActionResult> ConfirmStockReceiptArrival(int id, int receiptId)
     {

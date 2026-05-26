@@ -1,6 +1,8 @@
 @HoneyCosmetics.Api_HostAddress = http://localhost:5128
 
-GET {{HoneyCosmetics.Api_HostAddress}}/weatherforecast/
+GET {{HoneyCosmetics.Api_HostAddress}}/api/products
 Accept: application/json
 
 ###
+GET {{HoneyCosmetics.Api_HostAddress}}/api/site/links
+Accept: application/json

@@ -196,32 +196,6 @@ public static class InventoryFinanceService
         return null;
     }
 
-    public static async Task<(string? Error, int StockBefore)> ConfirmStockArrivalAsync(
-        AppDbContext db,
-        Product product,
-        CancellationToken ct = default)
-    {
-        var pending = await db.StockReceipts
-            .Where(r => r.ProductId == product.Id && r.ReceivedAt == null)
-            .OrderBy(r => r.CreatedAt)
-            .ToListAsync(ct);
-
-        if (pending.Count == 0)
-            return ("Nema poručene robe koja čeka prijem.", 0);
-
-        var stockBefore = product.StockQuantity;
-
-        foreach (var receipt in pending)
-        {
-            ApplyReceiptToStock(product, receipt);
-            receipt.ReceivedAt = DateTime.UtcNow;
-            product.OrderedQuantity = Math.Max(0, product.OrderedQuantity - receipt.Quantity);
-        }
-
-        await db.SaveChangesAsync(ct);
-        return (null, stockBefore);
-    }
-
     public static async Task<string?> ApplyStockWriteOffAsync(
         AppDbContext db,
         Product product,

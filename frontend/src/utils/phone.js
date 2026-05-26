@@ -1,10 +1,6 @@
 /** Podrazumevani početak u polju — korisnik može obrisati 381, ne i „+“. */
 export const PHONE_DEFAULT = '+381'
 
-/** @deprecated */
-export const PHONE_PREFIX = PHONE_DEFAULT
-export const DEFAULT_PHONE_PREFIX = PHONE_DEFAULT
-
 /** Normalizuje unos: uvek počinje sa „+“, zatim samo cifre i razmaci. */
 export function normalizePhoneInput(raw) {
   if (raw == null || raw === '') return PHONE_DEFAULT

@@ -1,11 +1,11 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import AdminModal from './AdminModal'
 
-const ORDER_STATUSES = ['Pending', 'Shipped', 'Returned', 'Cancelled', 'Delivered']
+export const ORDER_STATUSES = ['Pending', 'Shipped', 'Returned', 'Cancelled', 'Delivered']
 
 const FINAL_STATUSES = new Set(['Delivered', 'Returned', 'Cancelled'])
 
-const STATUS_VALUES = {
+export const STATUS_VALUES = {
   Pending: 0,
   Shipped: 5,
   Delivered: 6,
@@ -42,7 +42,7 @@ const LEGACY_AS_PENDING = new Set([
   'FailedDelivery',
 ])
 
-function normalizeStatus(status) {
+export function normalizeStatus(status) {
   if (LEGACY_AS_PENDING.has(status)) return 'Pending'
   return status
 }
@@ -87,6 +87,84 @@ function SortTh({ col, sort, onSort, children }) {
   )
 }
 
+function FilterTh({ filterKey, value, onChange, options, children, headerOpen, onHeaderOpenChange }) {
+  const open = headerOpen === filterKey
+  return (
+    <th className="adm-header-filter" style={{ position: 'relative', userSelect: 'none', whiteSpace: 'nowrap' }}>
+      <div
+        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+        onClick={() => onHeaderOpenChange(open ? null : filterKey)}
+      >
+        {children}
+        <span style={{ fontSize: 11, opacity: value ? 1 : 0.4, color: value ? '#f59e0b' : 'inherit' }}>▼</span>
+      </div>
+      {open && (
+        <div className="adm-filter-popup">
+          <div
+            style={{ padding: '9px 16px', cursor: 'pointer', fontWeight: !value ? 700 : 400, background: !value ? '#f9fafb' : 'transparent', color: '#374151', fontSize: 14 }}
+            onClick={(e) => { e.stopPropagation(); onChange(''); onHeaderOpenChange(null) }}
+          >
+            Sve
+          </div>
+          {options.map((opt) => (
+            <div
+              key={opt.value}
+              style={{ padding: '9px 16px', cursor: 'pointer', fontWeight: value === opt.value ? 700 : 400, background: value === opt.value ? '#f9fafb' : 'transparent', color: '#374151', fontSize: 14 }}
+              onClick={(e) => { e.stopPropagation(); onChange(opt.value); onHeaderOpenChange(null) }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </th>
+  )
+}
+
+function StatusFilterTh({
+  selectedStatuses,
+  onToggleStatus,
+  onToggleSelectAll,
+  allSelected,
+  filterActive,
+  headerOpen,
+  onHeaderOpenChange,
+}) {
+  const open = headerOpen === 'status'
+  return (
+    <th className="adm-header-filter" style={{ position: 'relative', userSelect: 'none', whiteSpace: 'nowrap' }}>
+      <div
+        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+        onClick={() => onHeaderOpenChange(open ? null : 'status')}
+      >
+        Status
+        <span style={{ fontSize: 11, opacity: filterActive ? 1 : 0.4, color: filterActive ? '#f59e0b' : 'inherit' }}>▼</span>
+      </div>
+      {open && (
+        <div className="adm-filter-popup adm-filter-popup--status">
+          <button type="button" className="adm-filter-popup-action" onClick={onToggleSelectAll}>
+            {allSelected ? 'Poništi sve' : 'Označi sve'}
+          </button>
+          {ORDER_STATUSES.map((status) => (
+            <label key={status} className="adm-filter-check">
+              <input
+                type="checkbox"
+                checked={selectedStatuses.has(status)}
+                onChange={() => onToggleStatus(status)}
+              />
+              <span
+                className="adm-filter-check-dot"
+                style={{ background: STATUS_COLORS[status] ?? '#6b7280' }}
+              />
+              <span>{STATUS_LABELS[status] ?? status}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </th>
+  )
+}
+
 /**
  * Expandable admin orders table with optional status updates and sorting.
  */
@@ -98,11 +176,23 @@ export default function AdminOrderTable({
   compact = false,
   readOnly = false,
   sortable = false,
+  fillHeight = false,
+  columnFilters,
 }) {
   const [expanded, setExpanded] = useState(null)
   const [updating, setUpdating] = useState(null)
   const [deliveredConfirm, setDeliveredConfirm] = useState(null)
   const [sort, setSort] = useState({ col: 'id', dir: 'desc' })
+  const [headerOpen, setHeaderOpen] = useState(null)
+
+  useEffect(() => {
+    if (!headerOpen) return
+    const handler = (e) => {
+      if (!e.target.closest('.adm-header-filter')) setHeaderOpen(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [headerOpen])
 
   const toggleSort = (col) => {
     setSort((prev) => (prev.col === col
@@ -203,10 +293,15 @@ export default function AdminOrderTable({
   }
 
   const colSpan = showCustomer ? 7 : 6
+  const filterHeaderOpen = columnFilters?.headerOpen ?? headerOpen
+  const setFilterHeaderOpen = columnFilters?.onHeaderOpenChange ?? setHeaderOpen
 
   return (
     <>
-      <div className="adm-table-wrap">
+      <div
+        className="adm-table-wrap"
+        style={fillHeight ? { flex: 1, overflowY: 'auto', minHeight: 0 } : undefined}
+      >
         <table className={`adm-table${compact ? ' adm-table--compact' : ''}`}>
           <thead>
             <tr>
@@ -217,10 +312,38 @@ export default function AdminOrderTable({
                     <SortTh col="customer" sort={sort} onSort={toggleSort}>Kupac</SortTh>
                   )}
                   <SortTh col="date" sort={sort} onSort={toggleSort}>Datum</SortTh>
-                  <th>Plaćanje</th>
+                  {columnFilters ? (
+                    <FilterTh
+                      filterKey="payment"
+                      value={columnFilters.paymentFilter}
+                      onChange={columnFilters.onPaymentFilterChange}
+                      options={[
+                        { value: 'CashOnDelivery', label: 'Pouzećem' },
+                        { value: 'BankTransfer', label: 'Bankovni prenos' },
+                      ]}
+                      headerOpen={filterHeaderOpen}
+                      onHeaderOpenChange={setFilterHeaderOpen}
+                    >
+                      Plaćanje
+                    </FilterTh>
+                  ) : (
+                    <th>Plaćanje</th>
+                  )}
                   <SortTh col="total" sort={sort} onSort={toggleSort}>Ukupno</SortTh>
                   <th>Dostava</th>
-                  <th>Status</th>
+                  {columnFilters ? (
+                    <StatusFilterTh
+                      selectedStatuses={columnFilters.selectedStatuses}
+                      onToggleStatus={columnFilters.onToggleStatus}
+                      onToggleSelectAll={columnFilters.onToggleSelectAll}
+                      allSelected={columnFilters.allStatusesSelected}
+                      filterActive={columnFilters.statusFilterActive}
+                      headerOpen={filterHeaderOpen}
+                      onHeaderOpenChange={setFilterHeaderOpen}
+                    />
+                  ) : (
+                    <th>Status</th>
+                  )}
                 </>
               ) : (
                 <>
@@ -344,5 +467,3 @@ export default function AdminOrderTable({
     </>
   )
 }
-
-export { STATUS_VALUES }

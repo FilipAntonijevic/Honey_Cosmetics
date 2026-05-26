@@ -19,7 +19,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Wishlist> Wishlists => Set<Wishlist>();
     public DbSet<Cart> Carts => Set<Cart>();
     public DbSet<Address> Addresses => Set<Address>();
-    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SiteSettings> SiteSettings => Set<SiteSettings>();
     public DbSet<HomeSlideshowSlide> HomeSlideshowSlides => Set<HomeSlideshowSlide>();
     public DbSet<StockReceipt> StockReceipts => Set<StockReceipt>();

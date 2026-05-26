@@ -3,7 +3,7 @@
 Full-stack premium beauty e-commerce starter for **Honey Cosmetics**.
 
 ## Stack
-- Backend: ASP.NET Core Web API (.NET 8), EF Core, PostgreSQL, JWT + refresh tokens
+- Backend: ASP.NET Core Web API (.NET 9), EF Core, PostgreSQL, JWT + refresh tokens
 - Frontend: React + Vite, React Router, Axios, Context API
 - Database: PostgreSQL
 
@@ -14,7 +14,7 @@ Full-stack premium beauty e-commerce starter for **Honey Cosmetics**.
 - Orders: checkout (cash on delivery / bank transfer), order statuses workflow
 - Coupons: welcome coupon, promo coupons, one usage per user via `CouponUsage`
 - Admin endpoints: product CRUD, dashboard, order status updates
-- Background order notification service and email logging service
+- Email notifications via SendGrid
 
 ## Project Structure
 - `backend/src/HoneyCosmetics.Api` - API entry point and controllers

@@ -32,15 +32,4 @@ public static class ProductImageSync
             });
         }
     }
-
-    public static async Task<IReadOnlyList<string>> GetAdditionalImageUrlsAsync(
-        this AppDbContext db,
-        int productId,
-        CancellationToken cancellationToken = default) =>
-        await db.ProductImages
-            .AsNoTracking()
-            .Where(x => x.ProductId == productId)
-            .OrderBy(x => x.SortOrder)
-            .Select(x => x.ImageUrl)
-            .ToListAsync(cancellationToken);
 }

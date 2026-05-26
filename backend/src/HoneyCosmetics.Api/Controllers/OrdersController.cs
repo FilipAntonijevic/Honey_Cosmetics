@@ -149,8 +149,6 @@ public class OrdersController(
             db.CouponUsages.Add(new CouponUsage { CouponId = coupon.Id, UserId = userId });
         }
 
-        db.Notifications.Add(new Notification { Message = $"Nova porudžbina #{order.Id} od korisnika {user.FullName}" });
-
         await db.SaveChangesAsync();
 
         await CustomerProfileService.UpsertFromRegisteredOrderAsync(db, user, order);
@@ -254,8 +252,6 @@ public class OrdersController(
         };
 
         db.Orders.Add(order);
-
-        db.Notifications.Add(new Notification { Message = $"Nova gost porudžbina #{order.Id}" });
 
         await db.SaveChangesAsync();
 
