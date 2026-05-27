@@ -129,11 +129,11 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
     [slides, isMobile],
   )
   const N = images.length
-  const slides = useMemo(
+  const trackSlides = useMemo(
     () => (N > 0 ? [images[N - 1], ...images, images[0]] : []),
     [images, N],
   )
-  const lastIndex = slides.length - 1
+  const lastIndex = trackSlides.length - 1
 
   const tabVisible = useTabVisible()
   const trackRef = useRef(null)
@@ -382,7 +382,7 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
         }}
         onTransitionEnd={onTransitionEnd}
       >
-        {slides.map((src, i) => (
+        {trackSlides.map((src, i) => (
           <div className="hero-slide" key={`${src}-${i}`} aria-hidden={i !== index}>
             <img src={src} alt="" loading={i === 1 ? 'eager' : 'lazy'} draggable="false" />
           </div>
