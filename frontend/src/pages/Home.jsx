@@ -40,7 +40,7 @@ const HERO_IMAGES = [
   publicUrl('/hero/POCETNA3.jpg'),
   publicUrl('/hero/POCETNA-4.jpg'),
   publicUrl('/hero/POCETNA5.png'),
-]
+].map((url) => ({ desktop: url, mobile: url }))
 
 const HERO_INTERVAL_MS = 6000
 const PRODUCT_INTERVAL_MS = 4500
@@ -107,8 +107,27 @@ function useTabVisible() {
 
 /**
  * Endless hero carousel — [lastClone, ...images, firstClone], snap on clone slides.
+ * slides: { desktop, mobile }[] — desktop on PC, mobile on ≤768px.
  */
-function HeroCarousel({ images, interval = HERO_INTERVAL_MS }) {
+function useHeroMobile() {
+  const [mobile, setMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)')
+    const onChange = () => setMobile(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return mobile
+}
+
+function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
+  const isMobile = useHeroMobile()
+  const images = useMemo(
+    () => slides.map((s) => (isMobile ? (s.mobile || s.desktop) : s.desktop)),
+    [slides, isMobile],
+  )
   const N = images.length
   const slides = useMemo(
     () => (N > 0 ? [images[N - 1], ...images, images[0]] : []),
@@ -758,7 +777,7 @@ function ProductCarousel({ products }) {
 export default function Home() {
   const [bestsellers, setBestsellers] = useState([])
   const [bestsellersReady, setBestsellersReady] = useState(false)
-  const [heroImages, setHeroImages] = useState(HERO_IMAGES)
+  const [heroSlides, setHeroSlides] = useState(HERO_IMAGES)
 
   useEffect(() => {
     let cancelled = false
@@ -766,15 +785,20 @@ export default function Home() {
       .get('/home-slideshow')
       .then(async ({ data }) => {
         if (cancelled) return
-        const paths = (data ?? [])
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((s) => s.imageUrl)
+        const items = (data ?? []).sort((a, b) => a.sortOrder - b.sortOrder)
+        const paths = items
+          .flatMap((s) => [s.imageUrl, s.mobileImageUrl || s.imageUrl])
           .filter(Boolean)
         if (paths.length === 0) return
         await preloadDirectImagesAwait(paths)
         if (cancelled) return
-        const urls = paths.map((p) => resolveDirectImageSrc(p)).filter(Boolean)
-        if (urls.length > 0) setHeroImages(urls)
+        const mapped = items
+          .map((s) => ({
+            desktop: resolveDirectImageSrc(s.imageUrl),
+            mobile: resolveDirectImageSrc(s.mobileImageUrl || s.imageUrl),
+          }))
+          .filter((s) => s.desktop)
+        if (mapped.length > 0) setHeroSlides(mapped)
       })
       .catch(() => {})
     return () => {
@@ -822,7 +846,7 @@ export default function Home() {
 
   return (
     <>
-      <HeroCarousel images={heroImages} />
+      <HeroCarousel slides={heroSlides} />
 
       {bestsellersReady && bestsellers.length > 0 && (
         <section className="section-gap pop-section">

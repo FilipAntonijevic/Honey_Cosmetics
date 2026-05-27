@@ -344,7 +344,7 @@ public class AuthController(
             Code = prefix,
             DiscountValue = 10,
             IsPercentage = true,
-            FirstOrderOnly = true,
+            UsageLimit = HoneyCosmetics.Domain.Enums.CouponUsageLimit.OncePerUser,
             IsActive = true,
             ExpiresAt = DateTime.UtcNow.AddMonths(1),
         });

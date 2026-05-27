@@ -5,8 +5,10 @@ import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
 import PhoneField from '../components/PhoneField'
 import FreeShippingBar from '../components/FreeShippingBar'
+import BankTransferSlip, { hasTemplate } from '../components/BankTransferSlip'
 import useSiteLinks from '../hooks/useSiteLinks'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
+import { clampCartQuantity, isInStock } from '../utils/stock'
 
 export default function Checkout() {
   const {
@@ -18,10 +20,12 @@ export default function Checkout() {
     checkoutDiscount,
     checkoutGrandTotal,
     setCart,
+    clearCartAfterOrder,
     setToast,
     refreshCartStock,
   } = useStore()
-  const { freeShippingThreshold } = useSiteLinks()
+  const siteLinks = useSiteLinks()
+  const { freeShippingThreshold } = siteLinks
   const navigate = useNavigate()
 
   const [couponInput, setCouponInput] = useState('')
@@ -46,26 +50,48 @@ export default function Checkout() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [completedBankOrder, setCompletedBankOrder] = useState(null)
 
   useEffect(() => {
     refreshCartStock()
   }, [refreshCartStock])
 
-  useEffect(() => {
-    if (user) return
-    setCheckoutCoupon(null)
-    setCouponInput('')
-    setCouponError('')
-    setForm((f) => ({ ...f, couponCode: '' }))
-  }, [user, setCheckoutCoupon])
-
   const subtotal = checkoutSubtotal
 
-  const applyCoupon = async () => {
-    if (!user) {
-      setCouponError('Molimo vas da se ulogujete da biste koristili kupon.')
+  const changeQty = (id, delta) => {
+    const item = checkoutCart.find((i) => i.id === id)
+    if (!item) return
+    if (delta > 0 && !isInStock(item)) {
+      setToast('Proizvod trenutno nije na stanju.')
       return
     }
+    const stock = Number(item.stockQuantity) || 0
+    const currentQty = Number(item.quantity) || 0
+    if (delta > 0 && currentQty >= stock) {
+      setToast('Nema dovoljno proizvoda na stanju.')
+      return
+    }
+    setCart((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row
+        const rowQty = Number(row.quantity) || 0
+        const requested = rowQty + delta
+        const nextQty = clampCartQuantity(requested, stock)
+        if (nextQty < requested && delta > 0) {
+          setToast('Nema dovoljno proizvoda na stanju.')
+        }
+        return { ...row, quantity: Math.max(1, nextQty) }
+      }),
+    )
+    if (user && delta > 0) {
+      api.post('/cart', { productId: id, quantity: delta }).catch(() => {
+        setToast('Nema dovoljno proizvoda na stanju.')
+        refreshCartStock()
+      })
+    }
+  }
+
+  const applyCoupon = async () => {
     const code = couponInput.trim().toUpperCase()
     if (!code) return
     setCouponError('')
@@ -119,31 +145,40 @@ export default function Checkout() {
     setSubmitting(true)
     try {
       const phoneClean = cleanPhone(form.phone)
+      const isBankTransfer = Number(form.paymentMethod) === 1
       if (user) {
-        await api.post('/orders/checkout', {
+        const { data } = await api.post('/orders/checkout', {
           deliveryAddress: buildAddress(),
           phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
           couponCode: form.couponCode || null,
         })
-        setCart([])
-        setCheckoutCoupon(null)
-        navigate('/my-orders')
+        await clearCartAfterOrder()
+        if (isBankTransfer) {
+          setCompletedBankOrder(data)
+        } else {
+          navigate('/my-orders')
+        }
       } else {
-        await api.post('/orders/guest-checkout', {
+        const { data } = await api.post('/orders/guest-checkout', {
           items: inStockItems.map((item) => ({ productId: item.id, quantity: item.quantity })),
           deliveryAddress: buildAddress(),
           phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
-          couponCode: null,
+          couponCode: form.couponCode || null,
           guestName: `${form.firstName} ${form.lastName}`.trim() || null,
           guestEmail: form.email || null,
         })
-        setCart([])
-        setCheckoutCoupon(null)
-        navigate('/')
+        await clearCartAfterOrder()
+        if (isBankTransfer) {
+          setCompletedBankOrder(data)
+        } else {
+          navigate('/')
+        }
       }
-      setToast('Porudžbina je uspešno kreirana!')
+      setToast(isBankTransfer
+        ? 'Porudžbina je kreirana. Izvršite uplatu prema uputstvu ispod.'
+        : 'Porudžbina je uspešno kreirana!')
     } catch (err) {
       setError(err.response?.data ?? 'Greška prilikom naručivanja. Pokušajte ponovo.')
     } finally {
@@ -156,11 +191,37 @@ export default function Checkout() {
   const discountAmt = checkoutDiscount
   const grandTotal = checkoutGrandTotal
 
-  if (!checkoutCart.length) {
+  if (!checkoutCart.length && !completedBankOrder) {
     return (
       <div className="co-empty shell">
         <p>Korpa je prazna ili nema proizvoda na stanju.</p>
         <Link className="cta" to="/shop">Nastavi kupovinu</Link>
+      </div>
+    )
+  }
+
+  if (completedBankOrder) {
+    return (
+      <div className="co-page co-page--bank-success shell">
+        <div className="co-bank-success">
+          <h1 className="co-title">Porudžbina #{completedBankOrder.id} je kreirana</h1>
+          <p className="co-bank-success-lead">
+            Izvršite bankovnu uplatu prema uputstvu ispod. Porudžbina se šalje tek nakon evidentirane uplate.
+          </p>
+          <BankTransferSlip
+            template={siteLinks}
+            orderId={completedBankOrder.id}
+            amount={completedBankOrder.total}
+            mode="confirmed"
+          />
+          <div className="co-bank-success-actions">
+            {user ? (
+              <Link to="/my-orders" className="co-submit-btn co-submit-btn--link">Moje porudžbine</Link>
+            ) : (
+              <Link to="/" className="co-submit-btn co-submit-btn--link">Nastavi kupovinu</Link>
+            )}
+          </div>
+        </div>
       </div>
     )
   }
@@ -222,7 +283,7 @@ export default function Checkout() {
 
             <div className="co-row-2">
               <input className="co-input" placeholder="Grad" value={form.city} onChange={set('city')} />
-              <input className="co-input" placeholder="Poštanski broj (opciono)" value={form.postalCode} onChange={set('postalCode')} />
+              <input className="co-input" placeholder="Poštanski broj (opciono)" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" data-numeric="integer" />
             </div>
 
             <div className="co-field-wrap">
@@ -276,10 +337,20 @@ export default function Checkout() {
                 <span className="co-payment-name">Direktna bankovna transakcija</span>
               </label>
               {form.paymentMethod === '1' && (
-                <p className="co-payment-hint co-payment-hint--last">
-                  Platite narudžbinu direktno na našem računu. Molimo Vas koristite broj narudžbine kao
-                  poziv na broj. Vaša narudžbina neće biti poslata dok sredstva ne budu uplaćena na naš račun.
-                </p>
+                <div className="co-payment-slip-wrap">
+                  {hasTemplate(siteLinks) ? (
+                    <BankTransferSlip
+                      template={siteLinks}
+                      amount={grandTotal}
+                      mode="preview"
+                      variant="checkout"
+                    />
+                  ) : (
+                    <p className="co-payment-hint co-payment-hint--inline">
+                      Platite narudžbinu direktno na našem računu. Vaša porudžbina neće biti poslata dok sredstva ne budu uplaćena.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </section>
@@ -330,13 +401,15 @@ export default function Checkout() {
             <FreeShippingBar cartTotal={grandTotal} threshold={freeShippingThreshold} compact />
 
             <div className="co-summary-items">
-              {checkoutCart.map((item) => (
+              {checkoutCart.map((item) => {
+                const stock = Number(item.stockQuantity) || 0
+                const atMax = !isInStock(item) || (Number(item.quantity) || 0) >= stock
+                return (
                 <div key={item.id} className="co-sum-item">
                   <div className="co-sum-img-wrap">
                     {item.imageUrl
                       ? <ApiImage src={item.imageUrl} alt={item.name} className="co-sum-img" variant="medium" />
                       : <div className="co-sum-img-ph" />}
-                    <span className="co-sum-qty">{item.quantity}</span>
                   </div>
                   <div className="co-sum-info">
                     <div className="co-sum-name">{item.name}</div>
@@ -345,22 +418,31 @@ export default function Checkout() {
                         {item.description.length > 55 ? item.description.slice(0, 55) + '…' : item.description}
                       </div>
                     )}
+                    <div className="cart-qty-row co-sum-qty-row">
+                      <div className="cart-qty">
+                        <button type="button" className="cart-qty-btn" onClick={() => changeQty(item.id, -1)} aria-label="Smanji količinu">−</button>
+                        <span className="cart-qty-num">{item.quantity}</span>
+                        <button
+                          type="button"
+                          className="cart-qty-btn"
+                          disabled={atMax}
+                          onClick={() => changeQty(item.id, +1)}
+                          aria-label="Povećaj količinu"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <div className="co-sum-price">{fmt(Number(item.price) * item.quantity)} RSD</div>
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Coupon */}
             <div className="co-coupon-block">
-              {!user ? (
-                <p className="co-coupon-guest">
-                  Kuponi su dostupni samo ulogovanim korisnicima.{' '}
-                  <Link to="/login" state={{ from: '/checkout' }} className="co-coupon-guest-link">
-                    Ulogujte se
-                  </Link>
-                </p>
-              ) : coupon ? (
+              {coupon ? (
                 <div className="co-coupon-applied">
                   <span className="co-coupon-tag">
                     🎫 {coupon.code} &mdash; &minus;{fmt(discountAmt)} RSD
@@ -386,6 +468,15 @@ export default function Checkout() {
                       {couponLoading ? '…' : 'Primeni'}
                     </button>
                   </div>
+                  {!user && (
+                    <p className="co-coupon-guest">
+                      Samo kuponi tipa „Jednom po korisniku” zahtevaju{' '}
+                      <Link to="/login" state={{ from: '/checkout' }} className="co-coupon-guest-link">
+                        prijavu
+                      </Link>
+                      . Neograničeni i „Samo jednom” kuponi mogu i gosti.
+                    </p>
+                  )}
                   {couponError && <p className="co-coupon-error">{couponError}</p>}
                 </>
               )}

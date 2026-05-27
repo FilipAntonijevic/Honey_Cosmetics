@@ -24,4 +24,17 @@ public class SiteSettings
 
     /// <summary>Minimum cart total (after coupon) for free shipping.</summary>
     public decimal FreeShippingThreshold { get; set; } = 10000m;
+
+    /// <summary>Repeating text in the top notification banner (segments separated by •).</summary>
+    public string NotificationBannerText { get; set; } = string.Empty;
+
+    /// <summary>When false, the top notification banner is hidden for site visitors.</summary>
+    public bool NotificationBannerEnabled { get; set; } = true;
+
+    public string BankTransferRecipientName { get; set; } = string.Empty;
+    public string BankTransferRecipientAddress { get; set; } = string.Empty;
+    public string BankTransferAccountNumber { get; set; } = string.Empty;
+    public string BankTransferBankName { get; set; } = string.Empty;
+    /// <summary>Base payment purpose text; order id is appended when shown to customers.</summary>
+    public string BankTransferPurpose { get; set; } = string.Empty;
 }

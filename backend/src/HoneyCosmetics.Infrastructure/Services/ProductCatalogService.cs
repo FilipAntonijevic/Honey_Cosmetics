@@ -23,8 +23,8 @@ public static class ProductCatalogService
         product.ImageUrl = request.ImageUrl.Trim();
         product.ProductTypeId = request.ProductTypeId;
         product.CategoryId = request.CategoryId;
-        product.StockQuantity = request.StockQuantity;
         product.UnitCostPrice = request.UnitCostPrice;
+        product.UnitTransportCost = request.UnitTransportCost;
     }
 
     public static async Task<string?> GetActiveNameConflictAsync(

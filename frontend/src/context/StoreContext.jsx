@@ -223,6 +223,32 @@ export function StoreProvider({ children }) {
     setToast('Odjavljeni ste.')
   }, [])
 
+  const clearCartAfterOrder = useCallback(async () => {
+    setCheckoutCoupon(null)
+    setCart([])
+    try {
+      localStorage.setItem('honey_cart', JSON.stringify([]))
+      sessionStorage.removeItem(GUEST_CART_SNAPSHOT_KEY)
+    } catch {
+      /* ignore quota errors */
+    }
+
+    if (canSyncWithServer(user, false)) {
+      try {
+        const { data: serverCart } = await api.get('/cart')
+        if (Array.isArray(serverCart) && serverCart.length > 0) {
+          await Promise.all(
+            serverCart.map((item) =>
+              api.delete(`/cart/${item.productId}`).catch(() => {}),
+            ),
+          )
+        }
+      } catch {
+        /* server cart already cleared by checkout */
+      }
+    }
+  }, [user])
+
   const addToCart = useCallback((product) => {
     if (!isInStock(product)) {
       setToast('Proizvod trenutno nije na stanju.')
@@ -250,7 +276,11 @@ export function StoreProvider({ children }) {
       if (canSyncWithServer(user, false)) {
         api.post('/cart', { productId: product.id, quantity: addedQty }).catch(() => {})
       }
-      setToast('Proizvod dodat u korpu.')
+      const isMobile = typeof window !== 'undefined'
+        && window.matchMedia('(max-width: 768px)').matches
+      if (!isMobile) {
+        setToast('Proizvod dodat u korpu.')
+      }
       setCartAddTick((t) => t + 1)
       return true
     }
@@ -353,6 +383,7 @@ export function StoreProvider({ children }) {
       login,
       register,
       logout,
+      clearCartAfterOrder,
       addToCart,
       removeFromCart,
       toggleWishlist,
@@ -366,7 +397,7 @@ export function StoreProvider({ children }) {
       setToast,
       setCart,
     }),
-    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, login, register, logout, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser],
+    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, login, register, logout, clearCartAfterOrder, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

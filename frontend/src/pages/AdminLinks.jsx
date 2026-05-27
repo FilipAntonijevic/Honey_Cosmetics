@@ -12,6 +12,10 @@ const EMPTY = {
   whatsAppNumber: '',
   viberNumber: '',
   freeShippingThreshold: '10000',
+  bankTransferRecipientName: '',
+  bankTransferRecipientAddress: '',
+  bankTransferAccountNumber: '',
+  bankTransferPurpose: 'Uplata porudžbine',
 }
 
 const isLikelyUrl = (s) => /^https?:\/\//i.test(s.trim())
@@ -41,6 +45,10 @@ export default function AdminLinks() {
           whatsAppNumber: data?.whatsAppNumber ?? '',
           viberNumber: data?.viberNumber ?? '',
           freeShippingThreshold: String(data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000),
+          bankTransferRecipientName: data?.bankTransferRecipientName ?? '',
+          bankTransferRecipientAddress: data?.bankTransferRecipientAddress ?? '',
+          bankTransferAccountNumber: data?.bankTransferAccountNumber ?? '',
+          bankTransferPurpose: data?.bankTransferPurpose ?? 'Uplata porudžbine',
         }
         setForm(next)
         setInitial(next)
@@ -70,7 +78,11 @@ export default function AdminLinks() {
     form.notificationsEmail !== initial.notificationsEmail ||
     form.whatsAppNumber !== initial.whatsAppNumber ||
     form.viberNumber !== initial.viberNumber ||
-    form.freeShippingThreshold !== initial.freeShippingThreshold
+    form.freeShippingThreshold !== initial.freeShippingThreshold ||
+    form.bankTransferRecipientName !== initial.bankTransferRecipientName ||
+    form.bankTransferRecipientAddress !== initial.bankTransferRecipientAddress ||
+    form.bankTransferAccountNumber !== initial.bankTransferAccountNumber ||
+    form.bankTransferPurpose !== initial.bankTransferPurpose
 
   const submit = async (e) => {
     e.preventDefault()
@@ -113,6 +125,13 @@ export default function AdminLinks() {
       return
     }
 
+    const bankName = form.bankTransferRecipientName.trim()
+    const bankAccount = form.bankTransferAccountNumber.trim()
+    if (bankAccount && !bankName) {
+      setError('Unesite ime primaoca za template uplatnice.')
+      return
+    }
+
     setSaving(true)
     try {
       const { data } = await api.put('/admin/site/links', {
@@ -125,17 +144,25 @@ export default function AdminLinks() {
         whatsAppNumber: wa,
         viberNumber: vb,
         freeShippingThreshold: fst,
+        bankTransferRecipientName: bankName,
+        bankTransferRecipientAddress: form.bankTransferRecipientAddress.trim(),
+        bankTransferAccountNumber: bankAccount,
+        bankTransferPurpose: form.bankTransferPurpose.trim() || 'Uplata porudžbine',
       })
       const next = {
-        instagramUrl: data?.instagramUrl ?? '',
-        tikTokUrl: data?.tikTokUrl ?? '',
-        emailAddress: data?.emailAddress ?? '',
-        phoneNumber: data?.phoneNumber ?? '',
-        complaintsEmail: data?.complaintsEmail ?? '',
-        notificationsEmail: data?.notificationsEmail ?? '',
-        whatsAppNumber: data?.whatsAppNumber ?? '',
-        viberNumber: data?.viberNumber ?? '',
-        freeShippingThreshold: String(data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000),
+        instagramUrl: data?.instagramUrl ?? ig,
+        tikTokUrl: data?.tikTokUrl ?? tt,
+        emailAddress: data?.emailAddress ?? em,
+        phoneNumber: data?.phoneNumber ?? ph,
+        complaintsEmail: data?.complaintsEmail ?? ce,
+        notificationsEmail: data?.notificationsEmail ?? ne,
+        whatsAppNumber: data?.whatsAppNumber ?? wa,
+        viberNumber: data?.viberNumber ?? vb,
+        freeShippingThreshold: String(data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : fst),
+        bankTransferRecipientName: data?.bankTransferRecipientName ?? bankName,
+        bankTransferRecipientAddress: data?.bankTransferRecipientAddress ?? form.bankTransferRecipientAddress.trim(),
+        bankTransferAccountNumber: data?.bankTransferAccountNumber ?? bankAccount,
+        bankTransferPurpose: data?.bankTransferPurpose ?? (form.bankTransferPurpose.trim() || 'Uplata porudžbine'),
       }
       setForm(next)
       setInitial(next)
@@ -252,6 +279,46 @@ export default function AdminLinks() {
           step="1"
         />
 
+        <p className="adm-links-section-heading adm-links-section-heading--spaced">Template uplatnice (bankovni prenos)</p>
+        <p className="adm-field-hint adm-links-section-hint">
+          Prikazuje se kupcima kada izaberu direktnu bankovnu uplatu. Broj porudžbine se automatski dodaje u polje „Poziv na broj”.
+        </p>
+
+        <LinkField
+          icon={<BankIcon />}
+          label="Primalac (ime / naziv)"
+          placeholder="npr. Honey Cosmetics DOO"
+          value={form.bankTransferRecipientName}
+          onChange={set('bankTransferRecipientName')}
+          type="text"
+        />
+
+        <TextAreaField
+          icon={<BankIcon />}
+          label="Adresa primaoca"
+          placeholder="Ulica i broj, grad"
+          value={form.bankTransferRecipientAddress}
+          onChange={set('bankTransferRecipientAddress')}
+        />
+
+        <LinkField
+          icon={<BankIcon />}
+          label="Broj računa"
+          placeholder="265-1234567890123-45"
+          value={form.bankTransferAccountNumber}
+          onChange={set('bankTransferAccountNumber')}
+          type="text"
+        />
+
+        <LinkField
+          icon={<BankIcon />}
+          label="Svrha uplate (osnovni tekst)"
+          placeholder="Uplata porudžbine"
+          value={form.bankTransferPurpose}
+          onChange={set('bankTransferPurpose')}
+          type="text"
+        />
+
         {error && <div className="adm-links-error">{String(error)}</div>}
         {message && <div className="adm-links-ok">{message}</div>}
 
@@ -284,6 +351,24 @@ function LinkField({ icon, label, placeholder, value, onChange, type, min, step 
           autoComplete="off"
           min={min}
           step={step}
+        />
+      </span>
+    </label>
+  )
+}
+
+function TextAreaField({ icon, label, placeholder, value, onChange }) {
+  return (
+    <label className="adm-links-row adm-links-row--textarea">
+      <span className="adm-links-icon" aria-hidden="true">{icon}</span>
+      <span className="adm-links-text">
+        <span className="adm-links-label">{label}</span>
+        <textarea
+          className="adm-links-input adm-links-textarea"
+          value={value}
+          placeholder={placeholder}
+          onChange={onChange}
+          rows={2}
         />
       </span>
     </label>
@@ -341,6 +426,20 @@ function CartIcon() {
       <circle cx="9" cy="21" r="1" />
       <circle cx="20" cy="21" r="1" />
       <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+    </svg>
+  )
+}
+
+function BankIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 10h18" />
+      <path d="M5 10V19" />
+      <path d="M9 10V19" />
+      <path d="M15 10V19" />
+      <path d="M19 10V19" />
+      <path d="M2 19h20" />
+      <path d="M12 3 22 10H2z" />
     </svg>
   )
 }

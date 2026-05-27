@@ -10,8 +10,8 @@ const EMPTY_FORM = {
   imageUrls: [''],
   productTypeId: '',
   categoryId: '',
-  stockQuantity: '0',
   unitCostPrice: '',
+  unitTransportCost: '',
 }
 
 function productToImageUrls(product) {
@@ -47,8 +47,8 @@ export default function AdminProductFormPage() {
           imageUrls: productToImageUrls(data),
           productTypeId: String(data.productTypeId ?? ''),
           categoryId: data.categoryId != null ? String(data.categoryId) : '',
-          stockQuantity: String(data.stockQuantity ?? 0),
           unitCostPrice: data.unitCostPrice != null ? String(data.unitCostPrice) : '',
+          unitTransportCost: data.unitTransportCost != null ? String(data.unitTransportCost) : '',
         })
       })
       .catch(() => setError('Proizvod nije pronađen.'))
@@ -102,8 +102,8 @@ export default function AdminProductFormPage() {
         additionalImageUrls: urls.slice(1),
         productTypeId: parseInt(form.productTypeId, 10),
         categoryId: form.categoryId ? parseInt(form.categoryId, 10) : null,
-        stockQuantity: parseInt(form.stockQuantity, 10) || 0,
         unitCostPrice: form.unitCostPrice ? parseFloat(form.unitCostPrice) : null,
+        unitTransportCost: form.unitTransportCost ? parseFloat(form.unitTransportCost) : null,
       }
       if (isNew) {
         const { data } = await api.post('/admin/products', payload)
@@ -156,19 +156,19 @@ export default function AdminProductFormPage() {
             </select>
           </div>
         </div>
+        <div className="adm-form-row">
+          <label>Cena prodaje (RSD) *</label>
+          <input className="adm-input" type="number" min="0" step="0.01" value={form.price} onChange={set('price')} required />
+        </div>
         <div className="adm-form-row adm-form-row--2">
           <div>
-            <label>Cena prodaje (RSD) *</label>
-            <input className="adm-input" type="number" min="0" step="0.01" value={form.price} onChange={set('price')} required />
+            <label>Cena nabavke po komadu (RSD, opciono)</label>
+            <input className="adm-input" type="number" min="0" step="0.01" value={form.unitCostPrice} onChange={set('unitCostPrice')} />
           </div>
           <div>
-            <label>Stanje na lageru</label>
-            <input className="adm-input" type="number" min="0" value={form.stockQuantity} onChange={set('stockQuantity')} />
+            <label>Cena transporta po komadu (RSD, opciono)</label>
+            <input className="adm-input" type="number" min="0" step="0.01" value={form.unitTransportCost} onChange={set('unitTransportCost')} />
           </div>
-        </div>
-        <div className="adm-form-row">
-          <label>Cena nabavke (RSD, opciono)</label>
-          <input className="adm-input" type="number" min="0" step="0.01" value={form.unitCostPrice} onChange={set('unitCostPrice')} />
         </div>
         <div className="adm-form-row">
           <label>Opis</label>

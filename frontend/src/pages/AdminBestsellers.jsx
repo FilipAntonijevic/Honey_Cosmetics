@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
 
-export default function AdminBestsellers() {
+export default function AdminBestsellers({ embedded = false }) {
   const [allProducts, setAllProducts] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
   const [initialIds, setInitialIds] = useState([])
@@ -108,23 +108,42 @@ export default function AdminBestsellers() {
   }
 
   return (
-    <div className="adm-page">
-      <div className="adm-page-header">
-        <div>
-          <h1 className="adm-page-title">Bestsellers</h1>
-          <p className="adm-page-sub">
-            Izaberi proizvode i njihov redosled za prikaz u sekciji Bestsellers.
-          </p>
+    <div className={embedded ? 'adm-home-section' : 'adm-page'}>
+      {!embedded && (
+        <div className="adm-page-header">
+          <div>
+            <h1 className="adm-page-title">Bestsellers</h1>
+            <p className="adm-page-sub">
+              Izaberi proizvode i njihov redosled za prikaz u sekciji Bestsellers.
+            </p>
+          </div>
+          <div className="adm-page-header-actions">
+            <button type="button" className="adm-btn" onClick={reset} disabled={!dirty || saving}>
+              Poništi
+            </button>
+            <button type="button" className="adm-btn adm-btn-primary" onClick={save} disabled={!dirty || saving}>
+              {saving ? 'Čuvanje…' : 'Sačuvaj'}
+            </button>
+          </div>
         </div>
-        <div className="adm-page-header-actions">
-          <button type="button" className="adm-btn" onClick={reset} disabled={!dirty || saving}>
-            Poništi
-          </button>
-          <button type="button" className="adm-btn adm-btn-primary" onClick={save} disabled={!dirty || saving}>
-            {saving ? 'Čuvanje…' : 'Sačuvaj'}
-          </button>
+      )}
+
+      {embedded && (
+        <div className="adm-home-section-head">
+          <div>
+            <h2 className="adm-home-section-title">Bestsellers</h2>
+            <p className="adm-page-sub">Izaberi proizvode i njihov redosled za prikaz u sekciji Bestsellers.</p>
+          </div>
+          <div className="adm-page-header-actions">
+            <button type="button" className="adm-btn" onClick={reset} disabled={!dirty || saving}>
+              Poništi
+            </button>
+            <button type="button" className="adm-btn adm-btn-primary" onClick={save} disabled={!dirty || saving}>
+              {saving ? 'Čuvanje…' : 'Sačuvaj'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {error && <div className="adm-form-error" style={{ marginBottom: '1rem' }}>{error}</div>}
       {success && (

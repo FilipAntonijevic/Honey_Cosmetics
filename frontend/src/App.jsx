@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import AdminLayout from './components/AdminLayout'
 import { StoreProvider, useStore } from './context/StoreContext'
@@ -29,9 +29,9 @@ import AdminProductFormPage from './pages/admin/AdminProductFormPage'
 import AdminFinance from './pages/admin/AdminFinance'
 import AdminCoupons from './pages/AdminCoupons'
 import AdminCategories from './pages/AdminCategories'
-import AdminBestsellers from './pages/AdminBestsellers'
-import AdminHomeSlideshow from './pages/AdminHomeSlideshow'
+import AdminHomeScreen from './pages/admin/AdminHomeScreen'
 import AdminLinks from './pages/AdminLinks'
+import AdminSitePopup from './pages/AdminSitePopup'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Returns from './pages/Returns'
@@ -143,28 +143,10 @@ function ClientRoutes() {
   )
 }
 
-function AdminRoutes() {
+function AdminShell() {
   return (
     <AdminRoute>
-      <AdminLayout>
-        <Routes>
-          <Route index element={<Navigate to="/admin/orders" replace />} />
-          <Route path="orders" element={<AdminOrders />} />
-          <Route path="products" element={<AdminProducts />} />
-          <Route path="products/new" element={<AdminProductFormPage />} />
-          <Route path="products/:id/edit" element={<AdminProductFormPage />} />
-          <Route path="products/:id" element={<AdminProductDetail />} />
-          <Route path="finance" element={<AdminFinance />} />
-          <Route path="users" element={<AdminUsers />} />
-          <Route path="users/:id" element={<AdminUserDetail />} />
-          <Route path="categories" element={<AdminCategories />} />
-          <Route path="bestsellers" element={<AdminBestsellers />} />
-          <Route path="home-slideshow" element={<AdminHomeSlideshow />} />
-          <Route path="coupons" element={<AdminCoupons />} />
-          <Route path="links" element={<AdminLinks />} />
-          <Route path="*" element={<Navigate to="/admin/orders" replace />} />
-        </Routes>
-      </AdminLayout>
+      <AdminLayout />
     </AdminRoute>
   )
 }
@@ -172,7 +154,26 @@ function AdminRoutes() {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/admin/*" element={<AdminRoutes />} />
+      <Route path="/admin" element={<AdminShell />}>
+        <Route index element={<Navigate to="orders" replace />} />
+        <Route path="orders" element={<AdminOrders />} />
+        <Route path="products" element={<AdminProducts />} />
+        <Route path="products/new" element={<AdminProductFormPage />} />
+        <Route path="products/:id/edit" element={<AdminProductFormPage />} />
+        <Route path="products/:id" element={<AdminProductDetail />} />
+        <Route path="finance" element={<AdminFinance />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="users/:id" element={<AdminUserDetail />} />
+        <Route path="categories" element={<AdminCategories />} />
+        <Route path="homescreen" element={<AdminHomeScreen />} />
+        <Route path="home-screen" element={<Navigate to="/admin/homescreen" replace />} />
+        <Route path="bestsellers" element={<Navigate to="/admin/homescreen?tab=bestsellers" replace />} />
+        <Route path="home-slideshow" element={<Navigate to="/admin/homescreen?tab=slideshow" replace />} />
+        <Route path="site-popup" element={<AdminSitePopup />} />
+        <Route path="coupons" element={<AdminCoupons />} />
+        <Route path="links" element={<AdminLinks />} />
+        <Route path="*" element={<Navigate to="orders" replace />} />
+      </Route>
       <Route path="/*" element={<ClientRoutes />} />
     </Routes>
   )

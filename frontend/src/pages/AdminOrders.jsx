@@ -3,20 +3,31 @@ import { useSearchParams } from 'react-router-dom'
 import api from '../api'
 import AdminOrderTable, { ORDER_STATUSES, STATUS_VALUES, normalizeStatus } from '../components/admin/AdminOrderTable'
 
+function parseOrderIdQuery(raw) {
+  const q = raw.trim().replace(/^#/, '')
+  if (!/^\d+$/.test(q)) return null
+  const id = Number(q)
+  return Number.isSafeInteger(id) ? id : null
+}
+
 export default function AdminOrders() {
   const [searchParams] = useSearchParams()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
-  const [selectedStatuses, setSelectedStatuses] = useState(() => new Set(['Pending']))
+  const [exactSearch, setExactSearch] = useState(false)
+  const [selectedStatuses, setSelectedStatuses] = useState(() => new Set(['Pending', 'Shipped']))
   const [paymentFilter, setPaymentFilter] = useState('')
   const [headerOpen, setHeaderOpen] = useState(null)
 
-  const load = useCallback(async () => {
+  const fetchOrders = useCallback(async ({ exact = false } = {}) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (search.trim()) params.set('search', search.trim())
+      if (search.trim()) {
+        params.set('search', search.trim())
+        if (exact) params.set('exactId', 'true')
+      }
       const { data } = await api.get(`/admin/orders?${params}`)
       setOrders(data)
     } catch {
@@ -26,16 +37,24 @@ export default function AdminOrders() {
     }
   }, [search])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (exactSearch) return
+    fetchOrders({ exact: false })
+  }, [search, exactSearch, fetchOrders])
 
   const displayed = useMemo(() => {
     let arr = orders
-    if (selectedStatuses.size < ORDER_STATUSES.length) {
+    const exactId = exactSearch ? parseOrderIdQuery(search) : null
+    if (exactId != null) {
+      arr = arr.filter((o) => o.id === exactId)
+    }
+    const isSearching = search.trim().length > 0
+    if (!isSearching && selectedStatuses.size < ORDER_STATUSES.length) {
       arr = arr.filter((o) => selectedStatuses.has(normalizeStatus(o.status)))
     }
     if (paymentFilter) arr = arr.filter((o) => o.paymentMethod === paymentFilter)
     return arr
-  }, [orders, selectedStatuses, paymentFilter])
+  }, [orders, selectedStatuses, paymentFilter, search, exactSearch])
 
   const allStatusesSelected = selectedStatuses.size === ORDER_STATUSES.length
   const statusFilterActive = !allStatusesSelected
@@ -53,10 +72,16 @@ export default function AdminOrders() {
     setSelectedStatuses(allStatusesSelected ? new Set() : new Set(ORDER_STATUSES))
   }
 
-  const onUpdateOrder = async (orderId, status) => {
+  const onUpdateOrder = async (orderId, status, adminDeliveryCost) => {
     try {
-      await api.put(`/admin/orders/${orderId}/status`, { status: STATUS_VALUES[status] })
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)))
+      const body = { status: STATUS_VALUES[status] }
+      if (adminDeliveryCost != null) body.adminDeliveryCost = adminDeliveryCost
+      await api.put(`/admin/orders/${orderId}/status`, body)
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? {
+        ...o,
+        status,
+        ...(adminDeliveryCost != null ? { freeShippingDeliveryCost: adminDeliveryCost } : {}),
+      } : o)))
     } catch (err) {
       const msg = typeof err.response?.data === 'string'
         ? err.response.data
@@ -64,6 +89,13 @@ export default function AdminOrders() {
       alert(msg)
       throw err
     }
+  }
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    setExactSearch(true)
+    fetchOrders({ exact: true })
   }
 
   return (
@@ -76,9 +108,16 @@ export default function AdminOrders() {
       <div className="adm-toolbar">
         <input
           className="adm-search"
-          placeholder="Pretraži po ID-u porudžbine"
+          type="search"
+          placeholder="Pretraži po ID-u porudžbine (Enter za tačan ID)"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setExactSearch(false)
+          }}
+          onKeyDown={handleSearchKeyDown}
+          inputMode="numeric"
+          data-numeric="integer"
         />
       </div>
 

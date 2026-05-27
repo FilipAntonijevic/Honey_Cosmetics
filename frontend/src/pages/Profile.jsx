@@ -152,6 +152,8 @@ export default function Profile() {
                     placeholder="npr. 21000"
                     value={form.postalCode}
                     onChange={set('postalCode')}
+                    inputMode="numeric"
+                    data-numeric="integer"
                   />
                 </div>
               </div>

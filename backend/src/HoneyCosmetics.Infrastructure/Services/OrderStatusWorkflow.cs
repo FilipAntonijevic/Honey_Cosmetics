@@ -17,6 +17,7 @@ public static class OrderStatusWorkflow
         AppDbContext db,
         Order order,
         OrderStatus newStatus,
+        decimal? adminDeliveryCost = null,
         CancellationToken ct = default)
     {
         if (IsFinal(order.Status))
@@ -26,13 +27,36 @@ public static class OrderStatusWorkflow
         if (previous == newStatus)
             return null;
 
+        var needsDeliveryCost = order.FreeShippingApplied
+            && newStatus is OrderStatus.Delivered or OrderStatus.Returned;
+
+        if (needsDeliveryCost)
+        {
+            if (adminDeliveryCost is null)
+                return "Unesite koliko ste platili dostavu za ovu porudžbinu sa besplatnom dostavom.";
+
+            if (adminDeliveryCost < 0)
+                return "Trošak dostave ne može biti negativan.";
+        }
+
         order.Status = newStatus;
 
         if (newStatus is OrderStatus.Cancelled or OrderStatus.Returned)
             await InventoryFinanceService.RestoreStockForOrderAsync(db, order, ct);
 
         if (newStatus == OrderStatus.Delivered)
-            await InventoryFinanceService.RecordDeliveredOrderFinanceAsync(db, order, ct);
+        {
+            await InventoryFinanceService.RecordDeliveredOrderFinanceAsync(
+                db,
+                order,
+                needsDeliveryCost ? adminDeliveryCost : null,
+                ct);
+        }
+        else if (needsDeliveryCost)
+        {
+            await InventoryFinanceService.RecordFreeShippingDeliveryCostAsync(
+                db, order, adminDeliveryCost!.Value, ct);
+        }
 
         return null;
     }

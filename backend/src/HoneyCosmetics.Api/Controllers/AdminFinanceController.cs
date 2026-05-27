@@ -27,6 +27,7 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
         var list = await query
             .Include(x => x.Product)
             .Include(x => x.StockReceipt)
+            .Include(x => x.Order)
             .OrderByDescending(x => x.OccurredAt)
             .ThenByDescending(x => x.Id)
             .Take(2000)
@@ -91,7 +92,17 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
         {
             var order = entry.Order ?? await db.Orders.FindAsync(entry.OrderId.Value);
             if (order is not null)
+            {
                 order.FinanceRecorded = false;
+                order.FreeShippingDeliveryCost = null;
+            }
+        }
+
+        if (entry.Source == LedgerSource.FreeShippingDelivery && entry.OrderId is not null)
+        {
+            var order = entry.Order ?? await db.Orders.FindAsync(entry.OrderId.Value);
+            if (order is not null)
+                order.FreeShippingDeliveryCost = null;
         }
 
         if (entry.Source == LedgerSource.StockWriteOff
@@ -118,6 +129,15 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
         if (receipt is not null)
             merchandise = Math.Round(receipt.UnitCost * receipt.Quantity, 2);
 
+        decimal? orderGross = null;
+        decimal? orderDelivery = null;
+        if (e.Source == LedgerSource.OrderDelivered && e.Order is not null)
+        {
+            orderDelivery = e.Order.FreeShippingDeliveryCost;
+            if (orderDelivery is > 0)
+                orderGross = e.Amount + orderDelivery.Value;
+        }
+
         return new(
             e.Id,
             e.OccurredAt,
@@ -134,6 +154,8 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
             merchandise,
             isWriteOff ? null : receipt?.TransportCost,
             isWriteOff ? null : receipt?.TotalCost,
-            isWriteOff ? e.WriteOffNote : receipt?.Note);
+            isWriteOff ? e.WriteOffNote : receipt?.Note,
+            orderGross,
+            orderDelivery);
     }
 }

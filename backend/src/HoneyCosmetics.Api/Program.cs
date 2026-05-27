@@ -210,7 +210,7 @@ using (var scope = app.Services.CreateScope())
             IsPercentage = true,
             ExpiresAt = DateTime.UtcNow.AddMonths(6),
             IsActive = true,
-            FirstOrderOnly = false
+            UsageLimit = HoneyCosmetics.Domain.Enums.CouponUsageLimit.Unlimited,
         });
     }
 
@@ -219,7 +219,13 @@ using (var scope = app.Services.CreateScope())
     //
     if (!db.SiteSettings.Any())
     {
-        db.SiteSettings.Add(new SiteSettings { Id = 1, FreeShippingThreshold = 10000m });
+        db.SiteSettings.Add(new SiteSettings
+        {
+            Id = 1,
+            FreeShippingThreshold = 10000m,
+            NotificationBannerEnabled = true,
+            NotificationBannerText = "Besplatna dostava za porudžbinu preko 10.000 RSD • Popust na prvu porudžbinu 10% uz kod FIRSTORDER",
+        });
     }
     else
     {

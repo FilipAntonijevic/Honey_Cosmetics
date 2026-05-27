@@ -12,7 +12,8 @@ public record ProductRequest(
     int? CategoryId,
     IReadOnlyList<string>? AdditionalImageUrls = null,
     [Range(0, 1000000)] int StockQuantity = 0,
-    [Range(0, 9999999)] decimal? UnitCostPrice = null);
+    [Range(0, 9999999)] decimal? UnitCostPrice = null,
+    [Range(0, 9999999)] decimal? UnitTransportCost = null);
 
 public record ProductResponse(
     int Id,
@@ -31,7 +32,8 @@ public record ProductResponse(
     bool InStock,
     DateTime CreatedAt,
     IReadOnlyList<string>? AdditionalImageUrls = null,
-    decimal? UnitCostPrice = null);
+    decimal? UnitCostPrice = null,
+    decimal? UnitTransportCost = null);
 
 public record BestsellersUpdateRequest(IReadOnlyList<int> ProductIds);
 
@@ -57,7 +59,14 @@ public record SiteLinksResponse(
     string WhatsAppNumber,
     string ViberNumber,
     string NotificationsEmail,
-    decimal FreeShippingThreshold);
+    decimal FreeShippingThreshold,
+    string NotificationBannerText,
+    bool NotificationBannerEnabled,
+    string BankTransferRecipientName,
+    string BankTransferRecipientAddress,
+    string BankTransferAccountNumber,
+    string BankTransferBankName,
+    string BankTransferPurpose);
 
 public record SiteLinksUpdateRequest(
     string? InstagramUrl,
@@ -68,4 +77,13 @@ public record SiteLinksUpdateRequest(
     string? WhatsAppNumber,
     string? ViberNumber,
     string? NotificationsEmail,
-    decimal? FreeShippingThreshold);
+    decimal? FreeShippingThreshold,
+    string? BankTransferRecipientName,
+    string? BankTransferRecipientAddress,
+    string? BankTransferAccountNumber,
+    string? BankTransferBankName,
+    string? BankTransferPurpose);
+
+public record NotificationBannerUpdateRequest(
+    [Required, MaxLength(2000)] string Text,
+    bool Enabled);

@@ -134,17 +134,14 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("FirstOrderOnly")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsPercentage")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("OneTimePerUser")
-                        .HasColumnType("boolean");
+                    b.Property<int>("UsageLimit")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -168,7 +165,7 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<DateTime>("UsedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid?>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -239,6 +236,10 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("MobileImageUrl")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -333,6 +334,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.Property<bool>("FreeShippingApplied")
                         .HasColumnType("boolean");
+
+                    b.Property<decimal?>("FreeShippingDeliveryCost")
+                        .HasColumnType("numeric");
 
                     b.Property<string>("GuestEmail")
                         .HasColumnType("text");
@@ -505,6 +509,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<decimal?>("UnitCostPrice")
                         .HasColumnType("numeric");
 
+                    b.Property<decimal?>("UnitTransportCost")
+                        .HasColumnType("numeric");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
@@ -562,6 +569,46 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.ToTable("ProductTypes");
                 });
 
+            modelBuilder.Entity("HoneyCosmetics.Domain.Entities.SitePopup", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CouponCode")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MobileImageUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ProductId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("SitePopups");
+                });
+
             modelBuilder.Entity("HoneyCosmetics.Domain.Entities.SiteSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -569,6 +616,26 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BankTransferAccountNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankTransferBankName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankTransferPurpose")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankTransferRecipientAddress")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankTransferRecipientName")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("ComplaintsEmail")
                         .IsRequired()
@@ -582,6 +649,13 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .HasColumnType("numeric");
 
                     b.Property<string>("InstagramUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("NotificationBannerEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("NotificationBannerText")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -790,9 +864,7 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.HasOne("HoneyCosmetics.Domain.Entities.User", "User")
                         .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("UserId");
 
                     b.Navigation("Coupon");
 
@@ -886,6 +958,16 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("HoneyCosmetics.Domain.Entities.SitePopup", b =>
+                {
+                    b.HasOne("HoneyCosmetics.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Product");
                 });

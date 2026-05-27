@@ -10,6 +10,12 @@ const EMPTY = {
   whatsAppNumber: '',
   viberNumber: '',
   freeShippingThreshold: 10000,
+  notificationBannerText: '',
+  notificationBannerEnabled: true,
+  bankTransferRecipientName: '',
+  bankTransferRecipientAddress: '',
+  bankTransferAccountNumber: '',
+  bankTransferPurpose: '',
 }
 
 /**
@@ -36,6 +42,12 @@ export default function useSiteLinks() {
           whatsAppNumber: data?.whatsAppNumber ?? '',
           viberNumber: data?.viberNumber ?? '',
           freeShippingThreshold: data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000,
+          notificationBannerText: data?.notificationBannerText ?? '',
+          notificationBannerEnabled: data?.notificationBannerEnabled ?? true,
+          bankTransferRecipientName: data?.bankTransferRecipientName ?? '',
+          bankTransferRecipientAddress: data?.bankTransferRecipientAddress ?? '',
+          bankTransferAccountNumber: data?.bankTransferAccountNumber ?? '',
+          bankTransferPurpose: data?.bankTransferPurpose ?? '',
         })
       })
       .catch(() => {

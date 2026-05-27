@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
+import BankTransferSlip, { hasTemplate } from '../components/BankTransferSlip'
+import useSiteLinks from '../hooks/useSiteLinks'
 
 const STATUS_LABEL = {
   Pending: 'Na čekanju',
@@ -38,10 +40,15 @@ function paymentLabel(method) {
   return PAYMENT_LABEL[method] ?? PAYMENT_LABEL[String(method)] ?? String(method)
 }
 
+function isBankTransfer(method) {
+  return method === 'BankTransfer' || method === 1 || method === '1'
+}
+
 export default function MyOrders() {
   const [orders, setOrders] = useState([])
   const [expandedId, setExpandedId] = useState(null)
   const [loading, setLoading] = useState(true)
+  const siteLinks = useSiteLinks()
 
   useEffect(() => {
     api.get('/orders/mine')
@@ -216,6 +223,14 @@ export default function MyOrders() {
                       <dd>{fmtDate(order.createdAt)}</dd>
                     </div>
                   </dl>
+                  {isBankTransfer(order.paymentMethod) && hasTemplate(siteLinks) && (
+                    <BankTransferSlip
+                      template={siteLinks}
+                      orderId={order.id}
+                      amount={order.total}
+                      mode="confirmed"
+                    />
+                  )}
                 </section>
               </div>
             </article>

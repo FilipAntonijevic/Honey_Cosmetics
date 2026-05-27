@@ -91,28 +91,19 @@ public class OrdersController(
 
         if (!string.IsNullOrWhiteSpace(request.CouponCode))
         {
-            var code = request.CouponCode.Trim().ToUpperInvariant();
-            coupon = await db.Coupons.FirstOrDefaultAsync(x => x.Code.ToUpper() == code && x.IsActive);
-            if (coupon is null || (coupon.ExpiresAt.HasValue && coupon.ExpiresAt <= DateTime.UtcNow))
+            coupon = await CouponApplicationService.FindActiveCouponAsync(db, request.CouponCode);
+            if (coupon is null || CouponApplicationService.IsExpired(coupon))
             {
                 return BadRequest("Coupon is invalid or expired.");
             }
 
-            if (coupon.OneTimePerUser)
+            var couponError = await CouponApplicationService.GetEligibilityErrorAsync(db, coupon, userId);
+            if (couponError is not null)
             {
-                var usedByUser = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
-                if (usedByUser)
-                {
-                    return BadRequest("Coupon already used.");
-                }
+                return BadRequest(couponError);
             }
 
-            if (coupon.FirstOrderOnly && await db.Orders.AnyAsync(x => x.UserId == userId))
-            {
-                return BadRequest("Coupon available only for first order.");
-            }
-
-            discount = coupon.IsPercentage ? subtotal * (coupon.DiscountValue / 100m) : coupon.DiscountValue;
+            discount = CouponApplicationService.CalculateDiscount(coupon, subtotal);
         }
 
         var total = Math.Max(0, subtotal - discount);
@@ -145,9 +136,7 @@ public class OrdersController(
         db.Carts.RemoveRange(allCartItems);
 
         if (coupon is not null)
-        {
-            db.CouponUsages.Add(new CouponUsage { CouponId = coupon.Id, UserId = userId });
-        }
+            CouponApplicationService.RecordCouponUsage(db, coupon, userId);
 
         await db.SaveChangesAsync();
 
@@ -160,13 +149,15 @@ public class OrdersController(
 
         logger.LogInformation("[Order {OrderId}] Sending confirmation to user {Email}", order.Id, user.Email);
         var contactEmail = await ResolveContactEmailAsync();
+        var siteSettingsForEmail = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+        var bankSlipHtml = TryBuildBankTransferSlipHtml(siteSettingsForEmail, order.PaymentMethod, order.Id, order.Total);
         // Confirmation to user
         try
         {
             var body = BuildUserConfirmationEmail(
                 user.FullName, order.Id, orderItems, order.Subtotal, order.Discount,
                 order.CouponCode, order.Total, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
-                order.PaymentMethod.ToString(), order.CreatedAt, contactEmail);
+                order.PaymentMethod.ToString(), order.CreatedAt, contactEmail, bankSlipHtml);
             await emailService.SendAsync(user.Email, $"Honey Cosmetics — Potvrda porudžbine #{order.Id}", body);
             logger.LogInformation("[Order {OrderId}] User email sent OK", order.Id);
         }
@@ -213,13 +204,28 @@ public class OrdersController(
         if (missingIds.Count > 0)
             return BadRequest($"Products not found: {string.Join(", ", missingIds)}");
 
-        if (!string.IsNullOrWhiteSpace(request.CouponCode))
-            return BadRequest("Molimo vas da se ulogujete da biste koristili kupon.");
-
         var subtotal = request.Items.Sum(i => i.Quantity * products[i.ProductId].Price);
-        const decimal discount = 0;
+        decimal discount = 0;
+        Coupon? coupon = null;
 
-        var total = subtotal;
+        if (!string.IsNullOrWhiteSpace(request.CouponCode))
+        {
+            coupon = await CouponApplicationService.FindActiveCouponAsync(db, request.CouponCode);
+            if (coupon is null || CouponApplicationService.IsExpired(coupon))
+            {
+                return BadRequest("Coupon is invalid or expired.");
+            }
+
+            var couponError = await CouponApplicationService.GetEligibilityErrorAsync(db, coupon, userId: null);
+            if (couponError is not null)
+            {
+                return BadRequest(couponError);
+            }
+
+            discount = CouponApplicationService.CalculateDiscount(coupon, subtotal);
+        }
+
+        var total = Math.Max(0, subtotal - discount);
 
         var freeShippingThreshold = await GetFreeShippingThresholdAsync();
         var freeShippingApplied = freeShippingThreshold > 0 && total >= freeShippingThreshold;
@@ -240,6 +246,7 @@ public class OrdersController(
             PaymentMethod = request.PaymentMethod,
             Subtotal = subtotal,
             Discount = discount,
+            CouponCode = coupon?.Code,
             Total = total,
             FreeShippingApplied = freeShippingApplied,
             Status = OrderStatus.Pending,
@@ -253,6 +260,9 @@ public class OrdersController(
 
         db.Orders.Add(order);
 
+        if (coupon is not null)
+            CouponApplicationService.RecordCouponUsage(db, coupon, userId: null);
+
         await db.SaveChangesAsync();
 
         await CustomerProfileService.UpsertFromGuestOrderAsync(db, order);
@@ -262,6 +272,8 @@ public class OrdersController(
         // Build from products dict — Product nav property is not loaded on order.Items
         var orderItemsGuest = request.Items.Select(i => (products[i.ProductId].Name, i.Quantity, products[i.ProductId].Price)).ToList();
         var contactEmailGuest = await ResolveContactEmailAsync();
+        var siteSettingsForGuestEmail = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+        var bankSlipHtmlGuest = TryBuildBankTransferSlipHtml(siteSettingsForGuestEmail, order.PaymentMethod, order.Id, order.Total);
         // Confirmation to guest
         if (!string.IsNullOrWhiteSpace(order.GuestEmail))
         {
@@ -283,7 +295,8 @@ public class OrdersController(
                         order.Phone,
                         order.PaymentMethod.ToString(),
                         order.CreatedAt,
-                        contactEmailGuest));
+                        contactEmailGuest,
+                        bankSlipHtmlGuest));
             }
             catch (Exception ex) { logger.LogError(ex, "Failed to send guest confirmation email for order {OrderId}", order.Id); }
         }
@@ -422,12 +435,88 @@ public class OrdersController(
         return true;
     }
 
+    private static string FormatPaymentMethodLabel(string paymentMethod) =>
+        paymentMethod switch
+        {
+            nameof(PaymentMethod.BankTransfer) => "Direktna bankovna transakcija",
+            nameof(PaymentMethod.CashOnDelivery) => "Plaćanje pouzećem",
+            _ => paymentMethod
+        };
+
+    private static string? TryBuildBankTransferSlipHtml(SiteSettings? settings, PaymentMethod paymentMethod, int orderId, decimal total)
+    {
+        if (paymentMethod != PaymentMethod.BankTransfer || settings is null)
+            return null;
+
+        var recipient = settings.BankTransferRecipientName?.Trim();
+        var account = settings.BankTransferAccountNumber?.Trim();
+        if (string.IsNullOrEmpty(recipient) || string.IsNullOrEmpty(account))
+            return null;
+
+        var address = settings.BankTransferRecipientAddress?.Trim();
+        var purposeBase = string.IsNullOrWhiteSpace(settings.BankTransferPurpose)
+            ? "Uplata porudžbine"
+            : settings.BankTransferPurpose.Trim();
+
+        var encodedRecipient = WebUtility.HtmlEncode(recipient);
+        var encodedAccount = WebUtility.HtmlEncode(account);
+        var encodedPurpose = WebUtility.HtmlEncode(purposeBase);
+        var encodedAddress = string.IsNullOrWhiteSpace(address) ? null : WebUtility.HtmlEncode(address);
+        var amountText = total.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("sr-Latn-RS"));
+
+        var addressRow = encodedAddress is null
+            ? ""
+            : $"""
+              <tr>
+                <td style="padding:6px 0;color:#8b7668;font-weight:600;vertical-align:top;width:38%;">Adresa primaoca</td>
+                <td style="padding:6px 0;color:#3f2b22;vertical-align:top;">{encodedAddress}</td>
+              </tr>
+              """;
+
+        return $"""
+          <div style="background:#fff8eb;border:1px solid #f0d9a8;border-radius:8px;padding:1rem 1.2rem;margin:1.2rem 0;">
+            <h3 style="color:#3f2b22;font-size:0.85rem;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 0.65rem;">Podaci za uplatu</h3>
+            <p style="margin:0 0 0.85rem;font-size:0.88rem;line-height:1.55;color:#5c4a3a;">
+              Unesite ove podatke u uplatnicu / e-banking. Porudžbina se šalje tek nakon evidentirane uplate.
+              <strong>Obavezno upišite broj porudžbine u polje „Poziv na broj”.</strong>
+            </p>
+            <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+              <tr>
+                <td style="padding:6px 0;color:#8b7668;font-weight:600;vertical-align:top;width:38%;">Primalac</td>
+                <td style="padding:6px 0;color:#3f2b22;vertical-align:top;"><strong>{encodedRecipient}</strong></td>
+              </tr>
+              {addressRow}
+              <tr>
+                <td style="padding:6px 0;color:#8b7668;font-weight:600;vertical-align:top;">Broj računa</td>
+                <td style="padding:6px 0;color:#3f2b22;vertical-align:top;font-family:Consolas,Monaco,monospace;"><strong>{encodedAccount}</strong></td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#8b7668;font-weight:600;vertical-align:top;">Iznos</td>
+                <td style="padding:6px 0;color:#3f2b22;vertical-align:top;"><strong>{amountText} RSD</strong></td>
+              </tr>
+              <tr style="background:#fff3d6;">
+                <td style="padding:10px 8px;color:#7c4a03;font-weight:700;vertical-align:top;border-radius:6px 0 0 6px;">Poziv na broj</td>
+                <td style="padding:10px 8px;color:#7c4a03;font-weight:700;vertical-align:top;font-size:1.05rem;border-radius:0 6px 6px 0;">#{orderId}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#8b7668;font-weight:600;vertical-align:top;">Svrha uplate</td>
+                <td style="padding:6px 0;color:#3f2b22;vertical-align:top;">{encodedPurpose} — <strong>#{orderId}</strong></td>
+              </tr>
+            </table>
+            <p style="margin:0.85rem 0 0;font-size:0.84rem;line-height:1.5;color:#7c4a03;">
+              U polje <strong>„Poziv na broj”</strong> na uplatnici obavezno unesite <strong>#{orderId}</strong>.
+            </p>
+          </div>
+          """;
+    }
+
     private static string BuildUserConfirmationEmail(
         string name, int orderId,
         List<(string Name, int Qty, decimal Price)> items,
         decimal subtotal, decimal discount, string? couponCode,
         decimal total, bool freeShippingApplied, string address, string? phone,
-        string paymentMethod, DateTime createdAt, string contactEmail)
+        string paymentMethod, DateTime createdAt, string contactEmail,
+        string? bankTransferSlipHtml = null)
     {
         var discountRow = discount > 0
             ? $"""<tr><td style="color:#c0392b;padding:3px 0;">Popust{(string.IsNullOrEmpty(couponCode) ? "" : $" ({couponCode})")}</td><td style="text-align:right;color:#c0392b;">&minus;{discount:N0} RSD</td></tr>"""
@@ -439,6 +528,10 @@ public class OrdersController(
             ? ""
             : $"""<p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Telefon:</strong> {phone}</p>""";
         var encodedContact = WebUtility.HtmlEncode(contactEmail);
+        var paymentLabel = FormatPaymentMethodLabel(paymentMethod);
+        var bankSlipSection = string.IsNullOrEmpty(bankTransferSlipHtml)
+            ? ""
+            : bankTransferSlipHtml;
 
         return $"""
         <div style="font-family:Georgia,serif;max-width:560px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
@@ -473,7 +566,9 @@ public class OrdersController(
           <h3 style="color:#3f2b22;font-size:0.85rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.6rem;">Podaci o dostavi</h3>
           <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Adresa:</strong> {address}</p>
           {phoneRow}
-          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Način plaćanja:</strong> {paymentMethod}</p>
+          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Način plaćanja:</strong> {paymentLabel}</p>
+
+          {bankSlipSection}
 
           <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.2rem 0;">
           <p style="color:#9b8276;font-size:0.8rem;margin:0;">Ukoliko imate pitanja, slobodno nas kontaktirajte na <a href="mailto:{encodedContact}" style="color:#3f2b22;">{encodedContact}</a>.</p>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../context/StoreContext'
 import { publicUrl } from '../lib/assets'
+import Toast from './Toast'
 
 const MOBILE_ADM_MQ = '(max-width: 768px)'
 
@@ -11,13 +12,13 @@ const navItems = [
   { to: '/admin/finance', label: 'Prihodi', icon: '💰' },
   { to: '/admin/users', label: 'Korisnici', icon: '👤' },
   { to: '/admin/categories', label: 'Kategorije', icon: '📁' },
-  { to: '/admin/bestsellers', label: 'Bestsellers', icon: '★' },
-  { to: '/admin/home-slideshow', label: 'Slideshow', icon: '🖼' },
+  { to: '/admin/homescreen', label: 'Homescreen', icon: '🏠' },
+  { to: '/admin/site-popup', label: 'Popup', icon: '💬' },
   { to: '/admin/coupons', label: 'Kuponi', icon: '🎫' },
   { to: '/admin/links', label: 'Linkovi', icon: '🔗' },
 ]
 
-export default function AdminLayout({ children }) {
+export default function AdminLayout() {
   const { logout, user, toast } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
@@ -163,10 +164,10 @@ export default function AdminLayout({ children }) {
       </div>
 
       <div className="adm-content">
-        <main className="adm-main">{children}</main>
+        <main className="adm-main"><Outlet /></main>
       </div>
 
-      {toast ? <div className="toast">{toast}</div> : null}
+      <Toast message={toast} />
     </div>
   )
 }

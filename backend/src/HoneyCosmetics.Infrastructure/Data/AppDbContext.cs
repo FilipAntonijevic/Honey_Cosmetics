@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Address> Addresses => Set<Address>();
     public DbSet<SiteSettings> SiteSettings => Set<SiteSettings>();
     public DbSet<HomeSlideshowSlide> HomeSlideshowSlides => Set<HomeSlideshowSlide>();
+    public DbSet<SitePopup> SitePopups => Set<SitePopup>();
     public DbSet<StockReceipt> StockReceipts => Set<StockReceipt>();
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
     public DbSet<CustomerProfile> CustomerProfiles => Set<CustomerProfile>();
@@ -86,6 +87,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<HomeSlideshowSlide>()
             .HasIndex(x => x.SortOrder);
+
+        modelBuilder.Entity<SitePopup>()
+            .HasOne(x => x.Product)
+            .WithMany()
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<SitePopup>()
+            .HasIndex(x => x.IsActive);
 
         modelBuilder.Entity<StockReceipt>()
             .HasOne(x => x.Product)

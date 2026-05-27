@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import api from '../../api'
 import ApiImage from '../../components/ApiImage'
 import AdminModal from '../../components/admin/AdminModal'
+import { OrderShippingBadge } from '../../components/admin/AdminOrderTable'
 
 function parseNum(v) {
   const n = parseFloat(String(v).replace(',', '.'))
@@ -51,6 +52,199 @@ function StatSection({ title, hint, children }) {
   )
 }
 
+const ORDER_STATUS_LABELS = {
+  Pending: 'Na čekanju',
+  Shipped: 'Poslato',
+  Delivered: 'Dostavljeno',
+  Returned: 'Vraćeno',
+  Cancelled: 'Otkazano',
+}
+
+function parseOrderIdFromReference(ref) {
+  if (!ref) return null
+  const m = String(ref).match(/#(\d+)/)
+  return m ? Number(m[1]) : null
+}
+
+function normalizeLedgerDetail(raw = {}, order, productId) {
+  const d = {
+    purchaseQuantity: raw.purchaseQuantity ?? raw.PurchaseQuantity,
+    purchaseUnitCost: raw.purchaseUnitCost ?? raw.PurchaseUnitCost,
+    purchaseTransportUnitCost: raw.purchaseTransportUnitCost ?? raw.PurchaseTransportUnitCost,
+    purchaseMerchandiseTotal: raw.purchaseMerchandiseTotal ?? raw.PurchaseMerchandiseTotal,
+    purchaseTransportTotal: raw.purchaseTransportTotal ?? raw.PurchaseTransportTotal,
+    purchaseTotalCost: raw.purchaseTotalCost ?? raw.PurchaseTotalCost,
+    purchaseNote: raw.purchaseNote ?? raw.PurchaseNote,
+    writeOffQuantity: raw.writeOffQuantity ?? raw.WriteOffQuantity,
+    writeOffNote: raw.writeOffNote ?? raw.WriteOffNote,
+    orderId: raw.orderId ?? raw.OrderId,
+    orderStatus: raw.orderStatus ?? raw.OrderStatus,
+    orderCustomerName: raw.orderCustomerName ?? raw.OrderCustomerName,
+    orderCustomerEmail: raw.orderCustomerEmail ?? raw.OrderCustomerEmail,
+    orderDeliveryAddress: raw.orderDeliveryAddress ?? raw.OrderDeliveryAddress,
+    orderPhone: raw.orderPhone ?? raw.OrderPhone,
+    orderPaymentMethod: raw.orderPaymentMethod ?? raw.OrderPaymentMethod,
+    orderSubtotal: raw.orderSubtotal ?? raw.OrderSubtotal,
+    orderDiscount: raw.orderDiscount ?? raw.OrderDiscount,
+    orderCouponCode: raw.orderCouponCode ?? raw.OrderCouponCode,
+    orderTotal: raw.orderTotal ?? raw.OrderTotal,
+    orderFreeShippingApplied: raw.orderFreeShippingApplied ?? raw.OrderFreeShippingApplied,
+    orderFreeShippingDeliveryCost: raw.orderFreeShippingDeliveryCost ?? raw.OrderFreeShippingDeliveryCost,
+    orderCreatedAt: raw.orderCreatedAt ?? raw.OrderCreatedAt,
+    orderItemQuantity: raw.orderItemQuantity ?? raw.OrderItemQuantity,
+    orderItemUnitPrice: raw.orderItemUnitPrice ?? raw.OrderItemUnitPrice,
+    orderRestoreNote: raw.orderRestoreNote ?? raw.OrderRestoreNote,
+    orderItems: raw.orderItems ?? raw.OrderItems,
+  }
+
+  if (!order) return d
+
+  const line = order.items?.find((i) => i.productId === productId)
+  return {
+    ...d,
+    orderId: d.orderId ?? order.id,
+    orderStatus: d.orderStatus ?? order.status,
+    orderCustomerName: d.orderCustomerName ?? order.customerName,
+    orderCustomerEmail: d.orderCustomerEmail ?? order.customerEmail,
+    orderDeliveryAddress: d.orderDeliveryAddress ?? order.deliveryAddress,
+    orderPhone: d.orderPhone ?? order.phone,
+    orderPaymentMethod: d.orderPaymentMethod ?? order.paymentMethod,
+    orderSubtotal: d.orderSubtotal ?? order.subtotal,
+    orderDiscount: d.orderDiscount ?? order.discount,
+    orderCouponCode: d.orderCouponCode ?? order.couponCode,
+    orderTotal: d.orderTotal ?? order.total,
+    orderFreeShippingApplied: d.orderFreeShippingApplied ?? order.freeShippingApplied,
+    orderFreeShippingDeliveryCost: d.orderFreeShippingDeliveryCost ?? order.freeShippingDeliveryCost,
+    orderItems: d.orderItems ?? order.items,
+    orderItemQuantity: d.orderItemQuantity ?? line?.quantity,
+    orderItemUnitPrice: d.orderItemUnitPrice ?? line?.unitPrice,
+  }
+}
+
+function normalizeLedgerRow(row, ordersById, productId) {
+  const reference = row.reference ?? row.Reference ?? ''
+  const rawDetail = row.detail ?? row.Detail ?? {}
+  const orderId = rawDetail.orderId ?? rawDetail.OrderId ?? parseOrderIdFromReference(reference)
+  const order = orderId ? ordersById[orderId] : null
+
+  return {
+    sequence: row.sequence ?? row.Sequence,
+    occurredAt: row.occurredAt ?? row.OccurredAt,
+    kind: row.kind ?? row.Kind,
+    label: row.label ?? row.Label,
+    quantityDelta: row.quantityDelta ?? row.QuantityDelta,
+    reference: reference || (orderId ? `Porudžbina #${orderId}` : ''),
+    detail: normalizeLedgerDetail(rawDetail, order, productId),
+  }
+}
+
+function StockLedgerDetail({ row, fmt, fmtMoney }) {
+  const d = row.detail ?? {}
+  const kind = row.kind
+
+  if (kind === 'PurchaseReceived') {
+    return (
+      <dl className="adm-stock-ledger-detail__dl">
+        <dt>Količina</dt>
+        <dd>{d.purchaseQuantity ?? '—'} kom</dd>
+        <dt>Cena proizvoda (po komadu)</dt>
+        <dd>{fmtMoney(d.purchaseUnitCost)}</dd>
+        <dt>Ukupna cena proizvoda</dt>
+        <dd>{fmtMoney(d.purchaseMerchandiseTotal)}</dd>
+        <dt>Transport (po komadu)</dt>
+        <dd>{fmtMoney(d.purchaseTransportUnitCost)}</dd>
+        <dt>Transport / carina (ukupno)</dt>
+        <dd>{fmtMoney(d.purchaseTransportTotal)}</dd>
+        <dt>Ukupan trošak nabavke</dt>
+        <dd><strong>{fmtMoney(d.purchaseTotalCost)}</strong></dd>
+        {d.purchaseNote && (
+          <>
+            <dt>Napomena</dt>
+            <dd>{d.purchaseNote}</dd>
+          </>
+        )}
+      </dl>
+    )
+  }
+
+  if (kind === 'WriteOff') {
+    return (
+      <dl className="adm-stock-ledger-detail__dl">
+        <dt>Količina</dt>
+        <dd>{d.writeOffQuantity ?? '—'} kom</dd>
+        {d.writeOffNote && (
+          <>
+            <dt>Napomena</dt>
+            <dd>{d.writeOffNote}</dd>
+          </>
+        )}
+      </dl>
+    )
+  }
+
+  if (kind === 'OrderPlaced' || kind === 'OrderRestored') {
+    return (
+      <div className="adm-stock-ledger-detail__order">
+        {d.orderRestoreNote && (
+          <p className="adm-stock-ledger-detail__restore-note">{d.orderRestoreNote}</p>
+        )}
+        <dl className="adm-stock-ledger-detail__dl">
+          <dt>Kupac</dt>
+          <dd>{d.orderCustomerName ?? '—'}</dd>
+          <dt>Email</dt>
+          <dd>{d.orderCustomerEmail ?? '—'}</dd>
+          <dt>Status</dt>
+          <dd>{ORDER_STATUS_LABELS[d.orderStatus] ?? d.orderStatus ?? '—'}</dd>
+          <dt>Adresa dostave</dt>
+          <dd>{d.orderDeliveryAddress ?? '—'}</dd>
+          <dt>Telefon</dt>
+          <dd>{d.orderPhone ?? '—'}</dd>
+          <dt>Plaćanje</dt>
+          <dd>{d.orderPaymentMethod === 'CashOnDelivery' ? 'Pouzećem' : 'Bankovni prenos'}</dd>
+          <dt>Međuzbir</dt>
+          <dd>{fmtMoney(d.orderSubtotal)}</dd>
+          {d.orderCouponCode && (
+            <>
+              <dt>Kupon</dt>
+              <dd>{d.orderCouponCode}</dd>
+            </>
+          )}
+          <dt>Popust</dt>
+          <dd>{Number(d.orderDiscount) > 0 ? `−${fmt(d.orderDiscount)} RSD` : '—'}</dd>
+          <dt>Dostava</dt>
+          <dd><OrderShippingBadge freeShippingApplied={d.orderFreeShippingApplied} compact /></dd>
+          {d.orderFreeShippingDeliveryCost != null && (
+            <>
+              <dt>Trošak dostave (admin)</dt>
+              <dd>{fmtMoney(d.orderFreeShippingDeliveryCost)}</dd>
+            </>
+          )}
+          <dt>Ukupno</dt>
+          <dd><strong>{fmtMoney(d.orderTotal)}</strong></dd>
+          <dt>Ovaj proizvod</dt>
+          <dd>
+            {d.orderItemQuantity ?? '—'} kom × {fmtMoney(d.orderItemUnitPrice)}
+          </dd>
+        </dl>
+        {Array.isArray(d.orderItems) && d.orderItems.length > 0 && (
+          <div className="adm-stock-ledger-detail__items">
+            <strong>Stavke porudžbine:</strong>
+            <ul>
+              {d.orderItems.map((item) => (
+                <li key={item.productId}>
+                  {item.productName} × {item.quantity} — {fmt(item.unitPrice * item.quantity)} RSD
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}
+
 const EMPTY_NABAVKA = {
   quantity: '',
   unitCost: '',
@@ -67,11 +261,14 @@ export default function AdminProductDetail() {
   const location = useLocation()
   const navigate = useNavigate()
   const [product, setProduct] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState(null)
   const [statsLoading, setStatsLoading] = useState(false)
   const [statsError, setStatsError] = useState('')
   const [pendingReceipts, setPendingReceipts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [stockLedger, setStockLedger] = useState([])
+  const [stockLedgerLoading, setStockLedgerLoading] = useState(false)
+  const [expandedLedgerRow, setExpandedLedgerRow] = useState(null)
   const [showDelete, setShowDelete] = useState(false)
   const [showStats, setShowStats] = useState(false)
   const [showNabavka, setShowNabavka] = useState(false)
@@ -107,12 +304,33 @@ export default function AdminProductDetail() {
       .then(({ data }) => setPendingReceipts(data ?? []))
       .catch(() => setPendingReceipts([]))
 
+  const loadStockLedger = async () => {
+    setStockLedgerLoading(true)
+    try {
+      const productId = Number(id)
+      const [{ data: ledger }, { data: orders }] = await Promise.all([
+        api.get(`/admin/products/${id}/stock-ledger`),
+        api.get('/admin/orders'),
+      ])
+      const ordersById = Object.fromEntries((orders ?? []).map((o) => [o.id, o]))
+      setStockLedger(
+        (ledger ?? [])
+          .filter((row) => Number(row.quantityDelta ?? row.QuantityDelta) !== 0)
+          .map((row) => normalizeLedgerRow(row, ordersById, productId)),
+      )
+    } catch {
+      setStockLedger([])
+    } finally {
+      setStockLedgerLoading(false)
+    }
+  }
+
   const load = ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
     return api.get(`/admin/products/${id}`)
       .then((p) => {
         setProduct(p.data)
-        return Promise.all([loadStats(), loadPendingReceipts()])
+        return Promise.all([loadStats(), loadPendingReceipts(), loadStockLedger()])
       })
       .catch(() => {
         if (!silent) setProduct(null)
@@ -136,6 +354,7 @@ export default function AdminProductDetail() {
     setNabavka({
       ...EMPTY_NABAVKA,
       unitCost: product?.unitCostPrice != null ? String(product.unitCostPrice) : '',
+      transportUnitCost: product?.unitTransportCost != null ? String(product.unitTransportCost) : '',
     })
     setError('')
     setShowNabavka(true)
@@ -290,6 +509,11 @@ export default function AdminProductDetail() {
     }
   }
 
+  const ledgerRows = useMemo(
+    () => stockLedger.filter((row) => Number(row.quantityDelta) !== 0),
+    [stockLedger],
+  )
+
   if (loading) return <div className="adm-page"><div className="adm-loading">Učitavanje…</div></div>
   if (!product) return <div className="adm-page"><p>Proizvod nije pronađen.</p><Link to="/admin/products">← Proizvodi</Link></div>
 
@@ -318,11 +542,27 @@ export default function AdminProductDetail() {
     if (!Number.isFinite(x)) return '—'
     return x.toLocaleString('sr-RS')
   }
+  const fmtDate = (iso) => {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return '—'
+    return d.toLocaleDateString('sr-RS', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
+  }
+  const fmtLedgerDelta = (n) => {
+    const x = Number(n)
+    if (!Number.isFinite(x) || x === 0) return '—'
+    return x > 0 ? `+${x}` : String(x)
+  }
 
   const d = stats
     ? {
         price: stats.price,
         unitCostPrice: stats.unitCostPrice ?? stats.averagePurchaseUnitCost,
+        unitTransportCost: stats.unitTransportCost,
         averagePurchaseUnitCost: stats.averagePurchaseUnitCost,
         unitMargin: stats.unitMargin,
         marginPercent: stats.marginPercent,
@@ -351,6 +591,7 @@ export default function AdminProductDetail() {
       ? {
           price: product.price,
           unitCostPrice: product.unitCostPrice,
+          unitTransportCost: product.unitTransportCost,
           stockQuantity: product.stockQuantity,
           orderedQuantity: product.orderedQuantity,
         }
@@ -385,6 +626,17 @@ export default function AdminProductDetail() {
             <p className="adm-product-hub__stock">
               Na stanju: <strong>{product.stockQuantity ?? 0}</strong> kom
             </p>
+            {(product.unitCostPrice != null || product.unitTransportCost != null) && (
+              <p className="adm-product-hub__stock">
+                {product.unitCostPrice != null && (
+                  <>Nabavka: <strong>{fmt(product.unitCostPrice)}</strong> RSD/kom</>
+                )}
+                {product.unitCostPrice != null && product.unitTransportCost != null && ' · '}
+                {product.unitTransportCost != null && (
+                  <>Transport: <strong>{fmt(product.unitTransportCost)}</strong> RSD/kom</>
+                )}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -410,6 +662,9 @@ export default function AdminProductDetail() {
                   <div className="adm-pending-receipt-card__main">
                     <span className="adm-pending-receipt-card__badge">
                       PORUČENO: {receipt.quantity} komada
+                    </span>
+                    <span className="adm-pending-receipt-card__date">
+                      {fmtDate(receipt.createdAt)}
                     </span>
                     {receipt.totalCost > 0 && (
                       <span className="adm-pending-receipt-card__meta">
@@ -443,6 +698,67 @@ export default function AdminProductDetail() {
             </ul>
           </div>
         )}
+
+        <section className="adm-product-stock-ledger">
+          <h2 className="adm-product-stock-ledger__title">Evidencija lagera</h2>
+          {stockLedgerLoading ? (
+            <p className="adm-product-stock-ledger__empty">Učitavanje…</p>
+          ) : ledgerRows.length === 0 ? (
+            <p className="adm-product-stock-ledger__empty">Nema zabeleženih promena.</p>
+          ) : (
+            <div className="adm-table-wrap">
+              <table className="adm-table adm-product-stock-ledger__table">
+                <thead>
+                  <tr>
+                    <th>Datum</th>
+                    <th>Događaj</th>
+                    <th>Lager</th>
+                    <th>Referenca</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledgerRows.map((row) => {
+                    const rowKey = `${row.sequence}-${row.occurredAt}-${row.kind}`
+                    const isOpen = expandedLedgerRow === rowKey
+                    return (
+                      <Fragment key={rowKey}>
+                        <tr
+                          className={`adm-stock-ledger-row${isOpen ? ' adm-stock-ledger-row--open' : ''}`}
+                          onClick={() => setExpandedLedgerRow(isOpen ? null : rowKey)}
+                        >
+                          <td data-label="Datum">{fmtDate(row.occurredAt)}</td>
+                          <td data-label="Događaj">{row.label}</td>
+                          <td
+                            data-label="Lager"
+                            className={row.quantityDelta > 0 ? 'adm-stock-delta--in' : row.quantityDelta < 0 ? 'adm-stock-delta--out' : ''}
+                          >
+                            {fmtLedgerDelta(row.quantityDelta)}
+                          </td>
+                          <td data-label="Referenca">
+                            {row.detail?.orderId ? (
+                              <Link to="/admin/orders" className="adm-stock-ledger-ref-link">
+                                {row.reference || `Porudžbina #${row.detail.orderId}`}
+                              </Link>
+                            ) : (
+                              row.reference || '—'
+                            )}
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr className="adm-stock-ledger-detail-row">
+                            <td colSpan={4}>
+                              <StockLedgerDetail row={row} fmt={fmt} fmtMoney={fmtMoney} />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
 
       <AdminModal open={showDelete} onClose={() => setShowDelete(false)} className="adm-modal--confirm">
@@ -481,6 +797,7 @@ export default function AdminProductDetail() {
                   <StatSection title="Proizvod i cene">
                     <StatMetric label="Prodajna cena" value={fmtMoney(d.price)} />
                     <StatMetric label="Nabavna cena (lager)" value={fmtMoney(stats?.unitCostPrice)} />
+                    <StatMetric label="Transport po komadu (lager)" value={fmtMoney(stats?.unitTransportCost)} />
                     <StatMetric
                       label="Prosečna nabavna (iz nabavki)"
                       value={fmtMoney(d.averagePurchaseUnitCost)}

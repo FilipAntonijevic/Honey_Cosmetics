@@ -35,43 +35,47 @@ export default function Wishlist() {
   return (
     <section className="page shell">
       <h1>Wishlist</h1>
-      {!wishlist.length ? <p>Wishlist je prazna.</p> : (
-        <div className="product-grid">
-          {items.map((item) => {
-            const outOfStock = !isInStock(item)
-            return (
-              <article className="product-card" key={item.id}>
-                <Link to={`/products/${item.id}`} className="product-card-media" tabIndex={-1}>
-                  <ApiImage src={item.imageUrl} alt={item.name} variant="medium" />
-                </Link>
-                <div className="product-card-body">
-                  <h3>
-                    <Link to={`/products/${item.id}`}>{item.name}</Link>
-                  </h3>
-                  <strong>{Number(item.price).toLocaleString('sr-RS')} RSD</strong>
-                  <div className="card-actions">
-                    <button
-                      type="button"
-                      className={outOfStock ? 'product-card-btn--out-of-stock' : undefined}
-                      onClick={() => addToCart(item)}
-                      disabled={outOfStock}
-                    >
-                      {outOfStock ? 'Nije na stanju' : 'Dodaj u korpu'}
-                    </button>
-                    <button type="button" className="ghost" onClick={() => toggleWishlist(item)}>
-                      Ukloni
-                    </button>
+      {!wishlist.length ? (
+        <div className="wishlist-row">
+          <p className="wishlist-empty">Wishlist je prazna.</p>
+          <Link className="wishlist-pick-btn" to="/shop">izaberi proizvoda</Link>
+        </div>
+      ) : (
+        <div className="wishlist-row">
+          <div className="product-grid wishlist-grid">
+            {items.map((item) => {
+              const outOfStock = !isInStock(item)
+              return (
+                <article className="product-card" key={item.id}>
+                  <Link to={`/products/${item.id}`} className="product-card-media" tabIndex={-1}>
+                    <ApiImage src={item.imageUrl} alt={item.name} variant="medium" />
+                  </Link>
+                  <div className="product-card-body">
+                    <h3>
+                      <Link to={`/products/${item.id}`}>{item.name}</Link>
+                    </h3>
+                    <strong>{Number(item.price).toLocaleString('sr-RS')} RSD</strong>
+                    <div className="card-actions">
+                      <button
+                        type="button"
+                        className={outOfStock ? 'product-card-btn--out-of-stock' : undefined}
+                        onClick={() => addToCart(item)}
+                        disabled={outOfStock}
+                      >
+                        {outOfStock ? 'Nije na stanju' : 'Dodaj u korpu'}
+                      </button>
+                      <button type="button" className="ghost" onClick={() => toggleWishlist(item)}>
+                        Ukloni
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </article>
-            )
-          })}
+                </article>
+              )
+            })}
+          </div>
+          <Link className="wishlist-pick-btn" to="/shop">izaberi proizvoda</Link>
         </div>
       )}
-
-      <p className="wishlist-shop-cta">
-        <Link className="cta" to="/shop">Izaberi proizvode</Link>
-      </p>
     </section>
   )
 }

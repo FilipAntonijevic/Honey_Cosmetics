@@ -181,18 +181,23 @@ export default function AdminOrderTable({
 }) {
   const [expanded, setExpanded] = useState(null)
   const [updating, setUpdating] = useState(null)
-  const [deliveredConfirm, setDeliveredConfirm] = useState(null)
+  const [statusConfirm, setStatusConfirm] = useState(null)
+  const [deliveryCostInput, setDeliveryCostInput] = useState('')
+  const [confirmError, setConfirmError] = useState('')
   const [sort, setSort] = useState({ col: 'id', dir: 'desc' })
   const [headerOpen, setHeaderOpen] = useState(null)
 
+  const filterHeaderOpen = columnFilters?.headerOpen ?? headerOpen
+  const setFilterHeaderOpen = columnFilters?.onHeaderOpenChange ?? setHeaderOpen
+
   useEffect(() => {
-    if (!headerOpen) return
+    if (!filterHeaderOpen) return
     const handler = (e) => {
-      if (!e.target.closest('.adm-header-filter')) setHeaderOpen(null)
+      if (!e.target.closest('.adm-header-filter')) setFilterHeaderOpen(null)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [headerOpen])
+  }, [filterHeaderOpen, setFilterHeaderOpen])
 
   const toggleSort = (col) => {
     setSort((prev) => (prev.col === col
@@ -222,29 +227,56 @@ export default function AdminOrderTable({
     return arr
   }, [orders, sort, sortable])
 
-  const updateStatus = async (orderId, status) => {
+  const updateStatus = async (orderId, status, adminDeliveryCost) => {
     setUpdating(orderId)
     try {
-      await onUpdateOrder(orderId, status)
+      await onUpdateOrder(orderId, status, adminDeliveryCost)
     } finally {
       setUpdating(null)
     }
   }
 
+  const openStatusConfirm = (order, newStatus) => {
+    setConfirmError('')
+    setDeliveryCostInput('')
+    setStatusConfirm({
+      orderId: order.id,
+      status: newStatus,
+      customerName: order.customerName,
+      freeShippingApplied: order.freeShippingApplied,
+    })
+  }
+
   const handleStatusSelect = (order, newStatus) => {
     if (isFinalStatus(order.status)) return
     if (newStatus === 'Delivered') {
-      setDeliveredConfirm({ orderId: order.id, customerName: order.customerName })
+      openStatusConfirm(order, newStatus)
+      return
+    }
+    if (newStatus === 'Returned' && order.freeShippingApplied) {
+      openStatusConfirm(order, newStatus)
       return
     }
     updateStatus(order.id, newStatus)
   }
 
-  const confirmDelivered = async () => {
-    if (!deliveredConfirm) return
-    const { orderId } = deliveredConfirm
-    setDeliveredConfirm(null)
-    await updateStatus(orderId, 'Delivered')
+  const confirmStatusChange = async () => {
+    if (!statusConfirm) return
+    const { orderId, status, freeShippingApplied } = statusConfirm
+    let adminDeliveryCost
+
+    if (freeShippingApplied) {
+      const parsed = parseFloat(String(deliveryCostInput).replace(',', '.'))
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setConfirmError('Unesite ispravan iznos dostave (0 ili više).')
+        return
+      }
+      adminDeliveryCost = parsed
+    }
+
+    setStatusConfirm(null)
+    setConfirmError('')
+    await updateStatus(orderId, status, adminDeliveryCost)
   }
 
   const renderStatusCell = (order) => {
@@ -293,8 +325,6 @@ export default function AdminOrderTable({
   }
 
   const colSpan = showCustomer ? 7 : 6
-  const filterHeaderOpen = columnFilters?.headerOpen ?? headerOpen
-  const setFilterHeaderOpen = columnFilters?.onHeaderOpenChange ?? setHeaderOpen
 
   return (
     <>
@@ -415,6 +445,13 @@ export default function AdminOrderTable({
                             <br />
                             <strong>Dostava:</strong>{' '}
                             <OrderShippingBadge freeShippingApplied={order.freeShippingApplied} />
+                            {order.freeShippingDeliveryCost != null && (
+                              <>
+                                <br />
+                                <strong>Trošak dostave (admin):</strong>{' '}
+                                {fmtMoney(order.freeShippingDeliveryCost)} RSD
+                              </>
+                            )}
                           </div>
                           <div className="adm-order-items">
                             <strong>Stavke:</strong>
@@ -437,29 +474,71 @@ export default function AdminOrderTable({
         </table>
       </div>
 
-      {deliveredConfirm && !readOnly && (
+      {statusConfirm && !readOnly && (
         <AdminModal
           open
-          onClose={() => setDeliveredConfirm(null)}
+          onClose={() => { setStatusConfirm(null); setConfirmError('') }}
           className="adm-modal--confirm"
         >
           <div className="adm-modal-body">
-            <h2>Da li ste sigurni da želite da evidentirate da je pošiljka dostavljena?</h2>
-            <p>
-              Porudžbina <strong>#{deliveredConfirm.orderId}</strong>
-              {deliveredConfirm.customerName ? <> ({deliveredConfirm.customerName})</> : null}
-              {' '}biće označena kao dostavljena. Status je finalan, a uplata korisnika biće evidentirana u prihodima.
-            </p>
+            {statusConfirm.status === 'Delivered' ? (
+              <>
+                <h2>Da li ste sigurni da želite da evidentirate da je pošiljka dostavljena?</h2>
+                <p>
+                  Porudžbina <strong>#{statusConfirm.orderId}</strong>
+                  {statusConfirm.customerName ? <> ({statusConfirm.customerName})</> : null}
+                  {' '}biće označena kao dostavljena. Status je finalan, a uplata korisnika biće evidentirana u prihodima.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2>Označiti porudžbinu kao vraćenu?</h2>
+                <p>
+                  Porudžbina <strong>#{statusConfirm.orderId}</strong>
+                  {statusConfirm.customerName ? <> ({statusConfirm.customerName})</> : null}
+                  {' '}biće označena kao vraćena. Roba se vraća na lager.
+                </p>
+              </>
+            )}
+            {statusConfirm.freeShippingApplied && (
+              <div className="adm-form-row" style={{ marginTop: '1rem' }}>
+                <label className="adm-form-row" htmlFor="admin-delivery-cost">
+                  Koliko ste platili dostavu? (RSD)
+                </label>
+                <input
+                  id="admin-delivery-cost"
+                  className="adm-input"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="npr. 450"
+                  value={deliveryCostInput}
+                  onChange={(e) => {
+                    setDeliveryCostInput(e.target.value)
+                    setConfirmError('')
+                  }}
+                  autoFocus
+                />
+                <p className="adm-modal-hint" style={{ padding: '0.5rem 0 0' }}>
+                  Kupac je imao besplatnu dostavu — ovaj trošak se evidentira kao rashod u prihodima.
+                </p>
+              </div>
+            )}
+            {confirmError && (
+              <p className="adm-form-error" style={{ marginTop: '0.75rem' }}>{confirmError}</p>
+            )}
           </div>
           <div className="adm-modal-footer">
-            <button type="button" className="adm-btn" onClick={() => setDeliveredConfirm(null)}>Odustani</button>
+            <button type="button" className="adm-btn" onClick={() => { setStatusConfirm(null); setConfirmError('') }}>
+              Odustani
+            </button>
             <button
               type="button"
-              className="adm-btn adm-btn-primary adm-btn--delivered"
-              disabled={updating === deliveredConfirm.orderId}
-              onClick={confirmDelivered}
+              className={`adm-btn adm-btn-primary${statusConfirm.status === 'Delivered' ? ' adm-btn--delivered' : ''}`}
+              disabled={updating === statusConfirm.orderId}
+              onClick={confirmStatusChange}
             >
-              {updating === deliveredConfirm.orderId ? 'Čuvanje…' : 'Da, evidentiraj dostavu'}
+              {updating === statusConfirm.orderId ? 'Čuvanje…' : 'Potvrdi'}
             </button>
           </div>
         </AdminModal>

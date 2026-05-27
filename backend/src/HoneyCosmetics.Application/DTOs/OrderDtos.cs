@@ -17,5 +17,5 @@ public record OrderItemResponse(int ProductId, string ProductName, string? Image
 
 public record OrderResponse(int Id, string DeliveryAddress, string? Phone, PaymentMethod PaymentMethod, string Status, decimal Subtotal, decimal Discount, string? CouponCode, decimal Total, bool FreeShippingApplied, DateTime CreatedAt, IReadOnlyCollection<OrderItemResponse> Items);
 
-public record CouponRequest(string Code, decimal DiscountValue, bool IsPercentage, DateTime? ExpiresAt, bool FirstOrderOnly, bool OneTimePerUser = true);
+public record CouponRequest(string Code, decimal DiscountValue, bool IsPercentage, DateTime? ExpiresAt, CouponUsageLimit UsageLimit);
 public record CouponValidationResponse(bool IsValid, string Message, decimal DiscountValue, bool IsPercentage);

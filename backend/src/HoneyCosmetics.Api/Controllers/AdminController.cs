@@ -30,7 +30,8 @@ public class AdminController(
     [HttpGet("orders")]
     public async Task<ActionResult<IReadOnlyCollection<AdminOrderResponse>>> GetOrders(
         [FromQuery] string? status,
-        [FromQuery] string? search)
+        [FromQuery] string? search,
+        [FromQuery] bool exactId = false)
     {
         var query = db.Orders
             .Include(x => x.Items).ThenInclude(x => x.Product)
@@ -47,13 +48,20 @@ public class AdminController(
             var idTerm = raw.TrimStart('#');
             var searchById = idTerm.Length > 0 && idTerm.All(char.IsDigit);
 
-            query = query.Where(x =>
-                (searchById && x.Id.ToString().Contains(idTerm))
-                || (x.User != null && (
-                    x.User.Email.ToLower().Contains(term) ||
-                    (x.User.FirstName + " " + x.User.LastName).ToLower().Contains(term)))
-                || (x.GuestEmail != null && x.GuestEmail.ToLower().Contains(term))
-                || (x.GuestName != null && x.GuestName.ToLower().Contains(term)));
+            if (searchById && exactId && int.TryParse(idTerm, out var orderId))
+            {
+                query = query.Where(x => x.Id == orderId);
+            }
+            else
+            {
+                query = query.Where(x =>
+                    (searchById && x.Id.ToString().Contains(idTerm))
+                    || (x.User != null && (
+                        x.User.Email.ToLower().Contains(term) ||
+                        (x.User.FirstName + " " + x.User.LastName).ToLower().Contains(term)))
+                    || (x.GuestEmail != null && x.GuestEmail.ToLower().Contains(term))
+                    || (x.GuestName != null && x.GuestName.ToLower().Contains(term)));
+            }
         }
 
         var orders = await query.OrderByDescending(x => x.CreatedAt).ToListAsync();
@@ -84,7 +92,8 @@ public class AdminController(
             .FirstOrDefaultAsync(o => o.Id == orderId);
         if (order is null) return NotFound();
 
-        var error = await OrderStatusWorkflow.TryApplyStatusChangeAsync(db, order, request.Status);
+        var error = await OrderStatusWorkflow.TryApplyStatusChangeAsync(
+            db, order, request.Status, request.AdminDeliveryCost);
         if (error is not null)
             return BadRequest(error);
 
@@ -265,6 +274,7 @@ public class AdminController(
             product.Name,
             product.Price,
             product.UnitCostPrice,
+            product.UnitTransportCost,
             averagePurchaseUnitCost,
             product.StockQuantity,
             product.OrderedQuantity,
@@ -311,6 +321,16 @@ public class AdminController(
             .ToListAsync();
 
         return Ok(list);
+    }
+
+    [HttpGet("products/{id:int}/stock-ledger")]
+    public async Task<ActionResult<IReadOnlyCollection<ProductStockLedgerRowResponse>>> GetProductStockLedger(int id)
+    {
+        var exists = await db.Products.AnyAsync(p => p.Id == id);
+        if (!exists) return NotFound();
+
+        var rows = await ProductStockLedgerService.GetLedgerAsync(db, id);
+        return Ok(rows);
     }
 
     [HttpPost("products/{id:int}/stock-purchase")]
@@ -565,7 +585,41 @@ public class AdminController(
             s?.WhatsAppNumber ?? string.Empty,
             s?.ViberNumber ?? string.Empty,
             s?.NotificationsEmail ?? string.Empty,
-            s?.FreeShippingThreshold ?? 10000m));
+            s?.FreeShippingThreshold ?? 10000m,
+            s?.NotificationBannerText ?? string.Empty,
+            s?.NotificationBannerEnabled ?? true,
+            s?.BankTransferRecipientName ?? string.Empty,
+            s?.BankTransferRecipientAddress ?? string.Empty,
+            s?.BankTransferAccountNumber ?? string.Empty,
+            s?.BankTransferBankName ?? string.Empty,
+            s?.BankTransferPurpose ?? string.Empty));
+    }
+
+    [HttpGet("home-screen/notification-banner")]
+    public async Task<ActionResult<NotificationBannerUpdateRequest>> GetNotificationBanner()
+    {
+        var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+        return Ok(new NotificationBannerUpdateRequest(
+            s?.NotificationBannerText ?? string.Empty,
+            s?.NotificationBannerEnabled ?? true));
+    }
+
+    [HttpPut("home-screen/notification-banner")]
+    public async Task<ActionResult<NotificationBannerUpdateRequest>> UpdateNotificationBanner(
+        [FromBody] NotificationBannerUpdateRequest request)
+    {
+        var s = await db.SiteSettings.FirstOrDefaultAsync();
+        if (s is null)
+        {
+            s = new SiteSettings { Id = 1 };
+            db.SiteSettings.Add(s);
+        }
+
+        s.NotificationBannerText = (request.Text ?? string.Empty).Trim();
+        s.NotificationBannerEnabled = request.Enabled;
+        await db.SaveChangesAsync();
+
+        return Ok(new NotificationBannerUpdateRequest(s.NotificationBannerText, s.NotificationBannerEnabled));
     }
 
     [HttpPut("site/links")]
@@ -594,6 +648,17 @@ public class AdminController(
             s.FreeShippingThreshold = threshold;
         }
 
+        if (request.BankTransferRecipientName is not null)
+            s.BankTransferRecipientName = request.BankTransferRecipientName.Trim();
+        if (request.BankTransferRecipientAddress is not null)
+            s.BankTransferRecipientAddress = request.BankTransferRecipientAddress.Trim();
+        if (request.BankTransferAccountNumber is not null)
+            s.BankTransferAccountNumber = request.BankTransferAccountNumber.Trim();
+        if (request.BankTransferBankName is not null)
+            s.BankTransferBankName = request.BankTransferBankName.Trim();
+        if (request.BankTransferPurpose is not null)
+            s.BankTransferPurpose = request.BankTransferPurpose.Trim();
+
         await db.SaveChangesAsync();
         return Ok(new SiteLinksResponse(
             s.InstagramUrl,
@@ -604,7 +669,14 @@ public class AdminController(
             s.WhatsAppNumber,
             s.ViberNumber,
             s.NotificationsEmail,
-            s.FreeShippingThreshold));
+            s.FreeShippingThreshold,
+            s.NotificationBannerText,
+            s.NotificationBannerEnabled,
+            s.BankTransferRecipientName,
+            s.BankTransferRecipientAddress,
+            s.BankTransferAccountNumber,
+            s.BankTransferBankName,
+            s.BankTransferPurpose));
     }
 
     // ── Slideshow (početna) ────────────────────────────────────────────────
@@ -614,7 +686,7 @@ public class AdminController(
         var slides = await db.HomeSlideshowSlides
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Id)
-            .Select(x => new HomeSlideshowSlideResponse(x.Id, x.ImageUrl, x.SortOrder))
+            .Select(x => new HomeSlideshowSlideResponse(x.Id, x.ImageUrl, x.MobileImageUrl, x.SortOrder))
             .ToListAsync();
         return Ok(slides);
     }
@@ -624,17 +696,39 @@ public class AdminController(
         [FromBody] HomeSlideshowSlideRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.ImageUrl))
-            return BadRequest("Image URL is required.");
+            return BadRequest("Desktop slika je obavezna.");
+        if (string.IsNullOrWhiteSpace(request.MobileImageUrl))
+            return BadRequest("Mobilna slika je obavezna.");
 
         var maxOrder = await db.HomeSlideshowSlides.MaxAsync(x => (int?)x.SortOrder) ?? -1;
         var slide = new HomeSlideshowSlide
         {
             ImageUrl = request.ImageUrl.Trim(),
+            MobileImageUrl = request.MobileImageUrl.Trim(),
             SortOrder = maxOrder + 1,
         };
         db.HomeSlideshowSlides.Add(slide);
         await db.SaveChangesAsync();
-        return Ok(new HomeSlideshowSlideResponse(slide.Id, slide.ImageUrl, slide.SortOrder));
+        return Ok(new HomeSlideshowSlideResponse(slide.Id, slide.ImageUrl, slide.MobileImageUrl, slide.SortOrder));
+    }
+
+    [HttpPut("home-slideshow/{id:int}")]
+    public async Task<ActionResult<HomeSlideshowSlideResponse>> UpdateHomeSlideshowSlide(
+        int id,
+        [FromBody] HomeSlideshowSlideUpdateRequest request)
+    {
+        var slide = await db.HomeSlideshowSlides.FindAsync(id);
+        if (slide is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(request.ImageUrl))
+            return BadRequest("Desktop slika je obavezna.");
+        if (string.IsNullOrWhiteSpace(request.MobileImageUrl))
+            return BadRequest("Mobilna slika je obavezna.");
+
+        slide.ImageUrl = request.ImageUrl.Trim();
+        slide.MobileImageUrl = request.MobileImageUrl.Trim();
+        await db.SaveChangesAsync();
+        return Ok(new HomeSlideshowSlideResponse(slide.Id, slide.ImageUrl, slide.MobileImageUrl, slide.SortOrder));
     }
 
     [HttpPut("home-slideshow/order")]
@@ -667,6 +761,93 @@ public class AdminController(
         var slide = await db.HomeSlideshowSlides.FindAsync(id);
         if (slide is null) return NotFound();
         db.HomeSlideshowSlides.Remove(slide);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ── Site popups ──────────────────────────────────────────────────────────
+    [HttpGet("site-popups")]
+    public async Task<ActionResult<IReadOnlyCollection<SitePopupResponse>>> GetSitePopups()
+    {
+        var popups = await db.SitePopups
+            .AsNoTracking()
+            .Include(p => p.Product)
+            .OrderByDescending(p => p.CreatedAt)
+            .Select(p => new SitePopupResponse(
+                p.Id,
+                p.ImageUrl,
+                p.MobileImageUrl,
+                p.Type.ToString(),
+                p.ProductId,
+                p.Product != null ? p.Product.Name : null,
+                p.CouponCode,
+                p.IsActive,
+                p.CreatedAt))
+            .ToListAsync();
+        return Ok(popups);
+    }
+
+    [HttpPost("site-popups")]
+    public async Task<ActionResult<SitePopupResponse>> CreateSitePopup([FromBody] SitePopupCreateRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ImageUrl))
+            return BadRequest("PC slika je obavezna.");
+        if (string.IsNullOrWhiteSpace(request.MobileImageUrl))
+            return BadRequest("Mobilna slika je obavezna.");
+
+        var validationError = await ValidateSitePopupRequestAsync(request.Type, request.ProductId, request.CouponCode);
+        if (validationError is not null)
+            return BadRequest(validationError);
+
+        if (request.Activate)
+            await DeactivateAllSitePopupsAsync();
+
+        var popup = new SitePopup
+        {
+            ImageUrl = request.ImageUrl.Trim(),
+            MobileImageUrl = request.MobileImageUrl.Trim(),
+            Type = request.Type,
+            ProductId = request.Type == SitePopupType.Product ? request.ProductId : null,
+            CouponCode = request.Type == SitePopupType.Coupon
+                ? request.CouponCode!.Trim().ToUpperInvariant()
+                : null,
+            IsActive = request.Activate,
+            CreatedAt = DateTime.UtcNow,
+        };
+        db.SitePopups.Add(popup);
+        await db.SaveChangesAsync();
+
+        return Ok(await MapSitePopupResponseAsync(popup.Id));
+    }
+
+    [HttpPatch("site-popups/{id:int}/activate")]
+    public async Task<IActionResult> ActivateSitePopup(int id)
+    {
+        var popup = await db.SitePopups.FindAsync(id);
+        if (popup is null) return NotFound();
+
+        await DeactivateAllSitePopupsAsync();
+        popup.IsActive = true;
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPatch("site-popups/{id:int}/deactivate")]
+    public async Task<IActionResult> DeactivateSitePopup(int id)
+    {
+        var popup = await db.SitePopups.FindAsync(id);
+        if (popup is null) return NotFound();
+        popup.IsActive = false;
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("site-popups/{id:int}")]
+    public async Task<IActionResult> DeleteSitePopup(int id)
+    {
+        var popup = await db.SitePopups.FindAsync(id);
+        if (popup is null) return NotFound();
+        db.SitePopups.Remove(popup);
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -709,6 +890,51 @@ public class AdminController(
         return db.Categories.AnyAsync(c => c.Id == categoryId.Value && c.ProductTypeId == productTypeId);
     }
 
+    private async Task DeactivateAllSitePopupsAsync()
+    {
+        var active = await db.SitePopups.Where(p => p.IsActive).ToListAsync();
+        foreach (var p in active)
+            p.IsActive = false;
+    }
+
+    private async Task<string?> ValidateSitePopupRequestAsync(
+        SitePopupType type,
+        int? productId,
+        string? couponCode)
+    {
+        return type switch
+        {
+            SitePopupType.Product when productId is null or <= 0 =>
+                "Izaberite proizvod.",
+            SitePopupType.Product when !await db.Products.AnyAsync(p => p.Id == productId && !p.IsDeleted) =>
+                "Proizvod nije pronađen.",
+            SitePopupType.Coupon when string.IsNullOrWhiteSpace(couponCode) =>
+                "Unesite kod kupona.",
+            SitePopupType.Coupon when !await db.Coupons.AnyAsync(c =>
+                c.Code == couponCode!.Trim().ToUpperInvariant()) =>
+                "Kupon sa tim kodom ne postoji.",
+            _ => null,
+        };
+    }
+
+    private async Task<SitePopupResponse> MapSitePopupResponseAsync(int id)
+    {
+        var popup = await db.SitePopups
+            .AsNoTracking()
+            .Include(p => p.Product)
+            .FirstAsync(p => p.Id == id);
+        return new SitePopupResponse(
+            popup.Id,
+            popup.ImageUrl,
+            popup.MobileImageUrl,
+            popup.Type.ToString(),
+            popup.ProductId,
+            popup.Product?.Name,
+            popup.CouponCode,
+            popup.IsActive,
+            popup.CreatedAt);
+    }
+
     // ── Mappers ───────────────────────────────────────────────────────────────
     private static ProductResponse MapProduct(Product p) => ProductMapper.ToResponse(p, includeUnitCost: true);
 
@@ -725,11 +951,12 @@ public class AdminController(
         o.CouponCode,
         o.Total,
         o.FreeShippingApplied,
+        o.FreeShippingDeliveryCost,
         o.CreatedAt,
         o.Items.Select(i => new OrderItemResponse(i.ProductId, i.Product?.Name ?? "—", i.Product?.ImageUrl, i.Quantity, i.UnitPrice)).ToList());
 }
 
-public record UpdateOrderStatusRequest(OrderStatus Status);
+public record UpdateOrderStatusRequest(OrderStatus Status, decimal? AdminDeliveryCost = null);
 
 public record AdminOrderResponse(
     int Id,
@@ -744,6 +971,7 @@ public record AdminOrderResponse(
     string? CouponCode,
     decimal Total,
     bool FreeShippingApplied,
+    decimal? FreeShippingDeliveryCost,
     DateTime CreatedAt,
     IReadOnlyCollection<OrderItemResponse> Items);
 

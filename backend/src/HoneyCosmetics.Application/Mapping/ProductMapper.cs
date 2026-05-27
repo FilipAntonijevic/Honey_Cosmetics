@@ -26,5 +26,6 @@ public static class ProductMapper
                 .OrderBy(x => x.SortOrder)
                 .Select(x => x.ImageUrl)
                 .ToList(),
-            includeUnitCost ? p.UnitCostPrice : null);
+            includeUnitCost ? p.UnitCostPrice : null,
+            includeUnitCost ? p.UnitTransportCost : null);
 }

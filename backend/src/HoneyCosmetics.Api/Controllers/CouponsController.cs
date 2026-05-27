@@ -2,6 +2,7 @@ using HoneyCosmetics.Api.Extensions;
 using HoneyCosmetics.Application.DTOs;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Infrastructure.Data;
+using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,29 +18,19 @@ public class CouponsController(AppDbContext db) : ControllerBase
     [HttpPost("validate")]
     public async Task<ActionResult<CouponValidationResponse>> Validate([FromBody] string code)
     {
-        if (User.Identity?.IsAuthenticated != true)
-        {
-            return Ok(new CouponValidationResponse(
-                false,
-                "Molimo vas da se ulogujete da biste koristili kupon.",
-                0,
-                false));
-        }
+        await CouponApplicationService.DeactivateExpiredCouponsAsync(db);
 
-        var coupon = await db.Coupons.FirstOrDefaultAsync(x => x.Code.ToUpper() == code.Trim().ToUpper() && x.IsActive);
-        if (coupon is null || (coupon.ExpiresAt.HasValue && coupon.ExpiresAt <= DateTime.UtcNow))
+        var coupon = await CouponApplicationService.FindActiveCouponAsync(db, code);
+        if (coupon is null || CouponApplicationService.IsExpired(coupon))
         {
             return Ok(new CouponValidationResponse(false, "Izabrali ste nepostojeci kupon.", 0, false));
         }
 
-        var userId = User.GetUserId();
-        if (coupon.OneTimePerUser)
+        Guid? userId = User.Identity?.IsAuthenticated == true ? User.GetUserId() : null;
+        var error = await CouponApplicationService.GetEligibilityErrorAsync(db, coupon, userId);
+        if (error is not null)
         {
-            var alreadyUsed = await db.CouponUsages.AnyAsync(x => x.CouponId == coupon.Id && x.UserId == userId);
-            if (alreadyUsed)
-            {
-                return Ok(new CouponValidationResponse(false, "Kupon je već iskorišćen.", 0, false));
-            }
+            return Ok(new CouponValidationResponse(false, error, 0, false));
         }
 
         return Ok(new CouponValidationResponse(true, "Kupon je validan.", coupon.DiscountValue, coupon.IsPercentage));
@@ -49,6 +40,8 @@ public class CouponsController(AppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> List()
     {
+        await CouponApplicationService.DeactivateExpiredCouponsAsync(db);
+
         var coupons = await db.Coupons
             .Include(x => x.Usages)
             .OrderByDescending(x => x.Id)
@@ -59,8 +52,7 @@ public class CouponsController(AppDbContext db) : ControllerBase
                 x.DiscountValue,
                 x.IsPercentage,
                 x.ExpiresAt,
-                x.FirstOrderOnly,
-                x.OneTimePerUser,
+                UsageLimit = x.UsageLimit.ToString(),
                 x.IsActive,
                 UsageCount = x.Usages.Count
             })
@@ -106,8 +98,7 @@ public class CouponsController(AppDbContext db) : ControllerBase
             DiscountValue = request.DiscountValue,
             IsPercentage = request.IsPercentage,
             ExpiresAt = request.ExpiresAt,
-            FirstOrderOnly = request.FirstOrderOnly,
-            OneTimePerUser = request.OneTimePerUser,
+            UsageLimit = request.UsageLimit,
             IsActive = true
         });
 

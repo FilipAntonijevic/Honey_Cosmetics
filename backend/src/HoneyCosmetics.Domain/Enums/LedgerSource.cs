@@ -6,4 +6,5 @@ public enum LedgerSource
     OrderDelivered = 1,
     StockPurchase = 2,
     StockWriteOff = 3,
+    FreeShippingDelivery = 4,
 }

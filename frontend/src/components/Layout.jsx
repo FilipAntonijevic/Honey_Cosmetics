@@ -6,6 +6,8 @@ import { publicUrl } from '../lib/assets'
 import { useStore } from '../context/StoreContext'
 import SiteHeaderPanel from './SiteHeaderPanel'
 import FreeShippingBar from './FreeShippingBar'
+import Toast from './Toast'
+import SitePopupModal, { getDismissedSitePopupId } from './SitePopupModal'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 
 const EMPTY_LINKS = {
@@ -16,6 +18,8 @@ const EMPTY_LINKS = {
   whatsAppNumber: '',
   viberNumber: '',
   freeShippingThreshold: 10000,
+  notificationBannerText: '',
+  notificationBannerEnabled: true,
 }
 
 const cleanDigits = (v) => (v || '').replace(/[^+\d]/g, '')
@@ -44,6 +48,8 @@ export default function Layout({ children }) {
   const { cart, checkoutCart, checkoutGrandTotal, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock } = useStore()
   const [vrste, setVrste] = useState([])
   const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
+  const [sitePopup, setSitePopup] = useState(null)
+  const [sitePopupVisible, setSitePopupVisible] = useState(false)
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = checkoutGrandTotal
   const [userMenuOpen, setUserMenuOpen] = useState(false)
@@ -51,6 +57,7 @@ export default function Layout({ children }) {
   const [categoriesMenuOpen, setCategoriesMenuOpen] = useState(false)
   const [miniCartOpen, setMiniCartOpen] = useState(false)
   const [miniCartClosing, setMiniCartClosing] = useState(false)
+  const [cartFabPulse, setCartFabPulse] = useState(false)
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(min-width: 769px)').matches,
   )
@@ -100,6 +107,13 @@ export default function Layout({ children }) {
   }, [cartAddTick, isDesktop])
 
   useEffect(() => {
+    if (isDesktop || cartAddTick === 0) return
+    setCartFabPulse(true)
+    const t = window.setTimeout(() => setCartFabPulse(false), 600)
+    return () => clearTimeout(t)
+  }, [cartAddTick, isDesktop])
+
+  useEffect(() => {
     if (miniCartOpen && !miniCartClosing) refreshCartStock()
   }, [miniCartOpen, miniCartClosing, refreshCartStock])
 
@@ -123,8 +137,22 @@ export default function Layout({ children }) {
         whatsAppNumber: data?.whatsAppNumber ?? '',
         viberNumber: data?.viberNumber ?? '',
         freeShippingThreshold: data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000,
+        notificationBannerText: data?.notificationBannerText ?? '',
+        notificationBannerEnabled: data?.notificationBannerEnabled ?? true,
       }))
       .catch(() => setSiteLinks(EMPTY_LINKS))
+  }, [])
+
+  useEffect(() => {
+    api
+      .get('/site-popup/active')
+      .then(({ data, status }) => {
+        if (status === 204 || !data?.id) return
+        if (getDismissedSitePopupId() === data.id) return
+        setSitePopup(data)
+        setSitePopupVisible(true)
+      })
+      .catch(() => {})
   }, [])
 
   const mailHref = siteLinks.emailAddress
@@ -135,37 +163,39 @@ export default function Layout({ children }) {
   const viberHref = buildViberHref(siteLinks.viberNumber)
   const hasAnyPhoneOption = phoneHref || whatsAppHref || viberHref
 
+  const isInsideAny = (target, selector) => {
+    if (!(target instanceof Node)) return false
+    return [...document.querySelectorAll(selector)].some((el) => el.contains(target))
+  }
+
   useEffect(() => {
     if (!userMenuOpen) return
     const close = (e) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
-        setUserMenuOpen(false)
-      }
+      if (isInsideAny(e.target, '.user-menu-wrap')) return
+      setUserMenuOpen(false)
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
   }, [userMenuOpen])
 
   useEffect(() => {
     if (!phoneMenuOpen) return
     const close = (e) => {
-      if (phoneMenuRef.current && !phoneMenuRef.current.contains(e.target)) {
-        setPhoneMenuOpen(false)
-      }
+      if (isInsideAny(e.target, '.phone-menu-wrap')) return
+      setPhoneMenuOpen(false)
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
   }, [phoneMenuOpen])
 
   useEffect(() => {
     if (!categoriesMenuOpen) return
     const close = (e) => {
-      if (categoriesMenuRef.current && !categoriesMenuRef.current.contains(e.target)) {
-        setCategoriesMenuOpen(false)
-      }
+      if (isInsideAny(e.target, '.categories-menu-wrap')) return
+      setCategoriesMenuOpen(false)
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
   }, [categoriesMenuOpen])
 
   const closeMiniCart = () => {
@@ -175,6 +205,11 @@ export default function Layout({ children }) {
       return
     }
     setMiniCartClosing(true)
+  }
+
+  const openMiniCart = () => {
+    setMiniCartClosing(false)
+    setMiniCartOpen(true)
   }
 
   useEffect(() => {
@@ -254,11 +289,23 @@ export default function Layout({ children }) {
 
   useEffect(() => {
     const SCROLL_DOWN_DISMISS = 12
+    const TOP = 2
+    let touchStartY = 0
 
     const onScroll = () => {
-      const y = getScrollY()
+      let y = getScrollY()
+      if (y < 0) {
+        window.scrollTo(0, 0)
+        y = 0
+      }
+
       const delta = y - lastScrollY.current
       lastScrollY.current = y
+
+      if (y <= TOP) {
+        revealLockedRef.current = false
+        setRevealVisible(false)
+      }
 
       if (delta > 0) {
         if (revealLockedRef.current && delta >= SCROLL_DOWN_DISMISS) {
@@ -272,6 +319,7 @@ export default function Layout({ children }) {
       }
 
       if (delta < 0) {
+        if (y <= TOP) return
         if (revealLockedRef.current) {
           setRevealVisible(true)
           return
@@ -283,9 +331,33 @@ export default function Layout({ children }) {
       }
     }
 
+    const onWheel = (e) => {
+      if (getScrollY() <= TOP && e.deltaY < 0) {
+        e.preventDefault()
+      }
+    }
+
+    const onTouchStart = (e) => {
+      if (e.touches.length !== 1) return
+      touchStartY = e.touches[0].clientY
+    }
+
+    const onTouchMove = (e) => {
+      if (getScrollY() > TOP) return
+      if (e.touches.length !== 1) return
+      const dy = e.touches[0].clientY - touchStartY
+      if (dy > 0) e.preventDefault()
+    }
+
     window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
     return () => {
       window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
     }
   }, [])
 
@@ -333,6 +405,10 @@ export default function Layout({ children }) {
   const headerPanelProps = {
     vrste,
     siteLinks,
+    notificationBanner: {
+      text: siteLinks.notificationBannerText,
+      enabled: siteLinks.notificationBannerEnabled,
+    },
     user,
     wishlist,
     cartCount,
@@ -343,9 +419,22 @@ export default function Layout({ children }) {
     userMenuOpen,
     onUserMenuToggle: () => setUserMenuOpen((o) => !o),
     onUserMenuClose: () => setUserMenuOpen(false),
+    onUserMenuNavigate: (path) => {
+      setUserMenuOpen(false)
+      navigate(path)
+    },
     phoneMenuOpen,
     onPhoneMenuToggle: () => setPhoneMenuOpen((o) => !o),
     onPhoneMenuClose: () => setPhoneMenuOpen(false),
+    onPhoneMenuAction: (href, { newTab = false } = {}) => {
+      setPhoneMenuOpen(false)
+      if (!href) return
+      if (newTab) {
+        window.open(href, '_blank', 'noopener,noreferrer')
+      } else {
+        window.location.assign(href)
+      }
+    },
     categoriesMenuOpen,
     onCategoriesMenuToggle: () => {
       setCategoriesMenuOpen((o) => !o)
@@ -354,7 +443,11 @@ export default function Layout({ children }) {
       setMiniCartOpen(false)
     },
     onCategoriesMenuClose: () => setCategoriesMenuOpen(false),
-    onMiniCartOpen: () => setMiniCartOpen(true),
+    onCategoriesMenuNavigate: (path) => {
+      setCategoriesMenuOpen(false)
+      navigate(path)
+    },
+    onMiniCartOpen: openMiniCart,
     miniCartOpen,
     onLogout: logout,
     phoneHref,
@@ -636,7 +729,30 @@ export default function Layout({ children }) {
         </div>
       </footer>
 
-      {toast ? <div className="toast">{toast}</div> : null}
+      {sitePopupVisible && sitePopup && (
+        <SitePopupModal
+          popup={sitePopup}
+          onClose={() => setSitePopupVisible(false)}
+        />
+      )}
+
+      {!isDesktop && cartCount > 0 && !miniCartOpen && !miniCartClosing && (
+        <button
+          type="button"
+          className={`mobile-cart-fab${cartFabPulse ? ' mobile-cart-fab--pulse' : ''}`}
+          onClick={openMiniCart}
+          aria-label={`Korpa, ${cartCount} ${cartCount === 1 ? 'artikal' : 'artikla'}`}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <path d="M16 10a4 4 0 0 1-8 0" />
+          </svg>
+          <span className="mobile-cart-fab__count">{cartCount}</span>
+        </button>
+      )}
+
+      <Toast message={toast} />
     </div>
   )
 }

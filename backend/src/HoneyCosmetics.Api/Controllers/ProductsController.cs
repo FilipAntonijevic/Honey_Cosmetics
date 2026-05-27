@@ -34,7 +34,14 @@ public class ProductsController(AppDbContext db) : ControllerBase
             s?.WhatsAppNumber ?? string.Empty,
             s?.ViberNumber ?? string.Empty,
             s?.NotificationsEmail ?? string.Empty,
-            s?.FreeShippingThreshold ?? 10000m));
+            s?.FreeShippingThreshold ?? 10000m,
+            s?.NotificationBannerText ?? string.Empty,
+            s?.NotificationBannerEnabled ?? true,
+            s?.BankTransferRecipientName ?? string.Empty,
+            s?.BankTransferRecipientAddress ?? string.Empty,
+            s?.BankTransferAccountNumber ?? string.Empty,
+            s?.BankTransferBankName ?? string.Empty,
+            s?.BankTransferPurpose ?? string.Empty));
     }
 
     [AllowAnonymous]

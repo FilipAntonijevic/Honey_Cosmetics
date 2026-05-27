@@ -7,6 +7,8 @@ public class Product
     public string Description { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public decimal? UnitCostPrice { get; set; }
+    /// <summary>Podrazumevana cena transporta po komadu (nabavka).</summary>
+    public decimal? UnitTransportCost { get; set; }
     public int StockQuantity { get; set; }
     /// <summary>Količina poručena kod dobavljača, još nije na lageru.</summary>
     public int OrderedQuantity { get; set; }

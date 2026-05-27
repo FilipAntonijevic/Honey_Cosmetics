@@ -1,3 +1,5 @@
+using HoneyCosmetics.Domain.Enums;
+
 namespace HoneyCosmetics.Domain.Entities;
 
 public class Coupon
@@ -8,7 +10,6 @@ public class Coupon
     public bool IsPercentage { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public bool IsActive { get; set; } = true;
-    public bool FirstOrderOnly { get; set; }
-    public bool OneTimePerUser { get; set; } = true;
+    public CouponUsageLimit UsageLimit { get; set; } = CouponUsageLimit.OncePerUser;
     public List<CouponUsage> Usages { get; set; } = [];
 }

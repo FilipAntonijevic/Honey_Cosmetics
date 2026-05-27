@@ -9,6 +9,7 @@ const SOURCE_LABELS = {
   StockPurchase: 'Nabavka',
   OrderDelivered: 'Porudžbina (dostavljeno)',
   StockWriteOff: 'Otpis',
+  FreeShippingDelivery: 'Trošak dostave (besplatna)',
 }
 
 function signedAmount(entry) {
@@ -80,6 +81,7 @@ function txShortLabel(entry) {
   if (entry.source === 'Manual') return entry.entryType === 'Income' ? 'Ručni prihod' : 'Ručni trošak'
   if (entry.source === 'OrderDelivered' && entry.entryType === 'Income') return 'Uplata korisnika (dostavljeno)'
   if (entry.source === 'OrderDelivered') return 'Porudžbina (stari zapis troška)'
+  if (entry.source === 'FreeShippingDelivery') return 'Trošak dostave (besplatna)'
   return entry.entryType === 'Income' ? 'Prihod' : 'Trošak'
 }
 
@@ -146,6 +148,8 @@ function EntryDetailInline({ entry, fmt, onDelete }) {
   const isIncome = entry.entryType === 'Income'
   const isPurchase = entry.source === 'StockPurchase'
   const isWriteOff = entry.source === 'StockWriteOff'
+  const isOrderDelivered = entry.source === 'OrderDelivered' && isIncome
+  const hasDeliveryBreakdown = isOrderDelivered && (entry.orderDeliveryCost ?? 0) > 0
 
   return (
     <div className="ledger-detail-inline">
@@ -154,10 +158,23 @@ function EntryDetailInline({ entry, fmt, onDelete }) {
         <dd>{new Date(entry.occurredAt).toLocaleString('sr-RS')}</dd>
         <dt>Tip</dt>
         <dd>{isIncome ? 'Prihod' : 'Trošak'}</dd>
-        <dt>Iznos</dt>
-        <dd className={isIncome ? 'ledger-amt--in' : 'ledger-amt--out'}>
-          {isIncome ? '+' : '−'} {fmt(entry.amount)} RSD
-        </dd>
+        {hasDeliveryBreakdown ? (
+          <>
+            <dt>Uplata korisnika</dt>
+            <dd className="ledger-amt--in">+ {fmt(entry.orderGrossAmount ?? entry.amount)} RSD</dd>
+            <dt>Trošak dostave</dt>
+            <dd className="ledger-amt--out">− {fmt(entry.orderDeliveryCost)} RSD</dd>
+            <dt>Neto prihod</dt>
+            <dd className="ledger-amt--in">+ {fmt(entry.amount)} RSD</dd>
+          </>
+        ) : (
+          <>
+            <dt>Iznos</dt>
+            <dd className={isIncome ? 'ledger-amt--in' : 'ledger-amt--out'}>
+              {isIncome ? '+' : '−'} {fmt(entry.amount)} RSD
+            </dd>
+          </>
+        )}
         <dt>Izvor</dt>
         <dd>{SOURCE_LABELS[entry.source] ?? entry.source}</dd>
         <dt>Opis</dt>

@@ -19,7 +19,9 @@ public record LedgerEntryResponse(
     decimal? PurchaseMerchandiseTotal = null,
     decimal? PurchaseTransportCost = null,
     decimal? PurchaseTotalCost = null,
-    string? PurchaseNote = null);
+    string? PurchaseNote = null,
+    decimal? OrderGrossAmount = null,
+    decimal? OrderDeliveryCost = null);
 
 public record LedgerSummaryResponse(
     decimal TotalIncome,
@@ -76,11 +78,50 @@ public record PendingStockReceiptResponse(
     string? Note,
     DateTime CreatedAt);
 
+public record ProductStockLedgerDetailResponse(
+    int? PurchaseQuantity = null,
+    decimal? PurchaseUnitCost = null,
+    decimal? PurchaseTransportUnitCost = null,
+    decimal? PurchaseMerchandiseTotal = null,
+    decimal? PurchaseTransportTotal = null,
+    decimal? PurchaseTotalCost = null,
+    string? PurchaseNote = null,
+    int? WriteOffQuantity = null,
+    string? WriteOffNote = null,
+    int? OrderId = null,
+    string? OrderStatus = null,
+    string? OrderCustomerName = null,
+    string? OrderCustomerEmail = null,
+    string? OrderDeliveryAddress = null,
+    string? OrderPhone = null,
+    string? OrderPaymentMethod = null,
+    decimal? OrderSubtotal = null,
+    decimal? OrderDiscount = null,
+    string? OrderCouponCode = null,
+    decimal? OrderTotal = null,
+    bool? OrderFreeShippingApplied = null,
+    decimal? OrderFreeShippingDeliveryCost = null,
+    DateTime? OrderCreatedAt = null,
+    int? OrderItemQuantity = null,
+    decimal? OrderItemUnitPrice = null,
+    string? OrderRestoreNote = null,
+    IReadOnlyCollection<OrderItemResponse>? OrderItems = null);
+
+public record ProductStockLedgerRowResponse(
+    int Sequence,
+    DateTime OccurredAt,
+    string Kind,
+    string Label,
+    int QuantityDelta,
+    string Reference,
+    ProductStockLedgerDetailResponse Detail);
+
 public record ProductStatsResponse(
     int ProductId,
     string Name,
     decimal Price,
     decimal? UnitCostPrice,
+    decimal? UnitTransportCost,
     decimal? AveragePurchaseUnitCost,
     int StockQuantity,
     int OrderedQuantity,

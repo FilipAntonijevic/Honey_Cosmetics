@@ -58,27 +58,82 @@ public static class InventoryFinanceService
     public static Task RecordDeliveredOrderFinanceAsync(
         AppDbContext db,
         Order order,
+        decimal? deliveryCost = null,
         CancellationToken ct = default)
     {
         if (order.FinanceRecorded)
             return Task.CompletedTask;
 
-        var occurredAt = DateTime.UtcNow;
-        var description = order.Discount > 0
-            ? $"Uplata korisnika — porudžbina #{order.Id} ({order.Total:N0} RSD, popust {order.Discount:N0} RSD)"
-            : $"Uplata korisnika — porudžbina #{order.Id} ({order.Total:N0} RSD)";
+        if (deliveryCost is >= 0)
+            order.FreeShippingDeliveryCost = deliveryCost;
+
+        var gross = order.Total;
+        var shipping = order.FreeShippingDeliveryCost ?? 0m;
+        if (shipping > gross)
+            shipping = gross;
+
+        var net = gross - shipping;
+        var description = BuildDeliveredOrderDescription(order.Id, gross, order.Discount, shipping, net);
 
         db.LedgerEntries.Add(new LedgerEntry
         {
-            OccurredAt = occurredAt,
+            OccurredAt = DateTime.UtcNow,
             EntryType = LedgerEntryType.Income,
-            Amount = order.Total,
+            Amount = net,
             Description = description,
             Source = LedgerSource.OrderDelivered,
             OrderId = order.Id,
         });
 
         order.FinanceRecorded = true;
+        return Task.CompletedTask;
+    }
+
+    private static string BuildDeliveredOrderDescription(
+        int orderId,
+        decimal gross,
+        decimal discount,
+        decimal shipping,
+        decimal net)
+    {
+        var parts = new List<string> { $"porudžbina #{orderId} ({gross:N0} RSD" };
+        if (discount > 0)
+            parts[0] += $", popust {discount:N0} RSD";
+        if (shipping > 0)
+            parts.Add($"trošak dostave {shipping:N0} RSD");
+        if (shipping > 0)
+            parts.Add($"neto {net:N0} RSD");
+        return $"Uplata korisnika — {string.Join(", ", parts)})";
+    }
+
+    public static Task RecordFreeShippingDeliveryCostAsync(
+        AppDbContext db,
+        Order order,
+        decimal deliveryCost,
+        CancellationToken ct = default)
+    {
+        if (!order.FreeShippingApplied || deliveryCost < 0)
+            return Task.CompletedTask;
+
+        if (order.FreeShippingDeliveryCost is not null)
+            return Task.CompletedTask;
+
+        order.FreeShippingDeliveryCost = deliveryCost;
+
+        if (deliveryCost <= 0)
+            return Task.CompletedTask;
+
+        var occurredAt = DateTime.UtcNow;
+        db.LedgerEntries.Add(new LedgerEntry
+        {
+            OccurredAt = occurredAt,
+            EntryType = LedgerEntryType.Expense,
+            Amount = deliveryCost,
+            Description = $"Trošak dostave (besplatna za kupca) — porudžbina #{order.Id} ({deliveryCost:N0} RSD)",
+            Source = LedgerSource.FreeShippingDelivery,
+            OrderId = order.Id,
+        });
+
         return Task.CompletedTask;
     }
 
@@ -236,12 +291,23 @@ public static class InventoryFinanceService
     {
         var oldQty = product.StockQuantity;
         var oldCost = product.UnitCostPrice ?? receipt.UnitCost;
+        var receiptTransportUnit = receipt.Quantity > 0
+            ? Math.Round(receipt.TransportCost / receipt.Quantity, 2)
+            : 0m;
+        var oldTransport = product.UnitTransportCost ?? receiptTransportUnit;
         product.StockQuantity += receipt.Quantity;
         if (receipt.Quantity > 0)
         {
             product.UnitCostPrice = oldQty + receipt.Quantity > 0
                 ? Math.Round((oldQty * oldCost + receipt.Quantity * receipt.UnitCost) / (oldQty + receipt.Quantity), 2)
                 : receipt.UnitCost;
+
+            if (receipt.TransportCost > 0 || product.UnitTransportCost is not null)
+            {
+                product.UnitTransportCost = oldQty + receipt.Quantity > 0
+                    ? Math.Round((oldQty * oldTransport + receipt.Quantity * receiptTransportUnit) / (oldQty + receipt.Quantity), 2)
+                    : receiptTransportUnit;
+            }
         }
         else if (product.UnitCostPrice is null)
         {

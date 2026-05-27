@@ -348,6 +348,8 @@ export default function Account({ initialMode = 'login' }) {
                     value={form.postalCode}
                     onChange={set('postalCode')}
                     autoComplete="postal-code"
+                    inputMode="numeric"
+                    data-numeric="integer"
                   />
                 </div>
                 <input
