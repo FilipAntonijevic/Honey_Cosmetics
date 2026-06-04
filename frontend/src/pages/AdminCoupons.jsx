@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import api from '../api'
 
 const USAGE_LIMITS = [
@@ -42,6 +42,14 @@ function toDatetimeLocalValue(raw) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function validateDiscountPercent(raw) {
+  if (raw === '' || raw == null) return 'Popust (%) je obavezan.'
+  const n = Number(raw)
+  if (Number.isNaN(n)) return 'Popust mora biti broj.'
+  if (n < 0 || n > 100) return 'Popust mora biti između 0 i 100%.'
+  return null
+}
+
 const usageLimitLabel = (value) =>
   USAGE_LIMITS.find((o) => o.value === value)?.label ?? value
 
@@ -59,6 +67,7 @@ export default function AdminCoupons() {
   const [showForm, setShowForm] = useState(false)
   const [selectedStatuses, setSelectedStatuses] = useState(() => new Set(['active']))
   const [statusHeaderOpen, setStatusHeaderOpen] = useState(false)
+  const expiryPickerRef = useRef(null)
 
   const load = async () => {
     setLoading(true)
@@ -114,7 +123,8 @@ export default function AdminCoupons() {
     e.preventDefault()
     setError('')
     if (!form.code.trim()) { setError('Kod je obavezan.'); return }
-    if (!form.discountValue || isNaN(Number(form.discountValue))) { setError('Popust mora biti broj.'); return }
+    const discountError = validateDiscountPercent(form.discountValue)
+    if (discountError) { setError(discountError); return }
 
     const expiresAt = form.expiresAt.trim() ? parseExpiryInput(form.expiresAt) : null
     if (form.expiresAt.trim() && !expiresAt) {
@@ -208,27 +218,51 @@ export default function AdminCoupons() {
             </div>
             <div>
               <label className="adm-form-row">Popust (%)</label>
-              <input className="adm-input" type="number" min="0" max="100" step="0.01" placeholder="10" value={form.discountValue} onChange={set('discountValue')} />
+              <input
+                className="adm-input"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                placeholder="10"
+                value={form.discountValue}
+                onChange={set('discountValue')}
+                onBlur={() => {
+                  const msg = validateDiscountPercent(form.discountValue)
+                  if (msg) setError(msg)
+                }}
+              />
             </div>
           </div>
 
           <div className="adm-form-row" style={{ marginTop: '0.8rem' }}>
             <label className="adm-form-row">Ističe (opciono)</label>
-            <div className="adm-coupon-expiry-row">
+            <div className="adm-coupon-expiry-field">
               <input
-                className="adm-input"
+                className="adm-input adm-coupon-expiry-input"
                 type="text"
                 placeholder="npr. 27.05.2026 18:00"
                 value={form.expiresAt}
                 onChange={set('expiresAt')}
               />
               <input
-                className="adm-input adm-coupon-expiry-calendar"
+                ref={expiryPickerRef}
                 type="datetime-local"
+                className="adm-coupon-expiry-picker-hidden"
                 value={toDatetimeLocalValue(form.expiresAt)}
                 onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
-                aria-label="Izaberi datum i vreme isticanja"
+                tabIndex={-1}
+                aria-hidden="true"
               />
+              <button
+                type="button"
+                className="adm-coupon-expiry-calendar-btn"
+                onClick={() => expiryPickerRef.current?.showPicker?.()}
+                aria-label="Izaberi datum i vreme isticanja"
+                title="Kalendar"
+              >
+                📅
+              </button>
             </div>
           </div>
 

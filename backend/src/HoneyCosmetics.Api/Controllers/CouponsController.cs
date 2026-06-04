@@ -86,6 +86,9 @@ public class CouponsController(AppDbContext db) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(CouponRequest request)
     {
+        if (request.IsPercentage && (request.DiscountValue < 0 || request.DiscountValue > 100))
+            return BadRequest("Procenat popusta mora biti između 0 i 100.");
+
         var exists = await db.Coupons.AnyAsync(x => x.Code.ToUpper() == request.Code.Trim().ToUpper());
         if (exists)
         {

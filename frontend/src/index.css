@@ -5698,8 +5698,7 @@ body.is-adm-modal-open {
    Community banner (shown above footer on every page)
    ========================================================= */
 .community-banner {
-  background: #f3cdb4;
-  padding: 0 0 1.6rem;
+  position: relative;
   margin-top: 2.5rem;
 }
 /* When the community banner is directly above the footer (home page), the
@@ -5717,28 +5716,43 @@ body.is-adm-modal-open {
   pointer-events: none;
 }
 .community-banner-socials {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  margin-top: 0.6rem;
+  gap: 1.5rem;
+  transform: translateY(50%);
+  pointer-events: none;
+}
+.community-banner-socials > * {
+  pointer-events: auto;
 }
 .community-social {
-  width: 44px;
-  height: 44px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   border: 1.6px solid #2b2b2b;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #2b2b2b;
-  background: transparent;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.community-social svg {
+  width: 29px;
+  height: 29px;
 }
 .community-social:hover {
   background: #2b2b2b;
-  color: #f3cdb4;
+  color: #fff;
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 .community-social.is-disabled {
   opacity: 0.35;
@@ -5956,7 +5970,8 @@ body.is-adm-modal-open {
 }
 @media (max-width: 540px) {
   .community-banner { margin-top: 1.6rem; }
-  .community-social { width: 38px; height: 38px; }
+  .community-social { width: 55px; height: 55px; }
+  .community-social svg { width: 29px; height: 29px; }
 }
 
 /* Stock & cart */
@@ -6430,19 +6445,43 @@ body.is-adm-modal-open {
   font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
   letter-spacing: 0.05em;
 }
-.adm-coupon-expiry-row {
+.adm-coupon-expiry-field {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
+  align-items: stretch;
+  gap: 0;
   margin-top: 0.35rem;
+  max-width: 22rem;
 }
-.adm-coupon-expiry-row .adm-input:first-child {
-  flex: 1 1 12rem;
+.adm-coupon-expiry-input {
+  flex: 1;
   min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
-.adm-coupon-expiry-calendar {
-  flex: 0 0 auto;
-  width: min(100%, 15rem);
+.adm-coupon-expiry-picker-hidden {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.adm-coupon-expiry-calendar-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  background: #f9fafb;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.adm-coupon-expiry-calendar-btn:hover {
+  background: #f3f4f6;
 }
 .adm-coupon-status {
   display: inline-flex;

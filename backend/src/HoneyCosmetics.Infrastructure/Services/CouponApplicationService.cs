@@ -9,16 +9,32 @@ public static class CouponApplicationService
 {
     public static async Task DeactivateExpiredCouponsAsync(AppDbContext db)
     {
+        var changed = false;
+
         var expired = await db.Coupons
             .Where(c => c.IsActive && c.ExpiresAt != null && c.ExpiresAt <= DateTime.UtcNow)
             .ToListAsync();
 
-        if (expired.Count == 0) return;
-
         foreach (var coupon in expired)
+        {
             coupon.IsActive = false;
+            changed = true;
+        }
 
-        await db.SaveChangesAsync();
+        var exhaustedOnceTotal = await db.Coupons
+            .Where(c => c.IsActive
+                && c.UsageLimit == CouponUsageLimit.OnceTotal
+                && c.Usages.Any())
+            .ToListAsync();
+
+        foreach (var coupon in exhaustedOnceTotal)
+        {
+            coupon.IsActive = false;
+            changed = true;
+        }
+
+        if (changed)
+            await db.SaveChangesAsync();
     }
 
     public static async Task<Coupon?> FindActiveCouponAsync(AppDbContext db, string code)
