@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
+import { formatProductTypeDisplay } from '../lib/productTypes'
 import ApiImage from './ApiImage'
 import { publicUrl } from '../lib/assets'
 import { useStore } from '../context/StoreContext'
@@ -120,9 +121,9 @@ export default function Layout({ children }) {
   useEffect(() => {
     api
       .get('/product-types')
-      .then(({ data }) => setVrste(Array.isArray(data) ? data.map((x) => x.name) : []))
+      .then(({ data }) => setVrste(Array.isArray(data) ? data.map((x) => formatProductTypeDisplay(x.name)) : []))
       .catch(() =>
-        setVrste(['Gel Lak', 'Baze', 'Builder Gel', 'Top Coat', 'Nega Kože', 'Ostali Proizvodi']),
+        setVrste(['Gel Lak', 'Baze', 'Builder Gel', 'Top Coat', 'Nega Kože', 'Alati za manikir']),
       )
   }, [])
 
@@ -445,7 +446,9 @@ export default function Layout({ children }) {
     onCategoriesMenuClose: () => setCategoriesMenuOpen(false),
     onCategoriesMenuNavigate: (path) => {
       setCategoriesMenuOpen(false)
-      navigate(path)
+      const url = new URL(path, window.location.origin)
+      url.searchParams.delete('categoryId')
+      navigate(`${url.pathname}${url.search}`)
     },
     onMiniCartOpen: openMiniCart,
     miniCartOpen,

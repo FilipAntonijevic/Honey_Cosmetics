@@ -241,12 +241,12 @@ using (var scope = app.Services.CreateScope())
     {
         var defaultTypes = new[]
         {
-            "Gel Lak",
+            "Gel Color Polish",
             "Baze",
-            "Builder Gel",
+            "Builder Gelovi",
             "Top Coat",
             "Nega Kože",
-            "Ostali Proizvodi"
+            "Alati za manikir"
         };
 
         foreach (var name in defaultTypes)

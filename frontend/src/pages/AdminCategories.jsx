@@ -210,7 +210,7 @@ export default function AdminCategories() {
                 <tr key={row.id} className="adm-table-row">
                   <td>
                     {row.imageUrl ? (
-                      <ApiImage src={row.imageUrl} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+                      <ApiImage src={row.imageUrl} alt="" style={{ width: 56, height: 56, objectFit: 'fill', borderRadius: 8 }} />
                     ) : (
                       <span style={{ color: '#9ca3af' }}>—</span>
                     )}

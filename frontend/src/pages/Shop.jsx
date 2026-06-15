@@ -1,9 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api'
+import ApiImage from '../components/ApiImage'
 import { useStore } from '../context/StoreContext'
 import { isInStock } from '../utils/stock'
-import ApiImage from '../components/ApiImage'
+import { formatProductTypeDisplay, resolveProductTypeApi } from '../lib/productTypes'
+
+/** Fallback ID-jevi dok se /product-types ne učita (redosled iz baze). */
+const PRODUCT_TYPE_IDS = {
+  'Gel Color Polish': 1,
+  Baze: 2,
+  'Builder Gelovi': 3,
+  'Top Coat': 4,
+  'Nega Kože': 5,
+  'Alati za manikir': 6,
+}
 
 function CategoryStrip({ categories, selectedId, onSelect }) {
   const trackRef = useRef(null)
@@ -108,6 +119,7 @@ export default function Shop() {
   const vrstaName = bestsellersMode || isSearchMode
     ? null
     : (searchParams.get('type') ?? searchParams.get('vrsta') ?? searchParams.get('category'))
+  const resolvedVrstaName = resolveProductTypeApi(vrstaName)
   const categoryIdParam = bestsellersMode || isSearchMode ? null : searchParams.get('categoryId')
   const sort = searchParams.get('sort') ?? 'newest'
 
@@ -120,9 +132,11 @@ export default function Shop() {
   }, [])
 
   const selectedType = useMemo(
-    () => productTypes.find((t) => t.name === vrstaName) ?? null,
-    [productTypes, vrstaName],
+    () => productTypes.find((t) => t.name === resolvedVrstaName) ?? null,
+    [productTypes, resolvedVrstaName],
   )
+
+  const selectedTypeId = selectedType?.id ?? (resolvedVrstaName ? PRODUCT_TYPE_IDS[resolvedVrstaName] : null)
 
   // Učitaj kategorije za izabranu vrstu.
   /* eslint-disable react-hooks/set-state-in-effect -- fetch dependant on vrsta */
@@ -146,6 +160,17 @@ export default function Shop() {
   }, [selectedType])
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  // Ukloni categoryId iz URL-a ako ne pripada trenutnoj vrsti (npr. posle promene taba).
+  useEffect(() => {
+    if (!selectedType || !categoryIdParam || !categories.length) return
+    const valid = categories.some((c) => String(c.id) === String(categoryIdParam))
+    if (!valid) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('categoryId')
+      setSearchParams(next, { replace: true })
+    }
+  }, [selectedType, categoryIdParam, categories, searchParams, setSearchParams])
+
   // Učitaj proizvode po izabranom filteru.
   useEffect(() => {
     let cancelled = false
@@ -167,13 +192,14 @@ export default function Shop() {
         const params = {
           sort: sort === 'newest' ? undefined : sort,
         }
-        if (categoryIdParam) params.categoryId = categoryIdParam
+        if (categoryIdParam) {
+          params.categoryId = categoryIdParam
+        } else if (selectedTypeId) {
+          params.productTypeId = selectedTypeId
+        }
 
         const { data } = await api.get('/products', { params })
-        const filtered = vrstaName && !categoryIdParam
-          ? data.filter((item) => item.productType === vrstaName)
-          : data
-        if (!cancelled) setProducts(filtered)
+        if (!cancelled) setProducts(Array.isArray(data) ? data : [])
       } catch {
         if (!cancelled) setProducts([])
       } finally {
@@ -184,7 +210,7 @@ export default function Shop() {
     return () => {
       cancelled = true
     }
-  }, [searchParams, sort, vrstaName, categoryIdParam, bestsellersMode, isSearchMode, searchTerm])
+  }, [searchParams, sort, resolvedVrstaName, selectedTypeId, categoryIdParam, bestsellersMode, isSearchMode, searchTerm])
 
   const onSelectCategory = (id) => {
     const next = new URLSearchParams(searchParams)
@@ -196,16 +222,18 @@ export default function Shop() {
     setSearchParams(next, { replace: true })
   }
 
+  const displayVrstaName = formatProductTypeDisplay(resolvedVrstaName) || vrstaName
+
   const headerTitle = useMemo(() => {
     if (isSearchMode) return `Pretraga: „${searchTerm}"`
     if (bestsellersMode) return 'Bestsellers'
-    if (!vrstaName) return 'Svi proizvodi'
+    if (!displayVrstaName) return 'Svi proizvodi'
     if (categoryIdParam) {
       const cat = categories.find((c) => String(c.id) === String(categoryIdParam))
-      if (cat) return `${vrstaName} — ${cat.name}`
+      if (cat) return `${displayVrstaName} — ${cat.name}`
     }
-    return vrstaName
-  }, [isSearchMode, searchTerm, bestsellersMode, vrstaName, categoryIdParam, categories])
+    return displayVrstaName
+  }, [isSearchMode, searchTerm, bestsellersMode, displayVrstaName, categoryIdParam, categories])
 
   const content = useMemo(() => {
     if (loading) {
@@ -219,7 +247,7 @@ export default function Shop() {
     }
 
     if (!products.length) {
-      const isTypePage = !isSearchMode && !bestsellersMode && Boolean(vrstaName)
+      const isTypePage = !isSearchMode && !bestsellersMode && Boolean(displayVrstaName)
       const emptyMessage = isSearchMode
         ? `Nema proizvoda čiji naziv sadrži „${searchTerm}".`
         : bestsellersMode
@@ -253,7 +281,7 @@ export default function Shop() {
               <h3>
                 <Link to={`/products/${product.id}`}>{product.name}</Link>
               </h3>
-              <p>{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
+              <p>{[formatProductTypeDisplay(product.productType), product.category].filter(Boolean).join(' · ')}</p>
               <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
               <div className="card-actions">
                 <button
@@ -274,7 +302,7 @@ export default function Shop() {
         })}
       </div>
     )
-  }, [loading, products, addToCart, toggleWishlist, bestsellersMode, isSearchMode, searchTerm, vrstaName])
+  }, [loading, products, addToCart, toggleWishlist, bestsellersMode, isSearchMode, searchTerm, displayVrstaName])
 
   return (
     <section className="page shop-page">

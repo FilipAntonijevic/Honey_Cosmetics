@@ -96,6 +96,10 @@ public class ProductsController(AppDbContext db) : ControllerBase
         {
             products = products.Where(x => x.CategoryId == query.CategoryId.Value);
         }
+        else if (query.ProductTypeId.HasValue)
+        {
+            products = products.Where(x => x.ProductTypeId == query.ProductTypeId.Value);
+        }
 
         products = query.Sort?.ToLowerInvariant() switch
         {

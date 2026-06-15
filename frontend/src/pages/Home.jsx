@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
 import { publicUrl } from '../lib/assets'
+import { formatProductTypeDisplay } from '../lib/productTypes'
 import {
   attachResolvedImageSrc,
   attachResolvedImageSrcPartial,
@@ -440,7 +441,7 @@ function ProductCarouselCard({ product, onAddToCart, onToggleWishlist }) {
         <h3>
           <Link to={`/products/${product.id}`}>{product.name}</Link>
         </h3>
-        <p>{[product.productType, product.category].filter(Boolean).join(' · ')}</p>
+        <p>{[formatProductTypeDisplay(product.productType), product.category].filter(Boolean).join(' · ')}</p>
         <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
         <div className="card-actions">
           <button
@@ -808,10 +809,14 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false
-    api
-      .get('/products/bestsellers')
-      .then(async ({ data }) => {
-        const list = Array.isArray(data) ? data : []
+    const loadPopular = async () => {
+      try {
+        const { data } = await api.get('/products/bestsellers')
+        let list = Array.isArray(data) ? data : []
+        if (list.length === 0) {
+          const { data: fallback } = await api.get('/products')
+          list = (Array.isArray(fallback) ? fallback : []).slice(0, 8)
+        }
         if (list.length === 0) {
           if (!cancelled) {
             setBestsellers([])
@@ -832,13 +837,14 @@ export default function Home() {
             if (!cancelled) setBestsellers(attachResolvedImageSrc(list))
           })
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setBestsellers([])
           setBestsellersReady(true)
         }
-      })
+      }
+    }
+    loadPopular()
     return () => {
       cancelled = true
     }
