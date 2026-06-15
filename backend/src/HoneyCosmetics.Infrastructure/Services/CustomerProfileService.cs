@@ -27,15 +27,49 @@ public static class CustomerProfileService
             };
             db.CustomerProfiles.Add(profile);
         }
+        else if (user.CreatedAt < profile.FirstSeenAt)
+        {
+            profile.FirstSeenAt = user.CreatedAt;
+        }
 
         profile.UserId = user.Id;
-        profile.DisplayName = user.FullName;
-        profile.PhoneNumber = user.PhoneNumber;
-        profile.Street = user.Street;
-        profile.City = user.City;
-        profile.PostalCode = user.PostalCode;
-        profile.Country = user.Country;
+
+        var fullName = user.FullName;
+        if (!string.IsNullOrWhiteSpace(fullName))
+            profile.DisplayName = fullName;
+
+        profile.PhoneNumber = user.PhoneNumber ?? profile.PhoneNumber;
+        profile.Street = user.Street ?? profile.Street;
+        profile.City = user.City ?? profile.City;
+        profile.PostalCode = user.PostalCode ?? profile.PostalCode;
+        profile.Country = user.Country ?? profile.Country ?? "Srbija";
         profile.LastActivityAt = now;
+
+        await LinkGuestOrdersToUserAsync(db, user, email, ct);
+    }
+
+    /// <summary>
+    /// Povezuje gost porudžbine i uvezeni profil sa novim korisničkim nalogom (isti email).
+    /// </summary>
+    private static async Task LinkGuestOrdersToUserAsync(
+        AppDbContext db,
+        User user,
+        string normalizedEmail,
+        CancellationToken ct = default)
+    {
+        var guestOrders = await db.Orders
+            .Where(o => o.UserId == null && o.GuestEmail != null && o.GuestEmail != "")
+            .ToListAsync(ct);
+
+        foreach (var order in guestOrders)
+        {
+            if (NormalizeEmail(order.GuestEmail!) != normalizedEmail)
+                continue;
+
+            order.UserId = user.Id;
+            if (string.IsNullOrWhiteSpace(order.GuestName) && !string.IsNullOrWhiteSpace(user.FullName))
+                order.GuestName = user.FullName;
+        }
     }
 
     public static async Task UpsertFromGuestOrderAsync(
@@ -59,7 +93,7 @@ public static class CustomerProfileService
             db.CustomerProfiles.Add(profile);
         }
 
-        if (!string.IsNullOrWhiteSpace(order.GuestName))
+        if (!string.IsNullOrWhiteSpace(order.GuestName) && !profile.UserId.HasValue)
             profile.DisplayName = order.GuestName.Trim();
 
         if (!string.IsNullOrWhiteSpace(order.Phone))
@@ -168,12 +202,14 @@ public static class CustomerProfileService
                 continue;
 
             profile.UserId = user.Id;
-            profile.DisplayName = user.FullName;
+            if (!string.IsNullOrWhiteSpace(user.FullName))
+                profile.DisplayName = user.FullName;
             profile.PhoneNumber ??= user.PhoneNumber;
             profile.Street ??= user.Street;
             profile.City ??= user.City;
             profile.PostalCode ??= user.PostalCode;
             profile.Country ??= user.Country;
+            await LinkGuestOrdersToUserAsync(db, user, email, ct);
         }
 
         await db.SaveChangesAsync(ct);

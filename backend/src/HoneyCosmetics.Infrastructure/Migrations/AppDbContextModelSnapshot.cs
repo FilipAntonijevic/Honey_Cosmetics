@@ -202,6 +202,12 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<DateTime>("FirstSeenAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("ImportedOrderCount")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ImportedTotalSpent")
+                        .HasColumnType("numeric");
+
                     b.Property<DateTime>("LastActivityAt")
                         .HasColumnType("timestamp with time zone");
 

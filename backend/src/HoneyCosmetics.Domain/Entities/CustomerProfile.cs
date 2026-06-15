@@ -17,4 +17,8 @@ public class CustomerProfile
     public string? Country { get; set; }
     public DateTime FirstSeenAt { get; set; } = DateTime.UtcNow;
     public DateTime LastActivityAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Historical order count imported from the previous shop.</summary>
+    public int ImportedOrderCount { get; set; }
+    /// <summary>Historical revenue imported from the previous shop (RSD).</summary>
+    public decimal ImportedTotalSpent { get; set; }
 }

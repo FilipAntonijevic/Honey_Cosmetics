@@ -71,6 +71,9 @@ public static class AdminCustomerService
                 ? wc
                 : 0;
 
+            var orderCount = profile.ImportedOrderCount + profileOrders.Count;
+            var totalSpent = profile.ImportedTotalSpent + revenueOrders.Sum(o => o.Total);
+
             return new AdminCustomerListItem(
                 profile.Id,
                 profile.UserId,
@@ -79,8 +82,8 @@ public static class AdminCustomerService
                 profile.UserId.HasValue,
                 profile.User?.Role.ToString(),
                 profile.PhoneNumber,
-                profileOrders.Count,
-                revenueOrders.Sum(o => o.Total),
+                orderCount,
+                totalSpent,
                 wishlistCount,
                 profile.User?.CreatedAt,
                 profile.FirstSeenAt,
@@ -177,8 +180,8 @@ public static class AdminCustomerService
             o.Items.Sum(i => i.Quantity),
             o.CreatedAt)).ToList();
 
-        var totalSpent = revenueOrders.Sum(o => o.Total);
-        var orderCount = orders.Count;
+        var totalSpent = profile.ImportedTotalSpent + revenueOrders.Sum(o => o.Total);
+        var orderCount = profile.ImportedOrderCount + orders.Count;
 
         return new AdminCustomerDetailResponse(
             profile.Id,

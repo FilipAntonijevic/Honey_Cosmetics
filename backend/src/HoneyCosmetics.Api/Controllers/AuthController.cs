@@ -34,6 +34,9 @@ public class AuthController(
         if (await db.Users.AnyAsync(x => x.Email == email))
             return BadRequest("Email already in use.");
 
+        var legacyProfile = await db.CustomerProfiles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Email == email);
+
         var token = CreateUrlSafeToken();
         var pending = await db.PendingRegistrations.FirstOrDefaultAsync(x => x.Email == email);
         if (pending is null)
@@ -69,11 +72,14 @@ public class AuthController(
         }
 
         var devLink = environment.IsDevelopment() && !IsSendGridConfigured() ? link : null;
-        return Ok(new RegisterResponse(
-            devLink is null
+        var message = legacyProfile is null
+            ? devLink is null
                 ? "Poslali smo vam email sa linkom za potvrdu. Kliknite na link da biste aktivirali nalog."
-                : "Registracija je sačuvana. SendGrid nije podešen — koristite link ispod (samo u razvoju).",
-            devLink));
+                : "Registracija je sačuvana. SendGrid nije podešen — koristite link ispod (samo u razvoju)."
+            : devLink is null
+                ? "Poslali smo vam email za potvrdu. Pronašli smo vaš postojeći profil kupca — nakon potvrde biće automatski povezan sa nalogom."
+                : "Registracija je sačuvana. Postojeći profil kupca biće povezan nakon potvrde. SendGrid nije podešen — koristite link ispod (samo u razvoju).";
+        return Ok(new RegisterResponse(message, devLink));
     }
 
     [HttpPost("resend-confirmation")]
@@ -289,6 +295,7 @@ public class AuthController(
         user.PostalCode = request.PostalCode?.Trim();
         user.Country = request.Country?.Trim() ?? "Srbija";
 
+        await CustomerProfileService.UpsertFromUserAsync(db, user);
         await db.SaveChangesAsync();
         return Ok();
     }
