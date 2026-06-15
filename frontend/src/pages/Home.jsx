@@ -14,6 +14,8 @@ import {
 import { isInStock } from '../utils/stock'
 
 const POP_VISIBLE_MAX = 5
+const POP_REF_SHELL_PX = 1240
+const POP_WRAP_PAD_PX = 96
 
 /** Traka: [poslednjih V] + [svi proizvodi] + [prvih V] — kružno pomeranje kao hero. */
 function buildProductSlides(products, visible) {
@@ -512,7 +514,15 @@ function ProductCarousel({ products }) {
     const visible = getVisibleSlotCount(viewport.clientWidth)
     setVisibleSlots(visible)
     const gap = parseFloat(getComputedStyle(track).gap || '16')
-    const cardWidth = (viewport.clientWidth - (visible - 1) * gap) / visible
+    let cardWidth
+    if (visible >= 5 && viewport.clientWidth > 980) {
+      const refViewport = Math.min(POP_REF_SHELL_PX, viewport.clientWidth) - POP_WRAP_PAD_PX
+      const preserved = (refViewport - 3 * gap) / 4
+      const maxFit = (viewport.clientWidth - (visible - 1) * gap) / visible
+      cardWidth = Math.min(preserved, maxFit)
+    } else {
+      cardWidth = (viewport.clientWidth - (visible - 1) * gap) / visible
+    }
     if (cardWidth <= 0) return
     viewport.style.setProperty('--pop-card-width', `${cardWidth}px`)
     viewport.style.setProperty('--pop-visible', String(visible))
