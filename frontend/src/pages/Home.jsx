@@ -11,6 +11,7 @@ import {
   preloadProductImagesMediumAwait,
   resolveDirectImageSrc,
 } from '../lib/imagePreload'
+import FitOneLineTitle from '../components/FitOneLineTitle'
 import { isInStock } from '../utils/stock'
 
 const POP_VISIBLE_MAX = 5
@@ -441,7 +442,9 @@ function ProductCarouselCard({ product, onAddToCart, onToggleWishlist }) {
       </Link>
       <div className="product-card-body">
         <h3>
-          <Link to={`/products/${product.id}`}>{product.name}</Link>
+          <FitOneLineTitle as={Link} to={`/products/${product.id}`}>
+            {product.name}
+          </FitOneLineTitle>
         </h3>
         <p>{[formatProductTypeDisplay(product.productType), product.category].filter(Boolean).join(' · ')}</p>
         <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>

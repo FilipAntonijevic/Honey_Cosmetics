@@ -3380,6 +3380,21 @@ body.is-adm-modal-open {
   .pop-section .pop-arrow.right {
     right: max(0.05rem, env(safe-area-inset-right, 0px));
   }
+  .pop-strip .product-card-media {
+    flex: 0 0 auto;
+    height: calc(var(--pop-card-width, 170px) * 1.35);
+    min-height: calc(var(--pop-card-width, 170px) * 1.35);
+    max-height: calc(var(--pop-card-width, 170px) * 1.35);
+  }
+  .pop-strip .product-card-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .pop-strip .product-card-body h3 {
+    min-width: 0;
+    overflow: hidden;
+  }
 }
 
 @media (max-width: 480px) {
