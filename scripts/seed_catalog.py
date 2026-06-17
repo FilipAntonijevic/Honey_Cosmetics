@@ -99,12 +99,41 @@ Prirodno jačanje
 Kratku i srednju nadogradnju
 Klijente koji žele čvršći sistem od rubber baze"""
 
-DESC_BIAB_COVER = """BIAB (Builder In A Bottle) Cover Gel je ojačavajući builder gel u bočici sa blagom kamuflažom, namenjen jačanju i nadogradnji prirodnih noktiju bez potrebe za klasičnim gel sistemom. Samonivelirajuća formula omogućava brzo formiranje strukture, dok HEMA & TPO free sastav smanjuje rizik od iritacija.
+DESC_BIAB_COVER = """BIAB (Builder In A Bottle) Gel je ojačavajući builder gel u bočici, namenjen jačanju i nadogradnji prirodnih noktiju bez potrebe za klasičnim gel sistemom. Samonivelirajuća formula omogućava brzo formiranje strukture, dok HEMA & TPO free sastav smanjuje rizik od iritacija.
 
 Idealan za:
 Prirodno jačanje
 Kratku i srednju nadogradnju
 Klijente koji žele čvršći sistem od rubber baze"""
+
+DESC_GEL_POLISH = """Profesionalni pigmentovani gel lak | HEMA & TPO FREE
+
+HONEY GEL POLISH je profesionalni gel lak visoke pigmentacije, kreiran za precizan salonski rad i dugotrajnu postojanost. Zahvaljujući HEMA & TPO FREE formuli, omogućava sigurniji rad i smanjen rizik od iritacija u poređenju sa klasičnim formulama. Široka paleta pažljivo odabranih nijansi odgovara svakodnevnim salon potrebama i trendovima.
+
+Ključne karakteristike:
+• HEMA & TPO FREE
+• Visoka pigmentacija
+• Pokrivanje u 1–2 sloja
+• Srednja gustina bez zadebljanja
+• Ne razliva se i lako se nanosi uz kožicu
+• Samonivelirajuća tekstura
+• Ne bledi do 4 nedelje
+• Otporan na pucanje i krunjenje
+
+Zašto ga tehničari vole:
+• Štedi vreme u radu
+• Precizna kontrola četkice
+• Stabilan tokom nanošenja
+• Pouzdan rezultat bez mrlja
+
+Način upotrebe:
+1. Pripremiti nokat (manikir, matiranje, odmašćivanje).
+2. Naneti dehydrator i primer po potrebi.
+3. Naneti bazu i polimerizovati.
+4. Naneti boju u 1–2 sloja i polimerizovati 60 sekundi po sloju.
+5. Završiti top coat-om i polimerizovati 90 sekundi.
+
+Isključivo za profesionalnu upotrebu."""
 
 DESC_HARD_GEL = """Hard Gel je čvrsti gradivni gel namenjen produžavanju noktiju na šablone i tipse. Visoka čvrstoća pruža maksimalnu stabilnost čak i kod dužih formi. Formula je HEMA & TPO free, sa minimalnim peckanjem tokom polimerizacije.
 

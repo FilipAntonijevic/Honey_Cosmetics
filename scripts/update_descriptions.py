@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-"""Dodaje alate za manikir u kategoriju Alati za manikir."""
+"""Update product descriptions in the database."""
 
-import subprocess
-import uuid
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "honey_baza_tmp"
-IMAGES = ROOT / "backend" / "src" / "HoneyCosmetics.Api" / "images"
-DOCKER = "honey_cosmetics-postgres-1"
-
-PT_ALATI = 6
-CAT_ALATI = 16
-PRICE = 2000
+from seed_catalog import (
+    DESC_BASE_COAT,
+    DESC_BIAB_CLEAR,
+    DESC_BIAB_COVER,
+    DESC_CLEAR_RUBBER,
+    DESC_CUTICLE_ALOE,
+    DESC_CUTICLE_LAVENDER,
+    DESC_CUTICLE_ORANGE,
+    DESC_GEL_POLISH,
+    DESC_HARD_GEL,
+    DESC_JELLY_GEL,
+    DESC_RUBBER_COVER,
+    DESC_TOP_COAT,
+    DESC_TOP_COAT_COLORED,
+    sql_escape,
+    run_sql,
+)
 
 DESC_ALATI_CANGLE = """Profesionalne cangle za precizno uklanjanje zanoktica i viška suve kože oko nokta. Zahvaljujući oštrim sečivima i ergonomskom obliku, omogućavaju čist rez, bolju kontrolu i sigurniji rad tokom manikira.
 
@@ -99,74 +104,63 @@ Ključne karakteristike:
 • Nerđajući čelik / stainless steel
 • Pogodan za profesionalnu i kućnu upotrebu"""
 
-PRODUCTS = [
-    (
-        "Profesionalne špatule za zanoktice",
-        DESC_ALATI_CANGLE,
-        "Alati za Manikir/Profesionalne cangle za zanoktice.png",
-    ),
-    (
-        "Makazice za zanoktice – zakrivljeni vrh",
-        DESC_ALATI_MAKAZICE,
-        "Alati za Manikir/Makazice za zanoktice – zakrivljeni vrh.png",
-    ),
-    (
-        "Mikro makazice",
-        DESC_ALATI_MIKRO,
-        "Alati za Manikir/Mikro_Makazice.png",
-    ),
-    (
-        "Pogurivac za zanoktice",
-        DESC_ALATI_PUSHER_01,
-        "Alati za Manikir/Pogurivac_01.png",
-    ),
-    (
-        "Pogurivac za zanoktice – model 2",
-        DESC_ALATI_PUSHER_02,
-        "Alati za Manikir/Pogurivac_02.png",
-    ),
-]
 
-
-def sql_escape(value: str) -> str:
-    return value.replace("'", "''")
-
-
-def copy_image(rel_path: str) -> str:
-    import shutil
-
-    src = SRC / rel_path
-    if not src.exists():
-        raise FileNotFoundError(src)
-    IMAGES.mkdir(parents=True, exist_ok=True)
-    ext = src.suffix.lower()
-    name = f"{uuid.uuid4()}{ext}"
-    shutil.copy2(src, IMAGES / name)
-    return f"/images/{name}"
-
-
-def run_sql(statements: str) -> None:
-    proc = subprocess.run(
-        ["docker", "exec", "-i", DOCKER, "psql", "-U", "postgres", "-d", "honey_cosmetics", "-v", "ON_ERROR_STOP=1"],
-        input=statements,
-        text=True,
-        capture_output=True,
+def set_description(name: str, description: str) -> str:
+    return (
+        f"UPDATE \"Products\" SET \"Description\" = '{sql_escape(description)}' "
+        f"WHERE \"Name\" = '{sql_escape(name)}' AND NOT \"IsDeleted\";"
     )
-    if proc.returncode != 0:
-        raise RuntimeError(f"SQL failed:\n{proc.stdout}\n{proc.stderr}")
+
+
+def set_description_like(pattern: str, description: str) -> str:
+    return (
+        f"UPDATE \"Products\" SET \"Description\" = '{sql_escape(description)}' "
+        f"WHERE \"Name\" LIKE '{sql_escape(pattern)}' AND NOT \"IsDeleted\";"
+    )
+
+
+def set_description_product_type(product_type_id: int, description: str) -> str:
+    return (
+        f"UPDATE \"Products\" SET \"Description\" = '{sql_escape(description)}' "
+        f"WHERE \"ProductTypeId\" = {product_type_id} AND NOT \"IsDeleted\";"
+    )
 
 
 def main() -> None:
     stmts = ["BEGIN;"]
-    for name, desc, img_rel in PRODUCTS:
-        url = copy_image(img_rel)
-        stmts.append(
-            f"INSERT INTO \"Products\" (\"Name\", \"Description\", \"Price\", \"ImageUrl\", \"ProductTypeId\", \"CategoryId\", \"StockQuantity\", \"CreatedAt\") "
-            f"VALUES ('{sql_escape(name)}', '{sql_escape(desc)}', {PRICE}, '{sql_escape(url)}', {PT_ALATI}, {CAT_ALATI}, 0, NOW());"
-        )
+
+    stmts.append(set_description("Base Coat", DESC_BASE_COAT))
+    stmts.append(set_description("Clear Rubber Base", DESC_CLEAR_RUBBER))
+    stmts.append(set_description_like("Rubber Cover Base %", DESC_RUBBER_COVER))
+
+    stmts.append(set_description("BIAB B01", DESC_BIAB_CLEAR))
+    for code in ("B02", "B03", "B04", "B05"):
+        stmts.append(set_description(f"BIAB {code}", DESC_BIAB_COVER))
+
+    stmts.append(set_description("Clear Hard Gel", DESC_HARD_GEL))
+    stmts.append(set_description_like("Hard Gel H%", DESC_HARD_GEL))
+
+    stmts.append(set_description_like("Jelly Gel %", DESC_JELLY_GEL))
+
+    stmts.append(set_description("Top Coat", DESC_TOP_COAT))
+    stmts.append(set_description("Top Coat Brilliant", DESC_TOP_COAT))
+    stmts.append(set_description_like("Colored Top Coat %", DESC_TOP_COAT_COLORED))
+
+    stmts.append(set_description("Cuticle Oil Lavender", DESC_CUTICLE_LAVENDER))
+    stmts.append(set_description("Cuticle Oil Aloe Vera", DESC_CUTICLE_ALOE))
+    stmts.append(set_description("Cuticle Oil Orange", DESC_CUTICLE_ORANGE))
+
+    stmts.append(set_description_product_type(1, DESC_GEL_POLISH))
+
+    stmts.append(set_description("Profesionalne špatule za zanoktice", DESC_ALATI_CANGLE))
+    stmts.append(set_description("Makazice za zanoktice – zakrivljeni vrh", DESC_ALATI_MAKAZICE))
+    stmts.append(set_description("Mikro makazice", DESC_ALATI_MIKRO))
+    stmts.append(set_description("Pogurivac za zanoktice", DESC_ALATI_PUSHER_01))
+    stmts.append(set_description("Pogurivac za zanoktice – model 2", DESC_ALATI_PUSHER_02))
+
     stmts.append("COMMIT;")
     run_sql("\n".join(stmts))
-    print(f"Added {len(PRODUCTS)} products at {PRICE} RSD.")
+    print("Product descriptions updated.")
 
 
 if __name__ == "__main__":
