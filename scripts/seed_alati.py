@@ -162,7 +162,7 @@ def main() -> None:
         url = copy_image(img_rel)
         stmts.append(
             f"INSERT INTO \"Products\" (\"Name\", \"Description\", \"Price\", \"ImageUrl\", \"ProductTypeId\", \"CategoryId\", \"StockQuantity\", \"CreatedAt\") "
-            f"VALUES ('{sql_escape(name)}', '{sql_escape(desc)}', {PRICE}, '{sql_escape(url)}', {PT_ALATI}, {CAT_ALATI}, 0, NOW());"
+            f"VALUES ('{sql_escape(name)}', '{sql_escape(desc)}', {PRICE}, '{sql_escape(url)}', {PT_ALATI}, {CAT_ALATI}, 50, NOW());"
         )
     stmts.append("COMMIT;")
     run_sql("\n".join(stmts))

@@ -227,7 +227,7 @@ def insert_product(name: str, price: float, description: str, image_rel: str, pr
     cat = "NULL" if category_id is None else str(category_id)
     return (
         f'INSERT INTO "Products" ("Name", "Description", "Price", "ImageUrl", "ProductTypeId", "CategoryId", "StockQuantity", "CreatedAt") '
-        f"VALUES ('{sql_escape(name)}', '{sql_escape(description)}', {price}, '{sql_escape(url)}', {product_type_id}, {cat}, 0, NOW());"
+        f"VALUES ('{sql_escape(name)}', '{sql_escape(description)}', {price}, '{sql_escape(url)}', {product_type_id}, {cat}, 50, NOW());"
     )
 
 
