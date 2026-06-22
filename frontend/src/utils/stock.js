@@ -1,4 +1,6 @@
 /** Ograniči količinu u korpi prema stanju na lageru. */
+import { getProductDisplayName } from './productLineName'
+
 export function clampCartQuantity(quantity, stockQuantity) {
   const stock = Math.max(0, Number(stockQuantity) || 0)
   const qty = Number(quantity) || 0
@@ -22,7 +24,8 @@ export function enrichCartItems(cart, productsById) {
     const qty = inStock ? clampCartQuantity(item.quantity, stock) : Number(item.quantity) || 0
     next.push({
       ...item,
-      name: p.name ?? item.name,
+      name: getProductDisplayName({ name: p.name ?? item.name }),
+      variantLabel: p.variantLabel ?? item.variantLabel ?? null,
       price: p.price ?? item.price,
       imageUrl: p.imageUrl ?? item.imageUrl,
       description: p.description ?? item.description,
@@ -60,7 +63,7 @@ export function applyStockLimitsToCart(cart, productsById) {
     const stock = p.stockQuantity ?? 0
     if (!isInStock(p)) {
       adjusted = true
-      removedOutOfStock.push(p.name ?? item.name)
+      removedOutOfStock.push(getProductDisplayName({ name: p.name ?? item.name }))
       continue
     }
     const qty = clampCartQuantity(item.quantity, stock)
@@ -68,7 +71,8 @@ export function applyStockLimitsToCart(cart, productsById) {
     if (qty > 0) {
       next.push({
         ...item,
-        name: p.name ?? item.name,
+        name: getProductDisplayName({ name: p.name ?? item.name }),
+        variantLabel: p.variantLabel ?? item.variantLabel ?? null,
         price: p.price ?? item.price,
         imageUrl: p.imageUrl ?? item.imageUrl,
         stockQuantity: stock,

@@ -31,10 +31,15 @@ public static class ProductCatalogService
         AppDbContext db,
         string name,
         int? excludeProductId,
+        int? variantGroupId = null,
         CancellationToken ct = default)
     {
+        if (variantGroupId is not null)
+            return null;
+
         var normalized = NormalizeName(name);
-        var query = db.Products.ActiveProducts().Where(p => p.Name == normalized);
+        var query = db.Products.ActiveProducts()
+            .Where(p => p.Name == normalized && p.VariantGroupId == null);
         if (excludeProductId.HasValue)
             query = query.Where(p => p.Id != excludeProductId.Value);
 
@@ -67,7 +72,12 @@ public static class ProductCatalogService
             return (softDeleted, true);
         }
 
-        var conflict = await GetActiveNameConflictAsync(db, normalized, null, ct);
+        var conflict = await GetActiveNameConflictAsync(
+            db,
+            normalized,
+            null,
+            request.VariantGroupId,
+            ct);
         if (conflict is not null)
             throw new InvalidOperationException(conflict);
 

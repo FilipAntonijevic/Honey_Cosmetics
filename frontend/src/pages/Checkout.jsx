@@ -7,8 +7,10 @@ import PhoneField from '../components/PhoneField'
 import FreeShippingBar from '../components/FreeShippingBar'
 import BankTransferSlip, { hasTemplate } from '../components/BankTransferSlip'
 import useSiteLinks from '../hooks/useSiteLinks'
+import useCheckoutTotals from '../hooks/useCheckoutTotals'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
 import { clampCartQuantity, isInStock } from '../utils/stock'
+import ProductNameWithVariant from '../components/ProductNameWithVariant'
 
 export default function Checkout() {
   const {
@@ -18,7 +20,6 @@ export default function Checkout() {
     setCheckoutCoupon,
     checkoutSubtotal,
     checkoutDiscount,
-    checkoutGrandTotal,
     setCart,
     clearCartAfterOrder,
     setToast,
@@ -26,6 +27,7 @@ export default function Checkout() {
   } = useStore()
   const siteLinks = useSiteLinks()
   const { freeShippingThreshold } = siteLinks
+  const { itemsTotal, shipping, grandTotal, freeShippingApplied } = useCheckoutTotals(siteLinks)
   const navigate = useNavigate()
 
   const [couponInput, setCouponInput] = useState('')
@@ -189,7 +191,6 @@ export default function Checkout() {
   const fmt = (n) =>
     Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const discountAmt = checkoutDiscount
-  const grandTotal = checkoutGrandTotal
 
   if (!checkoutCart.length && !completedBankOrder) {
     return (
@@ -398,7 +399,7 @@ export default function Checkout() {
           <div className="co-summary">
             <div className="co-summary-title">Rezime porudžbine</div>
 
-            <FreeShippingBar cartTotal={grandTotal} threshold={freeShippingThreshold} compact />
+            <FreeShippingBar cartTotal={itemsTotal} threshold={freeShippingThreshold} compact />
 
             <div className="co-summary-items">
               {checkoutCart.map((item) => {
@@ -412,13 +413,12 @@ export default function Checkout() {
                       : <div className="co-sum-img-ph" />}
                   </div>
                   <div className="co-sum-info">
-                    <div className="co-sum-name">{item.name}</div>
-                    {item.description && (
-                      <div className="co-sum-desc">
-                        {item.description.length > 55 ? item.description.slice(0, 55) + '…' : item.description}
-                      </div>
-                    )}
-                    <div className="cart-qty-row co-sum-qty-row">
+                    <ProductNameWithVariant
+                      name={item.name}
+                      variantLabel={item.variantLabel}
+                      className="co-sum-name"
+                    />
+                    <div className="co-sum-meta">
                       <div className="cart-qty">
                         <button type="button" className="cart-qty-btn" onClick={() => changeQty(item.id, -1)} aria-label="Smanji količinu">−</button>
                         <span className="cart-qty-num">{item.quantity}</span>
@@ -432,9 +432,9 @@ export default function Checkout() {
                           +
                         </button>
                       </div>
+                      <div className="co-sum-price">{fmt(Number(item.price) * item.quantity)} RSD</div>
                     </div>
                   </div>
-                  <div className="co-sum-price">{fmt(Number(item.price) * item.quantity)} RSD</div>
                 </div>
                 )
               })}
@@ -494,12 +494,17 @@ export default function Checkout() {
                 <span>&minus;{fmt(discountAmt)} RSD</span>
               </div>
             )}
-            {grandTotal >= freeShippingThreshold && freeShippingThreshold > 0 && (
+            {freeShippingApplied ? (
               <div className="co-total-row" style={{ color: '#16a34a' }}>
-                <span>Dostava</span>
+                <span>Poštarina</span>
                 <span>Besplatna</span>
               </div>
-            )}
+            ) : shipping > 0 ? (
+              <div className="co-total-row">
+                <span>Poštarina</span>
+                <span>+{fmt(shipping)} RSD</span>
+              </div>
+            ) : null}
             <div className="co-sum-divider" />
             <div className="co-grand-row">
               <span>Ukupno</span>

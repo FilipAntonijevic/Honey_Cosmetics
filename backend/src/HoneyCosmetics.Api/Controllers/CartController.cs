@@ -24,7 +24,8 @@ public class CartController(AppDbContext db) : ControllerBase
             {
                 x.ProductId,
                 x.Quantity,
-                Name = x.Product!.Name,
+                Name = ProductVariantService.GetDisplayName(x.Product!.Name, x.Product.VariantLabel),
+                VariantLabel = x.Product.VariantLabel,
                 Price = x.Product.Price,
                 ImageUrl = x.Product.ImageUrl,
                 StockQuantity = x.Product.StockQuantity,

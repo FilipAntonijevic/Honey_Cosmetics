@@ -80,7 +80,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<Product>()
             .HasIndex(p => p.Name)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"VariantGroupId\" IS NULL");
+
+        modelBuilder.Entity<Product>()
+            .HasIndex(p => new { p.VariantGroupId, p.VariantLabel })
+            .IsUnique()
+            .HasFilter("\"VariantGroupId\" IS NOT NULL AND \"VariantLabel\" IS NOT NULL");
+
+        modelBuilder.Entity<Product>()
+            .HasIndex(p => p.VariantGroupId);
 
         modelBuilder.Entity<ProductImage>()
             .HasIndex(x => new { x.ProductId, x.SortOrder });

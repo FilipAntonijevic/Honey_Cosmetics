@@ -18,6 +18,7 @@ public record AdminCustomerListItem(
 public record AdminCustomerProductPurchase(
     int ProductId,
     string ProductName,
+    string? VariantLabel,
     string? ImageUrl,
     int TotalQuantity,
     decimal TotalSpent,
@@ -26,6 +27,7 @@ public record AdminCustomerProductPurchase(
 public record AdminCustomerWishlistItem(
     int ProductId,
     string ProductName,
+    string? VariantLabel,
     string? ImageUrl,
     decimal Price,
     bool InStock);
@@ -33,6 +35,7 @@ public record AdminCustomerWishlistItem(
 public record AdminCustomerCartItem(
     int ProductId,
     string ProductName,
+    string? VariantLabel,
     string? ImageUrl,
     int Quantity,
     decimal Price);

@@ -13,7 +13,17 @@ public record ProductRequest(
     IReadOnlyList<string>? AdditionalImageUrls = null,
     [Range(0, 1000000)] int StockQuantity = 0,
     [Range(0, 9999999)] decimal? UnitCostPrice = null,
-    [Range(0, 9999999)] decimal? UnitTransportCost = null);
+    [Range(0, 9999999)] decimal? UnitTransportCost = null,
+    int? VariantGroupId = null,
+    string? VariantLabel = null,
+    int VariantSortOrder = 0);
+
+public record ProductVariantOption(
+    int Id,
+    string VariantLabel,
+    decimal Price,
+    bool InStock,
+    int StockQuantity);
 
 public record ProductResponse(
     int Id,
@@ -33,7 +43,11 @@ public record ProductResponse(
     DateTime CreatedAt,
     IReadOnlyList<string>? AdditionalImageUrls = null,
     decimal? UnitCostPrice = null,
-    decimal? UnitTransportCost = null);
+    decimal? UnitTransportCost = null,
+    int? VariantGroupId = null,
+    string? VariantLabel = null,
+    int VariantSortOrder = 0,
+    IReadOnlyList<ProductVariantOption>? Variants = null);
 
 public record BestsellersUpdateRequest(IReadOnlyList<int> ProductIds);
 
@@ -48,6 +62,8 @@ public record CategoryUpsertRequest(
     [Required] string ImageUrl,
     [Required] int ProductTypeId);
 
+public record CategoryProductsUpdateRequest(IReadOnlyList<int> ProductIds);
+
 public record ProductTypeResponse(int Id, string Name);
 
 public record SiteLinksResponse(
@@ -60,6 +76,7 @@ public record SiteLinksResponse(
     string ViberNumber,
     string NotificationsEmail,
     decimal FreeShippingThreshold,
+    decimal ShippingCost,
     string NotificationBannerText,
     bool NotificationBannerEnabled,
     string BankTransferRecipientName,
@@ -78,6 +95,7 @@ public record SiteLinksUpdateRequest(
     string? ViberNumber,
     string? NotificationsEmail,
     decimal? FreeShippingThreshold,
+    decimal? ShippingCost,
     string? BankTransferRecipientName,
     string? BankTransferRecipientAddress,
     string? BankTransferAccountNumber,

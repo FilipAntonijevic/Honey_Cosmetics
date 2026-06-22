@@ -200,7 +200,8 @@ public static class ProductStockLedgerService
             var items = order.Items
                 .Select(i => new OrderItemResponse(
                     i.ProductId,
-                    i.Product?.Name ?? "—",
+                    ProductVariantService.GetDisplayName(i.Product?.Name ?? "—", i.VariantLabel ?? i.Product?.VariantLabel),
+                    i.VariantLabel ?? i.Product?.VariantLabel,
                     i.Product?.ImageUrl,
                     i.Quantity,
                     i.UnitPrice))

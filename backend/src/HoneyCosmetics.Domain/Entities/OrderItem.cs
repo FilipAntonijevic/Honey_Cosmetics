@@ -9,4 +9,6 @@ public class OrderItem
     public Product? Product { get; set; }
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    /// <summary>Snimljena gramaza u trenutku porudžbine.</summary>
+    public string? VariantLabel { get; set; }
 }

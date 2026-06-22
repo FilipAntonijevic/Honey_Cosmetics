@@ -18,6 +18,8 @@ public class Order
     public string? CouponCode { get; set; }
     public decimal Total { get; set; }
     public bool FreeShippingApplied { get; set; }
+    /// <summary>Poštarina naplaćena kupcu pri porudžbini (0 ako je dostava besplatna).</summary>
+    public decimal ShippingCost { get; set; }
     /// <summary>Trošak dostave koji je admin platio kuriru (besplatna dostava za kupca).</summary>
     public decimal? FreeShippingDeliveryCost { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Pending;

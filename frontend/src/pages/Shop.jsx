@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
+import ProductCardActions from '../components/ProductCardActions'
 import { useStore } from '../context/StoreContext'
-import { isInStock } from '../utils/stock'
 import { formatProductTypeDisplay, resolveProductTypeApi } from '../lib/productTypes'
+import { groupProductsForDisplay, pickDefaultVariantProduct, productHasVariantPicker } from '../lib/productVariants'
 
 /** Fallback ID-jevi dok se /product-types ne učita (redosled iz baze). */
 const PRODUCT_TYPE_IDS = {
@@ -111,7 +112,7 @@ export default function Shop() {
   const [productTypes, setProductTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
-  const { addToCart, toggleWishlist } = useStore()
+  const { toggleWishlist } = useStore()
 
   const searchTerm = (searchParams.get('search') ?? '').trim()
   const isSearchMode = searchTerm.length > 0
@@ -121,7 +122,6 @@ export default function Shop() {
     : (searchParams.get('type') ?? searchParams.get('vrsta') ?? searchParams.get('category'))
   const resolvedVrstaName = resolveProductTypeApi(vrstaName)
   const categoryIdParam = bestsellersMode || isSearchMode ? null : searchParams.get('categoryId')
-  const sort = searchParams.get('sort') ?? 'newest'
 
   // Učitaj liste vrsta jednom (radi mapiranja name -> id).
   useEffect(() => {
@@ -189,12 +189,8 @@ export default function Shop() {
           return
         }
 
-        const params = {
-          sort: sort === 'newest' ? undefined : sort,
-        }
-        if (categoryIdParam) {
-          params.categoryId = categoryIdParam
-        } else if (selectedTypeId) {
+        const params = {}
+        if (selectedTypeId) {
           params.productTypeId = selectedTypeId
         }
 
@@ -210,7 +206,12 @@ export default function Shop() {
     return () => {
       cancelled = true
     }
-  }, [searchParams, sort, resolvedVrstaName, selectedTypeId, categoryIdParam, bestsellersMode, isSearchMode, searchTerm])
+  }, [resolvedVrstaName, selectedTypeId, bestsellersMode, isSearchMode, searchTerm])
+
+  const filteredProducts = useMemo(() => {
+    if (bestsellersMode || isSearchMode || !categoryIdParam) return products
+    return products.filter((p) => String(p.categoryId) === String(categoryIdParam))
+  }, [products, categoryIdParam, bestsellersMode, isSearchMode])
 
   const onSelectCategory = (id) => {
     const next = new URLSearchParams(searchParams)
@@ -246,7 +247,7 @@ export default function Shop() {
       )
     }
 
-    if (!products.length) {
+    if (!filteredProducts.length) {
       const isTypePage = !isSearchMode && !bestsellersMode && Boolean(displayVrstaName)
       const emptyMessage = isSearchMode
         ? `Nema proizvoda čiji naziv sadrži „${searchTerm}".`
@@ -270,39 +271,31 @@ export default function Shop() {
 
     return (
       <div className="product-grid">
-        {products.map((product) => {
-          const outOfStock = !isInStock(product)
+        {groupProductsForDisplay(filteredProducts).map((product) => {
+          const display = pickDefaultVariantProduct(product, product.variants)
+          const hasPicker = productHasVariantPicker(display)
           return (
-          <article key={product.id} className="product-card">
-            <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
-              <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" variant="medium" />
+          <article key={display.variantGroupId ?? display.id} className="product-card">
+            <Link to={`/products/${display.id}`} className="product-card-media" tabIndex={-1}>
+              <ApiImage src={display.imageUrl} alt={display.name} loading="lazy" variant="medium" />
             </Link>
             <div className="product-card-body">
               <h3>
-                <Link to={`/products/${product.id}`}>{product.name}</Link>
+                <Link to={`/products/${display.id}`}>{display.name}</Link>
               </h3>
-              <p>{[formatProductTypeDisplay(product.productType), product.category].filter(Boolean).join(' · ')}</p>
-              <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
-              <div className="card-actions">
-                <button
-                  type="button"
-                  className={outOfStock ? 'product-card-btn--out-of-stock' : undefined}
-                  onClick={() => addToCart(product)}
-                  disabled={outOfStock}
-                >
-                  {outOfStock ? 'Nije na stanju' : 'Dodaj u korpu'}
-                </button>
-                <button onClick={() => toggleWishlist(product)} className="ghost">
-                  Wishlist
-                </button>
-              </div>
+              <p>{[formatProductTypeDisplay(display.productType), display.category].filter(Boolean).join(' · ')}</p>
+              <strong>{Number(display.price).toLocaleString('sr-RS')} RSD</strong>
+              {hasPicker ? (
+                <p className="product-card-variant-hint">Vise gramaza — izaberite na stranici proizvoda</p>
+              ) : null}
+              <ProductCardActions product={display} onToggleWishlist={toggleWishlist} />
             </div>
           </article>
           )
         })}
       </div>
     )
-  }, [loading, products, addToCart, toggleWishlist, bestsellersMode, isSearchMode, searchTerm, displayVrstaName])
+  }, [loading, filteredProducts, toggleWishlist, bestsellersMode, isSearchMode, searchTerm, displayVrstaName, categoryIdParam])
 
   return (
     <section className="page shop-page">

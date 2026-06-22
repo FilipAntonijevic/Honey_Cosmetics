@@ -22,5 +22,10 @@ public class Product
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }
+    /// <summary>Zajednički ID grupe varijanti (obično ID prvog proizvoda u grupi).</summary>
+    public int? VariantGroupId { get; set; }
+    /// <summary>Gramaza / zapremina (npr. 15ml, 8ml, 38gr).</summary>
+    public string? VariantLabel { get; set; }
+    public int VariantSortOrder { get; set; }
     public List<ProductImage> AdditionalImages { get; set; } = new();
 }

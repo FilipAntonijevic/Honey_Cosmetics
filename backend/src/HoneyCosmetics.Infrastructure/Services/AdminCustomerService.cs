@@ -128,7 +128,8 @@ public static class AdminCustomerService
                 var counted = g.Where(x => !ExcludedRevenueStatuses.Contains(x.Order.Status));
                 return new AdminCustomerProductPurchase(
                     g.Key,
-                    product?.Name ?? "—",
+                    ProductVariantService.GetDisplayName(product?.Name ?? "—", product?.VariantLabel),
+                    product?.VariantLabel,
                     product?.ImageUrl,
                     counted.Sum(x => x.Item.Quantity),
                     counted.Sum(x => x.Item.Quantity * x.Item.UnitPrice),
@@ -143,30 +144,34 @@ public static class AdminCustomerService
 
         if (profile.UserId is Guid userId)
         {
-            wishlist = await db.Wishlists
+            wishlist = (await db.Wishlists
                 .AsNoTracking()
                 .Where(w => w.UserId == userId)
                 .Include(w => w.Product)
                 .OrderByDescending(w => w.Id)
+                .ToListAsync(ct))
                 .Select(w => new AdminCustomerWishlistItem(
                     w.ProductId,
-                    w.Product!.Name,
+                    ProductVariantService.GetDisplayName(w.Product!),
+                    w.Product!.VariantLabel,
                     w.Product.ImageUrl,
                     w.Product.Price,
                     w.Product.StockQuantity > 0))
-                .ToListAsync(ct);
+                .ToList();
 
-            cart = await db.Carts
+            cart = (await db.Carts
                 .AsNoTracking()
                 .Where(c => c.UserId == userId)
                 .Include(c => c.Product)
+                .ToListAsync(ct))
                 .Select(c => new AdminCustomerCartItem(
                     c.ProductId,
-                    c.Product!.Name,
+                    ProductVariantService.GetDisplayName(c.Product!),
+                    c.Product!.VariantLabel,
                     c.Product.ImageUrl,
                     c.Quantity,
                     c.Product.Price))
-                .ToListAsync(ct);
+                .ToList();
 
             couponsUsed = await db.CouponUsages
                 .AsNoTracking()

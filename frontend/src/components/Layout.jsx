@@ -4,8 +4,10 @@ import api from '../api'
 import { formatProductTypeDisplay } from '../lib/productTypes'
 import ApiImage from './ApiImage'
 import { publicUrl } from '../lib/assets'
+import ProductNameWithVariant from './ProductNameWithVariant'
 import { useStore } from '../context/StoreContext'
 import SiteHeaderPanel from './SiteHeaderPanel'
+import useCheckoutTotals from '../hooks/useCheckoutTotals'
 import FreeShippingBar from './FreeShippingBar'
 import Toast from './Toast'
 import SitePopupModal, { getDismissedSitePopupId } from './SitePopupModal'
@@ -19,6 +21,7 @@ const EMPTY_LINKS = {
   whatsAppNumber: '',
   viberNumber: '',
   freeShippingThreshold: 10000,
+  shippingCost: 430,
   notificationBannerText: '',
   notificationBannerEnabled: true,
 }
@@ -46,13 +49,13 @@ const buildViberHref = (raw) => {
 }
 
 export default function Layout({ children }) {
-  const { cart, checkoutCart, checkoutGrandTotal, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock } = useStore()
+  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock } = useStore()
   const [vrste, setVrste] = useState([])
   const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
+  const { itemsTotal, grandTotal: checkoutTotalWithShipping } = useCheckoutTotals(siteLinks)
   const [sitePopup, setSitePopup] = useState(null)
   const [sitePopupVisible, setSitePopupVisible] = useState(false)
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
-  const cartTotal = checkoutGrandTotal
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false)
   const [categoriesMenuOpen, setCategoriesMenuOpen] = useState(false)
@@ -138,6 +141,7 @@ export default function Layout({ children }) {
         whatsAppNumber: data?.whatsAppNumber ?? '',
         viberNumber: data?.viberNumber ?? '',
         freeShippingThreshold: data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000,
+        shippingCost: data?.shippingCost != null ? Number(data.shippingCost) : 430,
         notificationBannerText: data?.notificationBannerText ?? '',
         notificationBannerEnabled: data?.notificationBannerEnabled ?? true,
       }))
@@ -242,7 +246,9 @@ export default function Layout({ children }) {
 
   useEffect(() => {
     const lockScroll = miniCartOpen && !miniCartClosing && !isDesktop
+    const drawerOpen = miniCartOpen && !miniCartClosing
     document.body.classList.toggle('is-mini-cart-open', lockScroll)
+    document.body.classList.toggle('is-mini-cart-drawer-open', drawerOpen)
     if (!miniCartOpen) return
     const onKey = (e) => {
       if (e.key === 'Escape') closeMiniCart()
@@ -250,6 +256,7 @@ export default function Layout({ children }) {
     document.addEventListener('keydown', onKey)
     return () => {
       document.body.classList.remove('is-mini-cart-open')
+      document.body.classList.remove('is-mini-cart-drawer-open')
       document.removeEventListener('keydown', onKey)
     }
   }, [miniCartOpen, miniCartClosing, isDesktop])
@@ -282,10 +289,14 @@ export default function Layout({ children }) {
     setPhoneMenuOpen(false)
     setCategoriesMenuOpen(false)
     document.body.classList.remove('is-mini-cart-open')
+    document.body.classList.remove('is-mini-cart-drawer-open')
   }, [location.pathname])
 
   useEffect(() => {
-    return () => document.body.classList.remove('is-mini-cart-open')
+    return () => {
+      document.body.classList.remove('is-mini-cart-open')
+      document.body.classList.remove('is-mini-cart-drawer-open')
+    }
   }, [])
 
   useEffect(() => {
@@ -514,7 +525,7 @@ export default function Layout({ children }) {
             {checkoutCart.length > 0 && (
               <div className="mini-cart-shipping">
                 <FreeShippingBar
-                  cartTotal={cartTotal}
+                  cartTotal={itemsTotal}
                   threshold={siteLinks.freeShippingThreshold}
                   compact
                 />
@@ -537,7 +548,11 @@ export default function Layout({ children }) {
                         <ApiImage src={item.imageUrl} alt={item.name} className="mini-cart-img" variant="medium" />
                       )}
                       <div className="mini-cart-info">
-                        <span className="mini-cart-name">{item.name}</span>
+                        <ProductNameWithVariant
+                          name={item.name}
+                          variantLabel={item.variantLabel}
+                          className="mini-cart-name"
+                        />
                         <span className="mini-cart-unit-price">
                           {Number(item.price).toLocaleString('sr-RS')} RSD
                         </span>
@@ -589,7 +604,7 @@ export default function Layout({ children }) {
               <div className="mini-cart-drawer-footer">
                 <div className="mini-cart-divider" />
                 <p className="mini-cart-total">
-                  Ukupno: <strong>{cartTotal.toLocaleString('sr-RS')} RSD</strong>
+                  Ukupno: <strong>{checkoutTotalWithShipping.toLocaleString('sr-RS')} RSD</strong>
                 </p>
                 <div className="mini-cart-divider" />
                 <div className="mini-cart-actions">

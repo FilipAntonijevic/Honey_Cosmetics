@@ -30,7 +30,7 @@ public static class InventoryFinanceService
 
             if (product.StockQuantity < line.Quantity)
             {
-                return $"Nema dovoljno proizvoda na stanju: {product.Name} (dostupno {product.StockQuantity}).";
+                return $"Nema dovoljno proizvoda na stanju: {ProductVariantService.FormatForRecord(product)} (dostupno {product.StockQuantity}).";
             }
         }
 
@@ -192,8 +192,8 @@ public static class InventoryFinanceService
             EntryType = LedgerEntryType.Expense,
             Amount = totalCost,
             Description = transportTotal > 0
-                ? $"Nabavka (poručeno): {product.Name} {quantity} kom — ukupno {totalCost:N0} RSD (roba {merchandiseTotal:N0}, transport {transportTotal:N0})"
-                : $"Nabavka (poručeno): {product.Name} {quantity} kom — ukupno {totalCost:N0} RSD",
+                ? $"Nabavka (poručeno): {ProductVariantService.FormatForRecord(product)} {quantity} kom — ukupno {totalCost:N0} RSD (roba {merchandiseTotal:N0}, transport {transportTotal:N0})"
+                : $"Nabavka (poručeno): {ProductVariantService.FormatForRecord(product)} {quantity} kom — ukupno {totalCost:N0} RSD",
             Source = LedgerSource.StockPurchase,
             ProductId = product.Id,
             StockReceiptId = receipt.Id,
@@ -268,8 +268,8 @@ public static class InventoryFinanceService
 
         var trimmedNote = note?.Trim();
         var desc = string.IsNullOrWhiteSpace(trimmedNote)
-            ? $"Otpis: {product.Name} — {quantity} kom"
-            : $"Otpis: {product.Name} — {quantity} kom — {trimmedNote}";
+            ? $"Otpis: {ProductVariantService.FormatForRecord(product)} — {quantity} kom"
+            : $"Otpis: {ProductVariantService.FormatForRecord(product)} — {quantity} kom — {trimmedNote}";
 
         db.LedgerEntries.Add(new LedgerEntry
         {

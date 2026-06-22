@@ -36,14 +36,13 @@ import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Returns from './pages/Returns'
 
-// Scrolls the window to the top on every route change so users start each
-// page at the top, the same as a normal full-page navigation would.
+// Scroll to top on route change (pathname), not on query-only updates (filters).
 function ScrollToTop() {
-  const { pathname, search, hash } = useLocation()
+  const { pathname, hash } = useLocation()
   useEffect(() => {
     if (hash) return
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-  }, [pathname, search, hash])
+  }, [pathname])
   return null
 }
 

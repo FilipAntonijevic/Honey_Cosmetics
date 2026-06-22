@@ -5,10 +5,26 @@ namespace HoneyCosmetics.Application.Mapping;
 
 public static class ProductMapper
 {
-    public static ProductResponse ToResponse(Product p, bool includeUnitCost = false) =>
+    public static ProductVariantOption ToVariantOption(Product p) =>
         new(
             p.Id,
-            p.Name,
+            p.VariantLabel ?? string.Empty,
+            p.Price,
+            p.StockQuantity > 0,
+            p.StockQuantity);
+
+    public static ProductResponse ToResponse(
+        Product p,
+        bool includeUnitCost = false,
+        IReadOnlyList<Product>? siblings = null)
+    {
+        IReadOnlyList<ProductVariantOption>? variants = null;
+        if (siblings is { Count: > 1 })
+            variants = siblings.Select(ToVariantOption).ToList();
+
+        return new ProductResponse(
+            p.Id,
+            ProductVariantService.GetDisplayName(p),
             p.Description,
             p.Price,
             p.ImageUrl,
@@ -27,5 +43,10 @@ public static class ProductMapper
                 .Select(x => x.ImageUrl)
                 .ToList(),
             includeUnitCost ? p.UnitCostPrice : null,
-            includeUnitCost ? p.UnitTransportCost : null);
+            includeUnitCost ? p.UnitTransportCost : null,
+            p.VariantGroupId,
+            p.VariantLabel,
+            p.VariantSortOrder,
+            variants);
+    }
 }

@@ -48,6 +48,7 @@ const mapServerCartRows = (rows) =>
   rows.map((item) => ({
     id: item.productId,
     name: item.name,
+    variantLabel: item.variantLabel ?? null,
     price: item.price,
     imageUrl: item.imageUrl,
     quantity: Number(item.quantity) || 0,

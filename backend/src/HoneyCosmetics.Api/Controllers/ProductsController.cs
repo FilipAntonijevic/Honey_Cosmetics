@@ -1,3 +1,4 @@
+using HoneyCosmetics.Application;
 using HoneyCosmetics.Application.DTOs;
 using HoneyCosmetics.Application.Mapping;
 using HoneyCosmetics.Infrastructure.Data;
@@ -35,6 +36,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
             s?.ViberNumber ?? string.Empty,
             s?.NotificationsEmail ?? string.Empty,
             s?.FreeShippingThreshold ?? 10000m,
+            s?.ShippingCost ?? 430m,
             s?.NotificationBannerText ?? string.Empty,
             s?.NotificationBannerEnabled ?? true,
             s?.BankTransferRecipientName ?? string.Empty,
@@ -56,7 +58,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
             .Where(x => x.IsBestseller)
             .OrderBy(x => x.BestsellerSortOrder)
             .ToListAsync();
-        return Ok(list.Select(p => ProductMapper.ToResponse(p)));
+        return Ok(await MapManyWithVariantsAsync(list));
     }
 
     [AllowAnonymous]
@@ -103,18 +105,23 @@ public class ProductsController(AppDbContext db) : ControllerBase
 
         products = query.Sort?.ToLowerInvariant() switch
         {
-            "a-z" => products.OrderBy(x => x.Name),
-            "z-a" => products.OrderByDescending(x => x.Name),
             "price-asc" => products.OrderBy(x => x.Price),
             "price-desc" => products.OrderByDescending(x => x.Price),
-            _ => products.OrderByDescending(x => x.CreatedAt)
+            _ => products
         };
 
         var result = await products
             .Include(x => x.AdditionalImages)
             .ToListAsync();
 
-        return Ok(result.Select(p => ProductMapper.ToResponse(p)));
+        result = query.Sort?.ToLowerInvariant() switch
+        {
+            "z-a" => result.OrderByDescending(x => x.Name, ProductNaturalNameComparer.Instance).ToList(),
+            "price-asc" or "price-desc" => result,
+            _ => result.OrderBy(x => x.Name, ProductNaturalNameComparer.Instance).ToList(),
+        };
+
+        return Ok(await MapManyWithVariantsAsync(result));
     }
 
     [AllowAnonymous]
@@ -134,10 +141,9 @@ public class ProductsController(AppDbContext db) : ControllerBase
         var list = pool
             .OrderBy(_ => Random.Shared.Next())
             .Take(count)
-            .Select(p => ProductMapper.ToResponse(p))
             .ToList();
 
-        return Ok(list);
+        return Ok(await MapManyWithVariantsAsync(list));
     }
 
     [AllowAnonymous]
@@ -153,6 +159,40 @@ public class ProductsController(AppDbContext db) : ControllerBase
         if (product is null)
             return NotFound();
 
-        return Ok(ProductMapper.ToResponse(product));
+        var siblings = await ProductVariantService.LoadSiblingsAsync(db, product);
+        return Ok(ProductMapper.ToResponse(product, siblings: siblings));
+    }
+
+    private async Task<IReadOnlyList<ProductResponse>> MapManyWithVariantsAsync(
+        IReadOnlyList<Domain.Entities.Product> products)
+    {
+        if (products.Count == 0)
+            return [];
+
+        var groupIds = products
+            .Select(ProductVariantService.ResolveGroupId)
+            .Distinct()
+            .ToList();
+
+        var grouped = await db.Products
+            .ActiveProducts()
+            .Where(p => groupIds.Contains(p.Id) || (p.VariantGroupId != null && groupIds.Contains(p.VariantGroupId.Value)))
+            .OrderBy(p => p.VariantSortOrder)
+            .ThenBy(p => p.VariantLabel)
+            .ToListAsync();
+
+        var siblingsByGroup = grouped
+            .GroupBy(ProductVariantService.ResolveGroupId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<Domain.Entities.Product>)g.ToList());
+
+        return products
+            .Select(p =>
+            {
+                var groupId = ProductVariantService.ResolveGroupId(p);
+                siblingsByGroup.TryGetValue(groupId, out var siblings);
+                siblings ??= [p];
+                return ProductMapper.ToResponse(p, siblings: siblings);
+            })
+            .ToList();
     }
 }

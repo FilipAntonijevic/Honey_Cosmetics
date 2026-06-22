@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import api from '../../api'
 import ApiImage from '../../components/ApiImage'
 import AdminOrderTable from '../../components/admin/AdminOrderTable'
+import ProductNameWithVariant from '../../components/ProductNameWithVariant'
 
 const ROLE_LABELS = {
   Admin: 'Admin',
@@ -167,7 +168,7 @@ export default function AdminUserDetail() {
                         {p.imageUrl && (
                           <ApiImage src={p.imageUrl} alt="" className="adm-users-product__img" />
                         )}
-                        <span>{p.productName}</span>
+                        <ProductNameWithVariant productName={p.productName} variantLabel={p.variantLabel} />
                       </div>
                     </td>
                     <td>{p.totalQuantity}</td>
@@ -194,7 +195,9 @@ export default function AdminUserDetail() {
                   <ApiImage src={w.imageUrl} alt="" className="adm-users-wishlist__img" />
                 )}
                 <div>
-                  <div className="adm-users-wishlist__name">{w.productName}</div>
+                  <div className="adm-users-wishlist__name">
+                    <ProductNameWithVariant productName={w.productName} variantLabel={w.variantLabel} />
+                  </div>
                   <div className="adm-users-wishlist__meta">
                     {fmtMoney(w.price)}
                     {!w.inStock && <span className="adm-users-wishlist__oos">Nema na stanju</span>}
@@ -223,7 +226,9 @@ export default function AdminUserDetail() {
               <tbody>
                 {detail.cart.map((item) => (
                   <tr key={item.productId}>
-                    <td>{item.productName}</td>
+                    <td>
+                      <ProductNameWithVariant productName={item.productName} variantLabel={item.variantLabel} />
+                    </td>
                     <td>{item.quantity}</td>
                     <td>{fmtMoney(item.price * item.quantity)}</td>
                   </tr>

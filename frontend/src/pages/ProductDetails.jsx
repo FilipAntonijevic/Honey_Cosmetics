@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
 import ProductGallery from '../components/ProductGallery'
+import ProductSizePicker from '../components/ProductSizePicker'
 import { useStore } from '../context/StoreContext'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 
@@ -138,6 +139,8 @@ export default function ProductDetails() {
     )
   }
 
+  const title = product.name
+
   return (
     <section className="page product-page">
       <div className="shell pd-shell">
@@ -145,6 +148,13 @@ export default function ProductDetails() {
           <div className="pd-info">
             <h1 className="pd-title">{product.name}</h1>
             <p className="pd-price">{formatPrice(product.price)}</p>
+
+            <ProductSizePicker
+              product={product}
+              variants={product.variants}
+              selectedId={product.id}
+            />
+
             <div className="pd-buy">
               <div className="pd-qty" aria-label="Količina">
                 <button
@@ -220,7 +230,7 @@ export default function ProductDetails() {
             <ProductGallery
               imageUrl={product.imageUrl}
               additionalImageUrls={product.additionalImageUrls}
-              alt={product.name}
+              alt={title}
             />
           </div>
         </div>

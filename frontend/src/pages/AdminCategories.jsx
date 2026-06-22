@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
+import ProductNameWithVariant from '../components/ProductNameWithVariant'
 import AdminModal from '../components/admin/AdminModal'
 
 const emptyForm = { name: '', imageUrl: '' }
@@ -9,6 +10,7 @@ export default function AdminCategories() {
   const [productTypes, setProductTypes] = useState([])
   const [selectedTypeId, setSelectedTypeId] = useState('')
   const [categories, setCategories] = useState([])
+  const [typeProducts, setTypeProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [listLoading, setListLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -18,6 +20,14 @@ export default function AdminCategories() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const fileRef = useRef(null)
+
+  const [assignCategory, setAssignCategory] = useState(null)
+  const [assignProductIds, setAssignProductIds] = useState([])
+  const [assignInitialIds, setAssignInitialIds] = useState([])
+  const [assignSearch, setAssignSearch] = useState('')
+  const [assignLoading, setAssignLoading] = useState(false)
+  const [assignSaving, setAssignSaving] = useState(false)
+  const [assignError, setAssignError] = useState('')
 
   const loadTypes = async () => {
     setLoading(true)
@@ -37,18 +47,34 @@ export default function AdminCategories() {
   const loadCategories = async (typeId) => {
     if (!typeId) {
       setCategories([])
+      setTypeProducts([])
       return
     }
     setListLoading(true)
     try {
-      const { data } = await api.get('/admin/categories', { params: { productTypeId: typeId } })
-      setCategories(data)
+      const [catRes, prodRes] = await Promise.all([
+        api.get('/admin/categories', { params: { productTypeId: typeId } }),
+        api.get('/admin/products'),
+      ])
+      const typeIdNum = parseInt(typeId, 10)
+      setCategories(catRes.data)
+      setTypeProducts((prodRes.data ?? []).filter((p) => p.productTypeId === typeIdNum))
     } catch {
       setCategories([])
+      setTypeProducts([])
     } finally {
       setListLoading(false)
     }
   }
+
+  const productCountByCategory = useMemo(() => {
+    const counts = new Map()
+    for (const p of typeProducts) {
+      if (p.categoryId == null) continue
+      counts.set(p.categoryId, (counts.get(p.categoryId) ?? 0) + 1)
+    }
+    return counts
+  }, [typeProducts])
 
   /* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect -- mount fetch */
   useEffect(() => {
@@ -59,7 +85,10 @@ export default function AdminCategories() {
   /* eslint-disable react-hooks/set-state-in-effect -- reload list when vrsta changes */
   useEffect(() => {
     if (selectedTypeId) loadCategories(selectedTypeId)
-    else setCategories([])
+    else {
+      setCategories([])
+      setTypeProducts([])
+    }
   }, [selectedTypeId])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -85,6 +114,80 @@ export default function AdminCategories() {
     setShowForm(false)
     setEditId(null)
     setError('')
+  }
+
+  const openAssign = (row) => {
+    setAssignCategory(row)
+    setAssignSearch('')
+    setAssignError('')
+    setAssignLoading(true)
+    const inCategory = typeProducts
+      .filter((p) => p.categoryId === row.id)
+      .map((p) => p.id)
+    setAssignProductIds(inCategory)
+    setAssignInitialIds(inCategory)
+    setAssignLoading(false)
+  }
+
+  const closeAssign = () => {
+    setAssignCategory(null)
+    setAssignProductIds([])
+    setAssignInitialIds([])
+    setAssignSearch('')
+    setAssignError('')
+  }
+
+  const assignDirty = useMemo(() => {
+    if (assignProductIds.length !== assignInitialIds.length) return true
+    const sortedA = [...assignProductIds].sort((a, b) => a - b)
+    const sortedB = [...assignInitialIds].sort((a, b) => a - b)
+    return sortedA.some((id, i) => id !== sortedB[i])
+  }, [assignProductIds, assignInitialIds])
+
+  const filteredAssignProducts = useMemo(() => {
+    const term = assignSearch.trim().toLowerCase()
+    return typeProducts.filter((p) => {
+      if (!term) return true
+      const hay = [p.name, p.category, p.variantLabel].filter(Boolean).join(' ').toLowerCase()
+      return hay.includes(term)
+    })
+  }, [typeProducts, assignSearch])
+
+  const toggleAssignProduct = (id) => {
+    setAssignProductIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+    setAssignError('')
+  }
+
+  const selectAllFiltered = () => {
+    const ids = filteredAssignProducts.map((p) => p.id)
+    setAssignProductIds((prev) => [...new Set([...prev, ...ids])])
+  }
+
+  const clearFiltered = () => {
+    const filtered = new Set(filteredAssignProducts.map((p) => p.id))
+    setAssignProductIds((prev) => prev.filter((id) => !filtered.has(id)))
+  }
+
+  const saveAssign = async () => {
+    if (!assignCategory) return
+    setAssignError('')
+    setAssignSaving(true)
+    try {
+      await api.put(`/admin/categories/${assignCategory.id}/products`, {
+        productIds: assignProductIds,
+      })
+      await loadCategories(selectedTypeId)
+      closeAssign()
+    } catch (err) {
+      const msg = err.response?.data
+      setAssignError(
+        typeof msg === 'string' ? msg : msg?.title ?? msg?.detail ?? 'Čuvanje nije uspelo.',
+      )
+    } finally {
+      setAssignSaving(false)
+    }
   }
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
@@ -147,6 +250,9 @@ export default function AdminCategories() {
     try {
       await api.delete(`/admin/categories/${id}`)
       setCategories((prev) => prev.filter((c) => c.id !== id))
+      setTypeProducts((prev) =>
+        prev.map((p) => (p.categoryId === id ? { ...p, categoryId: null, category: '' } : p)),
+      )
     } catch (err) {
       alert('Brisanje nije uspelo: ' + (err.response?.status ?? err.message))
     }
@@ -202,7 +308,8 @@ export default function AdminCategories() {
               <tr>
                 <th>Slika</th>
                 <th>Naziv</th>
-                <th style={{ width: '160px' }} />
+                <th>Artikala</th>
+                <th style={{ width: '280px' }} />
               </tr>
             </thead>
             <tbody>
@@ -216,7 +323,12 @@ export default function AdminCategories() {
                     )}
                   </td>
                   <td className="adm-customer-name">{row.name}</td>
+                  <td>{productCountByCategory.get(row.id) ?? 0}</td>
                   <td>
+                    <button type="button" className="adm-btn adm-btn-sm adm-btn-primary" onClick={() => openAssign(row)}>
+                      Ubaci artikle
+                    </button>
+                    {' '}
                     <button type="button" className="adm-btn adm-btn-sm" onClick={() => openEdit(row)}>Izmeni</button>
                     {' '}
                     <button type="button" className="adm-btn adm-btn-sm adm-btn-danger" onClick={() => deleteRow(row.id, row.name)}>Obriši</button>
@@ -229,44 +341,124 @@ export default function AdminCategories() {
       )}
 
       <AdminModal open={showForm} onClose={closeForm}>
-            <div className="adm-modal-header">
-              <h2>{editId ? 'Izmeni kategoriju' : 'Nova kategorija'}</h2>
-              <button type="button" className="adm-modal-close" onClick={closeForm}>✕</button>
+        <div className="adm-modal-header">
+          <h2>{editId ? 'Izmeni kategoriju' : 'Nova kategorija'}</h2>
+          <button type="button" className="adm-modal-close" onClick={closeForm}>✕</button>
+        </div>
+        <p className="adm-modal-intro">
+          Vrsta: <strong>{selectedTypeLabel}</strong>
+        </p>
+        <form onSubmit={save} className="adm-form">
+          {error && <div className="adm-form-error">{error}</div>}
+          <div className="adm-form-row">
+            <label>Naziv *</label>
+            <input className="adm-input" value={form.name} onChange={set('name')} required />
+          </div>
+          <div className="adm-form-row">
+            <label>Slika *</label>
+            <div className="adm-image-row">
+              <input className="adm-input" placeholder="URL slike…" value={form.imageUrl} onChange={set('imageUrl')} />
+              <span className="adm-or">ili</span>
+              <input
+                type="file"
+                ref={fileRef}
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => e.target.files[0] && uploadImage(e.target.files[0])}
+              />
+              <button type="button" className="adm-btn" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                {uploading ? 'Upload…' : '↑ Upload'}
+              </button>
             </div>
-            <p className="adm-modal-intro">
-              Vrsta: <strong>{selectedTypeLabel}</strong>
-            </p>
-            <form onSubmit={save} className="adm-form">
-              {error && <div className="adm-form-error">{error}</div>}
-              <div className="adm-form-row">
-                <label>Naziv *</label>
-                <input className="adm-input" value={form.name} onChange={set('name')} required />
-              </div>
-              <div className="adm-form-row">
-                <label>Slika *</label>
-                <div className="adm-image-row">
-                  <input className="adm-input" placeholder="URL slike…" value={form.imageUrl} onChange={set('imageUrl')} />
-                  <span className="adm-or">ili</span>
-                  <input
-                    type="file"
-                    ref={fileRef}
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={(e) => e.target.files[0] && uploadImage(e.target.files[0])}
-                  />
-                  <button type="button" className="adm-btn" disabled={uploading} onClick={() => fileRef.current?.click()}>
-                    {uploading ? 'Upload…' : '↑ Upload'}
-                  </button>
-                </div>
-                {form.imageUrl && <ApiImage src={form.imageUrl} alt="" className="adm-img-preview" />}
-              </div>
-              <div className="adm-modal-footer">
-                <button type="button" className="adm-btn" onClick={closeForm}>Odustani</button>
-                <button type="submit" className="adm-btn adm-btn-primary" disabled={saving}>
-                  {saving ? 'Čuvanje…' : 'Sačuvaj'}
-                </button>
-              </div>
-            </form>
+            {form.imageUrl && <ApiImage src={form.imageUrl} alt="" className="adm-img-preview" />}
+          </div>
+          <div className="adm-modal-footer">
+            <button type="button" className="adm-btn" onClick={closeForm}>Odustani</button>
+            <button type="submit" className="adm-btn adm-btn-primary" disabled={saving}>
+              {saving ? 'Čuvanje…' : 'Sačuvaj'}
+            </button>
+          </div>
+        </form>
+      </AdminModal>
+
+      <AdminModal open={Boolean(assignCategory)} onClose={closeAssign} className="adm-modal--wide adm-modal--assign">
+        <div className="adm-modal-header">
+          <h2>Ubaci artikle</h2>
+          <button type="button" className="adm-modal-close" onClick={closeAssign}>✕</button>
+        </div>
+        {assignCategory && (
+          <p className="adm-modal-intro">
+            Kategorija: <strong>{assignCategory.name}</strong>
+            {' · '}
+            Vrsta: <strong>{assignCategory.productTypeName || selectedTypeLabel}</strong>
+            {' · '}
+            Izabrano: <strong>{assignProductIds.length}</strong>
+          </p>
+        )}
+
+        {assignError && <div className="adm-form-error" style={{ marginBottom: '0.75rem' }}>{assignError}</div>}
+
+        <div className="adm-cat-assign-toolbar">
+          <input
+            className="adm-search"
+            placeholder="Pretraga proizvoda…"
+            value={assignSearch}
+            onChange={(e) => setAssignSearch(e.target.value)}
+          />
+          <button type="button" className="adm-btn adm-btn-sm" onClick={selectAllFiltered}>
+            Označi sve
+          </button>
+          <button type="button" className="adm-btn adm-btn-sm" onClick={clearFiltered}>
+            Poništi filter
+          </button>
+        </div>
+
+        {assignLoading ? (
+          <div className="adm-loading">Učitavanje proizvoda…</div>
+        ) : filteredAssignProducts.length === 0 ? (
+          <div className="adm-empty">Nema proizvoda ove vrste{assignSearch.trim() ? ' za ovu pretragu' : ''}.</div>
+        ) : (
+          <ul className="adm-cat-assign-list">
+            {filteredAssignProducts.map((p) => {
+              const checked = assignProductIds.includes(p.id)
+              const inOtherCategory = p.categoryId != null && p.categoryId !== assignCategory?.id
+              return (
+                <li key={p.id} className={`adm-cat-assign-item${checked ? ' is-selected' : ''}`}>
+                  <label className="adm-cat-assign-label">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleAssignProduct(p.id)}
+                    />
+                    {p.imageUrl ? (
+                      <ApiImage src={p.imageUrl} alt="" className="adm-best-thumb" />
+                    ) : (
+                      <div className="adm-best-thumb adm-best-thumb-empty" />
+                    )}
+                    <span className="adm-cat-assign-meta">
+                      <ProductNameWithVariant name={p.name} variantLabel={p.variantLabel} className="adm-best-name" />
+                      <span className="adm-best-sub">
+                        {inOtherCategory ? `Trenutno: ${p.category}` : p.category ? `U kategoriji: ${p.category}` : 'Bez kategorije'}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        <div className="adm-modal-footer">
+          <button type="button" className="adm-btn" onClick={closeAssign}>Odustani</button>
+          <button
+            type="button"
+            className="adm-btn adm-btn-primary"
+            onClick={saveAssign}
+            disabled={assignSaving || !assignDirty}
+          >
+            {assignSaving ? 'Čuvanje…' : 'Sačuvaj izbor'}
+          </button>
+        </div>
       </AdminModal>
     </div>
   )

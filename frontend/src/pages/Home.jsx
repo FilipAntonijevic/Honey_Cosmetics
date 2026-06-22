@@ -12,7 +12,8 @@ import {
   resolveDirectImageSrc,
 } from '../lib/imagePreload'
 import FitOneLineTitle from '../components/FitOneLineTitle'
-import { isInStock } from '../utils/stock'
+import ProductCardActions from '../components/ProductCardActions'
+import { groupProductsForDisplay } from '../lib/productVariants'
 
 const POP_VISIBLE_MAX = 5
 const POP_REF_SHELL_PX = 1240
@@ -431,8 +432,7 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
   )
 }
 
-function ProductCarouselCard({ product, onAddToCart, onToggleWishlist }) {
-  const outOfStock = !isInStock(product)
+function ProductCarouselCard({ product, onToggleWishlist }) {
   return (
     <article className="product-card">
       <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
@@ -448,27 +448,14 @@ function ProductCarouselCard({ product, onAddToCart, onToggleWishlist }) {
         </h3>
         <p>{[formatProductTypeDisplay(product.productType), product.category].filter(Boolean).join(' · ')}</p>
         <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
-        <div className="card-actions">
-          <button
-            type="button"
-            className={outOfStock ? 'product-card-btn--out-of-stock' : undefined}
-            onClick={() => onAddToCart(product)}
-            disabled={outOfStock}
-          >
-            {outOfStock ? 'Nije na stanju' : 'Dodaj u korpu'}
-          </button>
-          <button type="button" className="ghost" onClick={() => onToggleWishlist(product)}>
-            Wishlist
-          </button>
-        </div>
+        <ProductCardActions product={product} onToggleWishlist={onToggleWishlist} />
       </div>
     </article>
   )
 }
 
 function getVisibleSlotCount(viewportWidth) {
-  if (viewportWidth <= 480) return 2
-  if (viewportWidth <= 768) return 2
+  if (viewportWidth <= 768) return 1
   if (viewportWidth <= 980) return 3
   return POP_VISIBLE_MAX
 }
@@ -498,7 +485,7 @@ function ProductCarousel({ products }) {
   const [paused, setPaused] = useState(false)
   const [autoScrollKey, setAutoScrollKey] = useState(0)
 
-  const { addToCart, toggleWishlist } = useStore()
+  const { toggleWishlist } = useStore()
 
   const resetAutoScroll = useCallback(() => setAutoScrollKey((k) => k + 1), [])
 
@@ -520,7 +507,7 @@ function ProductCarousel({ products }) {
     let cardWidth
     if (visible >= 5 && viewport.clientWidth > 980) {
       const refViewport = Math.min(POP_REF_SHELL_PX, viewport.clientWidth) - POP_WRAP_PAD_PX
-      const preserved = (refViewport - 3 * gap) / 4
+      const preserved = ((refViewport - 3 * gap) / 4) * 0.85
       const maxFit = (viewport.clientWidth - (visible - 1) * gap) / visible
       cardWidth = Math.min(preserved, maxFit)
     } else {
@@ -767,7 +754,6 @@ function ProductCarousel({ products }) {
             <ProductCarouselCard
               key={slideKey}
               product={product}
-              onAddToCart={addToCart}
               onToggleWishlist={toggleWishlist}
             />
           ))}
@@ -842,12 +828,12 @@ export default function Home() {
         await preloadProductImagesMediumAwait(firstBatch)
         if (cancelled) return
 
-        setBestsellers(attachResolvedImageSrcPartial(list, POP_VISIBLE_MAX))
+        setBestsellers(attachResolvedImageSrcPartial(groupProductsForDisplay(list), POP_VISIBLE_MAX))
         setBestsellersReady(true)
 
         if (list.length > POP_VISIBLE_MAX) {
           preloadProductImagesMediumAwait(list.slice(POP_VISIBLE_MAX)).then(() => {
-            if (!cancelled) setBestsellers(attachResolvedImageSrc(list))
+            if (!cancelled) setBestsellers(attachResolvedImageSrc(groupProductsForDisplay(list)))
           })
         }
       } catch {

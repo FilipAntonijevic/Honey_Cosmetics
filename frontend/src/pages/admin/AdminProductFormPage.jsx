@@ -12,6 +12,8 @@ const EMPTY_FORM = {
   categoryId: '',
   unitCostPrice: '',
   unitTransportCost: '',
+  variantGroupId: '',
+  variantLabel: '',
 }
 
 function productToImageUrls(product) {
@@ -49,6 +51,8 @@ export default function AdminProductFormPage() {
           categoryId: data.categoryId != null ? String(data.categoryId) : '',
           unitCostPrice: data.unitCostPrice != null ? String(data.unitCostPrice) : '',
           unitTransportCost: data.unitTransportCost != null ? String(data.unitTransportCost) : '',
+          variantGroupId: data.variantGroupId != null ? String(data.variantGroupId) : '',
+          variantLabel: data.variantLabel ?? '',
         })
       })
       .catch(() => setError('Proizvod nije pronađen.'))
@@ -104,6 +108,8 @@ export default function AdminProductFormPage() {
         categoryId: form.categoryId ? parseInt(form.categoryId, 10) : null,
         unitCostPrice: form.unitCostPrice ? parseFloat(form.unitCostPrice) : null,
         unitTransportCost: form.unitTransportCost ? parseFloat(form.unitTransportCost) : null,
+        variantGroupId: form.variantGroupId ? parseInt(form.variantGroupId, 10) : null,
+        variantLabel: form.variantLabel.trim() || null,
       }
       if (isNew) {
         const { data } = await api.post('/admin/products', payload)
@@ -156,6 +162,19 @@ export default function AdminProductFormPage() {
             </select>
           </div>
         </div>
+        <div className="adm-form-row adm-form-row--2">
+          <div>
+            <label>Gramaza (npr. 15ml, 38gr)</label>
+            <input className="adm-input" value={form.variantLabel} onChange={set('variantLabel')} placeholder="Prazno = bez varijante" />
+          </div>
+          <div>
+            <label>ID grupe varijanti</label>
+            <input className="adm-input" type="number" min="1" value={form.variantGroupId} onChange={set('variantGroupId')} placeholder="ID prvog proizvoda u grupi" />
+          </div>
+        </div>
+        <p className="adm-form-hint" style={{ marginTop: '-0.5rem' }}>
+          Naziv bez gramaze — gramazu unesite u polje ispod. Za drugu gramazu kreirajte novi proizvod sa istim nazivom i istim ID grupe.
+        </p>
         <div className="adm-form-row">
           <label>Cena prodaje (RSD) *</label>
           <input className="adm-input" type="number" min="0" step="0.01" value={form.price} onChange={set('price')} required />

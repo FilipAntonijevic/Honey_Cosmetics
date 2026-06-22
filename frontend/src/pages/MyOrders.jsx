@@ -3,6 +3,7 @@ import api from '../api'
 import ApiImage from '../components/ApiImage'
 import BankTransferSlip, { hasTemplate } from '../components/BankTransferSlip'
 import useSiteLinks from '../hooks/useSiteLinks'
+import ProductNameWithVariant from '../components/ProductNameWithVariant'
 
 const STATUS_LABEL = {
   Pending: 'Na čekanju',
@@ -121,7 +122,11 @@ export default function MyOrders() {
                         ? <ApiImage src={item.imageUrl} alt={item.productName} className="order-item-img" variant="medium" />
                         : <div className="order-item-img order-item-img--ph" />}
                       <div className="order-item-info">
-                        <span className="order-item-name">{item.productName}</span>
+                        <ProductNameWithVariant
+                          productName={item.productName}
+                          variantLabel={item.variantLabel}
+                          className="order-item-name"
+                        />
                         <span className="order-item-qty">× {item.quantity}</span>
                       </div>
                       <span className="order-item-price">{fmt(item.unitPrice * item.quantity)} RSD</span>
@@ -163,7 +168,12 @@ export default function MyOrders() {
                     <tbody>
                       {order.items.map((item) => (
                         <tr key={`detail-${order.id}-${item.productId}`}>
-                          <td>{item.productName}</td>
+                          <td>
+                            <ProductNameWithVariant
+                              productName={item.productName}
+                              variantLabel={item.variantLabel}
+                            />
+                          </td>
                           <td className="order-details-table__num">{item.quantity}</td>
                           <td className="order-details-table__num">{fmt(item.unitPrice * item.quantity)} RSD</td>
                         </tr>
@@ -184,12 +194,17 @@ export default function MyOrders() {
                         <dd>−{fmt(order.discount)} RSD</dd>
                       </div>
                     )}
-                    {order.freeShippingApplied && (
+                    {order.freeShippingApplied ? (
                       <div className="order-details-totals__row order-details-totals__row--shipping">
-                        <dt>Dostava</dt>
+                        <dt>Poštarina</dt>
                         <dd>Besplatna</dd>
                       </div>
-                    )}
+                    ) : Number(order.shippingCost) > 0 ? (
+                      <div className="order-details-totals__row order-details-totals__row--shipping">
+                        <dt>Poštarina</dt>
+                        <dd>+{fmt(order.shippingCost)} RSD</dd>
+                      </div>
+                    ) : null}
                     <div className="order-details-totals__row order-details-totals__row--total">
                       <dt>Ukupno</dt>
                       <dd>{fmt(order.total)} RSD</dd>

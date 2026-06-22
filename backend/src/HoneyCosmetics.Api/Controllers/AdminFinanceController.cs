@@ -2,6 +2,7 @@ using HoneyCosmetics.Application.DTOs;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Domain.Enums;
 using HoneyCosmetics.Infrastructure.Data;
+using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -148,7 +149,7 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
             e.OrderId,
             e.ProductId,
             e.StockReceiptId,
-            e.Product?.Name,
+            e.Product is null ? null : ProductVariantService.GetDisplayName(e.Product),
             isWriteOff ? e.WriteOffQuantity : receipt?.Quantity,
             isWriteOff ? null : receipt?.UnitCost,
             merchandise,

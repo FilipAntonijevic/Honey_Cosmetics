@@ -6,6 +6,7 @@ import ApiImage from '../components/ApiImage'
 import FreeShippingBar from '../components/FreeShippingBar'
 import useSiteLinks from '../hooks/useSiteLinks'
 import { clampCartQuantity, isInStock } from '../utils/stock'
+import ProductNameWithVariant from '../components/ProductNameWithVariant'
 
 export default function Cart() {
   const { checkoutCart, removeFromCart, setCart, user, setToast, refreshCartStock } = useStore()
@@ -93,7 +94,11 @@ export default function Cart() {
                         : <div className="cart-img-ph" />}
                     </div>
                     <div className="cart-info">
-                      <div className="cart-name">{item.name}</div>
+                      <ProductNameWithVariant
+                        name={item.name}
+                        variantLabel={item.variantLabel}
+                        className="cart-name"
+                      />
                       <div className="cart-unit-price">{fmt(price(item))} RSD</div>
                       <div className="cart-qty-row">
                         <div className="cart-qty">

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import AdminModal from './AdminModal'
+import ProductNameWithVariant from '../../components/ProductNameWithVariant'
 
 export const ORDER_STATUSES = ['Pending', 'Shipped', 'Returned', 'Cancelled', 'Delivered']
 
@@ -445,6 +446,12 @@ export default function AdminOrderTable({
                             <br />
                             <strong>Dostava:</strong>{' '}
                             <OrderShippingBadge freeShippingApplied={order.freeShippingApplied} />
+                            {!order.freeShippingApplied && Number(order.shippingCost) > 0 && (
+                              <>
+                                {' '}
+                                (+{fmtMoney(order.shippingCost)} RSD)
+                              </>
+                            )}
                             {order.freeShippingDeliveryCost != null && (
                               <>
                                 <br />
@@ -458,7 +465,10 @@ export default function AdminOrderTable({
                             <ul>
                               {order.items.map((item) => (
                                 <li key={item.productId}>
-                                  {item.productName} × {item.quantity} — {fmtMoney(item.unitPrice * item.quantity)} RSD
+                                  <ProductNameWithVariant
+                                    productName={item.productName}
+                                    variantLabel={item.variantLabel}
+                                  /> × {item.quantity} — {fmtMoney(item.unitPrice * item.quantity)} RSD
                                 </li>
                               ))}
                             </ul>

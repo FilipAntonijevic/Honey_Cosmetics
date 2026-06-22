@@ -356,6 +356,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<string>("Phone")
                         .HasColumnType("text");
 
+                    b.Property<decimal>("ShippingCost")
+                        .HasColumnType("numeric");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -394,6 +397,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("numeric");
+
+                    b.Property<string>("VariantLabel")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -518,14 +524,30 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<decimal?>("UnitTransportCost")
                         .HasColumnType("numeric");
 
+                    b.Property<int?>("VariantGroupId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VariantLabel")
+                        .HasColumnType("text");
+
+                    b.Property<int>("VariantSortOrder")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"VariantGroupId\" IS NULL");
 
                     b.HasIndex("ProductTypeId");
+
+                    b.HasIndex("VariantGroupId");
+
+                    b.HasIndex("VariantGroupId", "VariantLabel")
+                        .IsUnique()
+                        .HasFilter("\"VariantGroupId\" IS NOT NULL AND \"VariantLabel\" IS NOT NULL");
 
                     b.ToTable("Products");
                 });
@@ -652,6 +674,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("FreeShippingThreshold")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("ShippingCost")
                         .HasColumnType("numeric");
 
                     b.Property<string>("InstagramUrl")

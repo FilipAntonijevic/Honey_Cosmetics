@@ -25,6 +25,9 @@ public class SiteSettings
     /// <summary>Minimum cart total (after coupon) for free shipping.</summary>
     public decimal FreeShippingThreshold { get; set; } = 10000m;
 
+    /// <summary>Standard shipping cost charged when free shipping threshold is not met.</summary>
+    public decimal ShippingCost { get; set; } = 430m;
+
     /// <summary>Repeating text in the top notification banner (segments separated by •).</summary>
     public string NotificationBannerText { get; set; } = string.Empty;
 

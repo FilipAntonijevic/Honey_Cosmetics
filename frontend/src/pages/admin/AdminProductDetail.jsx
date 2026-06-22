@@ -4,6 +4,7 @@ import api from '../../api'
 import ApiImage from '../../components/ApiImage'
 import AdminModal from '../../components/admin/AdminModal'
 import { OrderShippingBadge } from '../../components/admin/AdminOrderTable'
+import ProductNameWithVariant from '../../components/ProductNameWithVariant'
 
 function parseNum(v) {
   const n = parseFloat(String(v).replace(',', '.'))
@@ -232,7 +233,10 @@ function StockLedgerDetail({ row, fmt, fmtMoney }) {
             <ul>
               {d.orderItems.map((item) => (
                 <li key={item.productId}>
-                  {item.productName} × {item.quantity} — {fmt(item.unitPrice * item.quantity)} RSD
+                  <ProductNameWithVariant
+                    productName={item.productName}
+                    variantLabel={item.variantLabel}
+                  /> × {item.quantity} — {fmt(item.unitPrice * item.quantity)} RSD
                 </li>
               ))}
             </ul>

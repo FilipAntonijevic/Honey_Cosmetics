@@ -1,4 +1,5 @@
 using HoneyCosmetics.Api.Services;
+using HoneyCosmetics.Application;
 using HoneyCosmetics.Application.DTOs;
 using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Application.Mapping;
@@ -110,8 +111,8 @@ public class AdminController(
             .Include(x => x.Category)
             .Include(x => x.ProductType)
             .Include(x => x.AdditionalImages)
-            .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
+        products.Sort((a, b) => ProductNaturalNameComparer.Instance.Compare(a.Name, b.Name));
         return Ok(products.Select(MapProduct));
     }
 
@@ -132,13 +133,30 @@ public class AdminController(
             return BadRequest(ex.Message);
         }
 
+        try
+        {
+            await ProductVariantService.EnsureVariantGroupAsync(
+                db, product, request.VariantGroupId, request.VariantLabel, request.VariantSortOrder);
+            ProductVariantService.NormalizeProductNaming(product);
+            var variantError = await ProductVariantService.ValidateVariantAsync(db, product);
+            if (variantError is not null)
+                return BadRequest(variantError);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+
+        await db.SaveChangesAsync();
+        await ProductVariantService.FinalizeNewProductVariantGroupAsync(db, product);
         await db.SaveChangesAsync();
         await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
         await db.SaveChangesAsync();
         await db.Entry(product).Reference(p => p.Category).LoadAsync();
         await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
         await db.Entry(product).Collection(p => p.AdditionalImages).LoadAsync();
-        return Ok(new { product = MapProduct(product), restored });
+        var siblings = await ProductVariantService.LoadSiblingsAsync(db, product);
+        return Ok(new { product = MapProduct(product, siblings), restored });
     }
 
     [HttpPut("products/{id:int}")]
@@ -157,12 +175,16 @@ public class AdminController(
         var normalizedName = ProductCatalogService.NormalizeName(request.Name);
         if (!ProductCatalogService.NamesMatch(product.Name, normalizedName))
         {
-            var nameConflict = await ProductCatalogService.GetActiveNameConflictAsync(db, normalizedName, id);
+            var nameConflict = await ProductCatalogService.GetActiveNameConflictAsync(
+                db,
+                normalizedName,
+                id,
+                request.VariantGroupId ?? product.VariantGroupId);
             if (nameConflict is not null)
                 return BadRequest(nameConflict);
 
             var reservedByDeleted = await db.Products.AnyAsync(p =>
-                p.Id != id && p.IsDeleted && p.Name == normalizedName);
+                p.Id != id && p.IsDeleted && p.Name == normalizedName && p.VariantGroupId == null);
             if (reservedByDeleted)
                 return BadRequest(
                     "Proizvod sa tim imenom je uklonjen iz prodavnice. Kreirajte novi proizvod pod tim imenom da ga vratite.");
@@ -170,6 +192,20 @@ public class AdminController(
 
         var stockBefore = product.StockQuantity;
         ProductCatalogService.ApplyRequest(product, request);
+
+        try
+        {
+            await ProductVariantService.EnsureVariantGroupAsync(
+                db, product, request.VariantGroupId, request.VariantLabel, request.VariantSortOrder);
+            ProductVariantService.NormalizeProductNaming(product);
+            var variantError = await ProductVariantService.ValidateVariantAsync(db, product);
+            if (variantError is not null)
+                return BadRequest(variantError);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
 
         await db.SaveChangesAsync();
         await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
@@ -181,7 +217,8 @@ public class AdminController(
         await WishlistStockNotificationService.TryNotifyBackInStockAsync(
             db, emailService, configuration, sendGridOptions, product, stockBefore, logger);
 
-        return Ok(MapProduct(product));
+        var siblings = await ProductVariantService.LoadSiblingsAsync(db, product);
+        return Ok(MapProduct(product, siblings));
     }
 
     [HttpGet("products/{id:int}")]
@@ -194,7 +231,8 @@ public class AdminController(
             .Include(x => x.AdditionalImages)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (product is null) return NotFound();
-        return Ok(MapProduct(product));
+        var siblings = await ProductVariantService.LoadSiblingsAsync(db, product);
+        return Ok(MapProduct(product, siblings));
     }
 
     [HttpGet("products/{id:int}/stats")]
@@ -521,6 +559,44 @@ public class AdminController(
         return NoContent();
     }
 
+    [HttpPut("categories/{id:int}/products")]
+    public async Task<IActionResult> SetCategoryProducts(int id, [FromBody] CategoryProductsUpdateRequest request)
+    {
+        var category = await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id);
+        if (category is null)
+            return NotFound();
+
+        var productIds = (request.ProductIds ?? Array.Empty<int>()).Distinct().ToList();
+
+        if (productIds.Count > 0)
+        {
+            var products = await db.Products
+                .ActiveProducts()
+                .Where(p => productIds.Contains(p.Id))
+                .ToListAsync();
+
+            if (products.Count != productIds.Count)
+                return BadRequest("Neki proizvodi nisu pronađeni.");
+
+            if (products.Any(p => p.ProductTypeId != category.ProductTypeId))
+                return BadRequest("Svi proizvodi moraju biti iste vrste kao kategorija.");
+
+            foreach (var product in products)
+                product.CategoryId = id;
+        }
+
+        var toClear = await db.Products
+            .ActiveProducts()
+            .Where(p => p.CategoryId == id && !productIds.Contains(p.Id))
+            .ToListAsync();
+
+        foreach (var product in toClear)
+            product.CategoryId = null;
+
+        await db.SaveChangesAsync();
+        return Ok(new { assigned = productIds.Count, removed = toClear.Count });
+    }
+
     // ── Bestsellers ───────────────────────────────────────────────────────────
     [HttpGet("bestsellers")]
     public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetBestsellers()
@@ -586,6 +662,7 @@ public class AdminController(
             s?.ViberNumber ?? string.Empty,
             s?.NotificationsEmail ?? string.Empty,
             s?.FreeShippingThreshold ?? 10000m,
+            s?.ShippingCost ?? 430m,
             s?.NotificationBannerText ?? string.Empty,
             s?.NotificationBannerEnabled ?? true,
             s?.BankTransferRecipientName ?? string.Empty,
@@ -648,6 +725,13 @@ public class AdminController(
             s.FreeShippingThreshold = threshold;
         }
 
+        if (request.ShippingCost is decimal shippingCost)
+        {
+            if (shippingCost < 0)
+                return BadRequest("Cena poštarine mora biti 0 ili više.");
+            s.ShippingCost = shippingCost;
+        }
+
         if (request.BankTransferRecipientName is not null)
             s.BankTransferRecipientName = request.BankTransferRecipientName.Trim();
         if (request.BankTransferRecipientAddress is not null)
@@ -670,6 +754,7 @@ public class AdminController(
             s.ViberNumber,
             s.NotificationsEmail,
             s.FreeShippingThreshold,
+            s.ShippingCost,
             s.NotificationBannerText,
             s.NotificationBannerEnabled,
             s.BankTransferRecipientName,
@@ -936,7 +1021,17 @@ public class AdminController(
     }
 
     // ── Mappers ───────────────────────────────────────────────────────────────
-    private static ProductResponse MapProduct(Product p) => ProductMapper.ToResponse(p, includeUnitCost: true);
+    private static ProductResponse MapProduct(Product p, IReadOnlyList<Product>? siblings = null) =>
+        ProductMapper.ToResponse(p, includeUnitCost: true, siblings);
+
+    private static OrderItemResponse MapOrderItem(OrderItem item) =>
+        new(
+            item.ProductId,
+            ProductVariantService.GetDisplayName(item.Product?.Name ?? "—", item.VariantLabel ?? item.Product?.VariantLabel),
+            item.VariantLabel ?? item.Product?.VariantLabel,
+            item.Product?.ImageUrl,
+            item.Quantity,
+            item.UnitPrice);
 
     private static AdminOrderResponse MapAdminOrder(Order o) => new(
         o.Id,
@@ -950,10 +1045,11 @@ public class AdminController(
         o.Discount,
         o.CouponCode,
         o.Total,
+        o.ShippingCost,
         o.FreeShippingApplied,
         o.FreeShippingDeliveryCost,
         o.CreatedAt,
-        o.Items.Select(i => new OrderItemResponse(i.ProductId, i.Product?.Name ?? "—", i.Product?.ImageUrl, i.Quantity, i.UnitPrice)).ToList());
+        o.Items.Select(MapOrderItem).ToList());
 }
 
 public record UpdateOrderStatusRequest(OrderStatus Status, decimal? AdminDeliveryCost = null);
@@ -970,6 +1066,7 @@ public record AdminOrderResponse(
     decimal Discount,
     string? CouponCode,
     decimal Total,
+    decimal ShippingCost,
     bool FreeShippingApplied,
     decimal? FreeShippingDeliveryCost,
     DateTime CreatedAt,

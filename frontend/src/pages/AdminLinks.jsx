@@ -12,6 +12,7 @@ const EMPTY = {
   whatsAppNumber: '',
   viberNumber: '',
   freeShippingThreshold: '10000',
+  shippingCost: '430',
   bankTransferRecipientName: '',
   bankTransferRecipientAddress: '',
   bankTransferAccountNumber: '',
@@ -45,6 +46,7 @@ export default function AdminLinks() {
           whatsAppNumber: data?.whatsAppNumber ?? '',
           viberNumber: data?.viberNumber ?? '',
           freeShippingThreshold: String(data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000),
+          shippingCost: String(data?.shippingCost != null ? Number(data.shippingCost) : 430),
           bankTransferRecipientName: data?.bankTransferRecipientName ?? '',
           bankTransferRecipientAddress: data?.bankTransferRecipientAddress ?? '',
           bankTransferAccountNumber: data?.bankTransferAccountNumber ?? '',
@@ -79,6 +81,7 @@ export default function AdminLinks() {
     form.whatsAppNumber !== initial.whatsAppNumber ||
     form.viberNumber !== initial.viberNumber ||
     form.freeShippingThreshold !== initial.freeShippingThreshold ||
+    form.shippingCost !== initial.shippingCost ||
     form.bankTransferRecipientName !== initial.bankTransferRecipientName ||
     form.bankTransferRecipientAddress !== initial.bankTransferRecipientAddress ||
     form.bankTransferAccountNumber !== initial.bankTransferAccountNumber ||
@@ -99,6 +102,8 @@ export default function AdminLinks() {
     const vb = form.viberNumber.trim()
     const fstRaw = form.freeShippingThreshold.trim().replace(/\s/g, '').replace(',', '.')
     const fst = fstRaw === '' ? 10000 : Number(fstRaw)
+    const scRaw = form.shippingCost.trim().replace(/\s/g, '').replace(',', '.')
+    const sc = scRaw === '' ? 430 : Number(scRaw)
 
     if (ig && !isLikelyUrl(ig)) {
       setError('Instagram link mora počinjati sa http:// ili https://')
@@ -124,6 +129,10 @@ export default function AdminLinks() {
       setError('Vrednost korpe za besplatnu dostavu mora biti broj veći ili jednak 0.')
       return
     }
+    if (!Number.isFinite(sc) || sc < 0) {
+      setError('Cena poštarine mora biti broj veći ili jednak 0.')
+      return
+    }
 
     const bankName = form.bankTransferRecipientName.trim()
     const bankAccount = form.bankTransferAccountNumber.trim()
@@ -144,6 +153,7 @@ export default function AdminLinks() {
         whatsAppNumber: wa,
         viberNumber: vb,
         freeShippingThreshold: fst,
+        shippingCost: sc,
         bankTransferRecipientName: bankName,
         bankTransferRecipientAddress: form.bankTransferRecipientAddress.trim(),
         bankTransferAccountNumber: bankAccount,
@@ -159,6 +169,7 @@ export default function AdminLinks() {
         whatsAppNumber: data?.whatsAppNumber ?? wa,
         viberNumber: data?.viberNumber ?? vb,
         freeShippingThreshold: String(data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : fst),
+        shippingCost: String(data?.shippingCost != null ? Number(data.shippingCost) : sc),
         bankTransferRecipientName: data?.bankTransferRecipientName ?? bankName,
         bankTransferRecipientAddress: data?.bankTransferRecipientAddress ?? form.bankTransferRecipientAddress.trim(),
         bankTransferAccountNumber: data?.bankTransferAccountNumber ?? bankAccount,
@@ -274,6 +285,17 @@ export default function AdminLinks() {
           placeholder="10000"
           value={form.freeShippingThreshold}
           onChange={set('freeShippingThreshold')}
+          type="number"
+          min="0"
+          step="1"
+        />
+
+        <LinkField
+          icon={<CartIcon />}
+          label="Poštarina (RSD)"
+          placeholder="430"
+          value={form.shippingCost}
+          onChange={set('shippingCost')}
           type="number"
           min="0"
           step="1"

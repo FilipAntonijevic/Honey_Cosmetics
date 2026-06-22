@@ -106,10 +106,12 @@ public class OrdersController(
             discount = CouponApplicationService.CalculateDiscount(coupon, subtotal);
         }
 
-        var total = Math.Max(0, subtotal - discount);
+        var itemsTotal = Math.Max(0, subtotal - discount);
 
-        var freeShippingThreshold = await GetFreeShippingThresholdAsync();
-        var freeShippingApplied = freeShippingThreshold > 0 && total >= freeShippingThreshold;
+        var (freeShippingThreshold, standardShippingCost) = await GetShippingSettingsAsync();
+        var freeShippingApplied = freeShippingThreshold > 0 && itemsTotal >= freeShippingThreshold;
+        var shippingCost = freeShippingApplied ? 0m : standardShippingCost;
+        var total = itemsTotal + shippingCost;
 
         var stockError = await InventoryFinanceService.ValidateAndApplyStockForOrderAsync(
             db,
@@ -126,10 +128,17 @@ public class OrdersController(
             Subtotal = subtotal,
             Discount = discount,
             CouponCode = coupon?.Code,
+            ShippingCost = shippingCost,
             Total = total,
             FreeShippingApplied = freeShippingApplied,
             Status = OrderStatus.Pending,
-            Items = cartItems.Select(x => new OrderItem { ProductId = x.ProductId, Quantity = x.Quantity, UnitPrice = x.Product!.Price }).ToList()
+            Items = cartItems.Select(x => new OrderItem
+            {
+                ProductId = x.ProductId,
+                Quantity = x.Quantity,
+                UnitPrice = x.Product!.Price,
+                VariantLabel = x.Product.VariantLabel,
+            }).ToList()
         };
 
         db.Orders.Add(order);
@@ -145,7 +154,11 @@ public class OrdersController(
 
         var settings = sendGridOptions.Value;
         // Build from cartItems — Product nav property is already loaded there
-        var orderItems = cartItems.Select(x => (x.Product!.Name, x.Quantity, x.Product.Price)).ToList();
+        var orderItems = cartItems.Select(x => (
+            ProductVariantService.GetDisplayName(x.Product!),
+            x.Product!.VariantLabel,
+            x.Quantity,
+            x.Product!.Price)).ToList();
 
         logger.LogInformation("[Order {OrderId}] Sending confirmation to user {Email}", order.Id, user.Email);
         var contactEmail = await ResolveContactEmailAsync();
@@ -156,7 +169,7 @@ public class OrdersController(
         {
             var body = BuildUserConfirmationEmail(
                 user.FullName, order.Id, orderItems, order.Subtotal, order.Discount,
-                order.CouponCode, order.Total, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
+                order.CouponCode, order.Total, order.ShippingCost, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
                 order.PaymentMethod.ToString(), order.CreatedAt, contactEmail, bankSlipHtml);
             await emailService.SendAsync(user.Email, $"Honey Cosmetics — Potvrda porudžbine #{order.Id}", body);
             logger.LogInformation("[Order {OrderId}] User email sent OK", order.Id);
@@ -170,7 +183,7 @@ public class OrdersController(
         {
             var body = BuildAdminNotificationEmail(
                 user.FullName, user.Email, order.Id, orderItems, order.Subtotal, order.Discount,
-                order.CouponCode, order.Total, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
+                order.CouponCode, order.Total, order.ShippingCost, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
                 order.PaymentMethod.ToString(), order.CreatedAt);
             await emailService.SendAsync(notificationsEmail, $"Nova porudžbina #{order.Id} — {user.FullName}", body);
             logger.LogInformation("[Order {OrderId}] Admin email sent OK", order.Id);
@@ -225,10 +238,12 @@ public class OrdersController(
             discount = CouponApplicationService.CalculateDiscount(coupon, subtotal);
         }
 
-        var total = Math.Max(0, subtotal - discount);
+        var itemsTotal = Math.Max(0, subtotal - discount);
 
-        var freeShippingThreshold = await GetFreeShippingThresholdAsync();
-        var freeShippingApplied = freeShippingThreshold > 0 && total >= freeShippingThreshold;
+        var (freeShippingThreshold, standardShippingCost) = await GetShippingSettingsAsync();
+        var freeShippingApplied = freeShippingThreshold > 0 && itemsTotal >= freeShippingThreshold;
+        var shippingCost = freeShippingApplied ? 0m : standardShippingCost;
+        var total = itemsTotal + shippingCost;
 
         var stockError = await InventoryFinanceService.ValidateAndApplyStockForOrderAsync(
             db,
@@ -247,6 +262,7 @@ public class OrdersController(
             Subtotal = subtotal,
             Discount = discount,
             CouponCode = coupon?.Code,
+            ShippingCost = shippingCost,
             Total = total,
             FreeShippingApplied = freeShippingApplied,
             Status = OrderStatus.Pending,
@@ -254,7 +270,8 @@ public class OrdersController(
             {
                 ProductId = i.ProductId,
                 Quantity = i.Quantity,
-                UnitPrice = products[i.ProductId].Price
+                UnitPrice = products[i.ProductId].Price,
+                VariantLabel = products[i.ProductId].VariantLabel,
             }).ToList()
         };
 
@@ -270,7 +287,11 @@ public class OrdersController(
         var settings = sendGridOptions.Value;
         var guestName = order.GuestName ?? "Gost";
         // Build from products dict — Product nav property is not loaded on order.Items
-        var orderItemsGuest = request.Items.Select(i => (products[i.ProductId].Name, i.Quantity, products[i.ProductId].Price)).ToList();
+        var orderItemsGuest = request.Items.Select(i => (
+            ProductVariantService.GetDisplayName(products[i.ProductId]),
+            products[i.ProductId].VariantLabel,
+            i.Quantity,
+            products[i.ProductId].Price)).ToList();
         var contactEmailGuest = await ResolveContactEmailAsync();
         var siteSettingsForGuestEmail = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
         var bankSlipHtmlGuest = TryBuildBankTransferSlipHtml(siteSettingsForGuestEmail, order.PaymentMethod, order.Id, order.Total);
@@ -290,6 +311,7 @@ public class OrdersController(
                         order.Discount,
                         order.CouponCode,
                         order.Total,
+                        order.ShippingCost,
                         order.FreeShippingApplied,
                         order.DeliveryAddress,
                         order.Phone,
@@ -317,6 +339,7 @@ public class OrdersController(
                     order.Discount,
                     order.CouponCode,
                     order.Total,
+                    order.ShippingCost,
                     order.FreeShippingApplied,
                     order.DeliveryAddress,
                     order.Phone,
@@ -371,15 +394,34 @@ public class OrdersController(
     }
 
     private static OrderResponse MapOrder(Order order) =>
-        new(order.Id, order.DeliveryAddress, order.Phone, order.PaymentMethod, order.Status.ToString(), order.Subtotal, order.Discount, order.CouponCode, order.Total, order.FreeShippingApplied, order.CreatedAt,
-            order.Items.Select(x => new OrderItemResponse(x.ProductId, x.Product?.Name ?? string.Empty, x.Product?.ImageUrl, x.Quantity, x.UnitPrice)).ToList());
+        new(order.Id, order.DeliveryAddress, order.Phone, order.PaymentMethod, order.Status.ToString(), order.Subtotal, order.Discount, order.CouponCode, order.ShippingCost, order.Total, order.FreeShippingApplied, order.CreatedAt,
+            order.Items.Select(MapOrderItem).ToList());
 
-    private async Task<decimal> GetFreeShippingThresholdAsync()
+    private static OrderItemResponse MapOrderItem(OrderItem item) =>
+        new(
+            item.ProductId,
+            ProductVariantService.GetDisplayName(item.Product?.Name ?? string.Empty, item.VariantLabel ?? item.Product?.VariantLabel),
+            item.VariantLabel ?? item.Product?.VariantLabel,
+            item.Product?.ImageUrl,
+            item.Quantity,
+            item.UnitPrice);
+
+    private async Task<(decimal FreeShippingThreshold, decimal ShippingCost)> GetShippingSettingsAsync()
     {
         var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
         var threshold = s?.FreeShippingThreshold ?? 10000m;
-        return threshold > 0 ? threshold : 0;
+        var shippingCost = s?.ShippingCost ?? 430m;
+        return (
+            threshold > 0 ? threshold : 0,
+            shippingCost > 0 ? shippingCost : 0);
     }
+
+    private static string BuildShippingRowHtml(bool freeShippingApplied, decimal shippingCost) =>
+        freeShippingApplied
+            ? """<tr><td style="color:#16a34a;padding:3px 0;">Dostava</td><td style="text-align:right;color:#16a34a;font-weight:600;">Besplatna</td></tr>"""
+            : shippingCost > 0
+                ? $"""<tr><td style="padding:3px 0;">Poštarina</td><td style="text-align:right;">+{shippingCost:N0} RSD</td></tr>"""
+                : "";
 
     // Resolves the inbox where order/shipment notifications should be delivered.
     // Falls back to appsettings SendGrid:AdminEmail when SiteSettings has no value.
@@ -397,20 +439,28 @@ public class OrdersController(
         return string.IsNullOrEmpty(fromDb) ? sendGridOptions.Value.AdminEmail : fromDb;
     }
 
-    private static string ItemsTableHtml(List<(string Name, int Qty, decimal Price)> items)
+    private static string ItemsTableHtml(List<(string Name, string? VariantLabel, int Qty, decimal Price)> items)
     {
-        var rows = string.Concat(items.Select(i => $"""
+        var rows = string.Concat(items.Select(i =>
+        {
+            var variantCell = string.IsNullOrWhiteSpace(i.VariantLabel)
+                ? "—"
+                : WebUtility.HtmlEncode(i.VariantLabel);
+            return $"""
             <tr>
-              <td style="padding:8px 4px;border-bottom:1px solid #f1e5d8;">{i.Name}</td>
+              <td style="padding:8px 4px;border-bottom:1px solid #f1e5d8;">{WebUtility.HtmlEncode(i.Name)}</td>
+              <td style="padding:8px 4px;border-bottom:1px solid #f1e5d8;text-align:center;">{variantCell}</td>
               <td style="padding:8px 4px;border-bottom:1px solid #f1e5d8;text-align:center;">{i.Qty}</td>
               <td style="padding:8px 4px;border-bottom:1px solid #f1e5d8;text-align:right;">{(i.Qty * i.Price).ToString("N0")} RSD</td>
             </tr>
-            """));
+            """;
+        }));
         return $"""
             <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
               <thead>
                 <tr style="color:#9b8276;font-size:0.78rem;">
                   <th style="padding:6px 4px;text-align:left;font-weight:500;">Proizvod</th>
+                  <th style="padding:6px 4px;text-align:center;font-weight:500;">Gramaza</th>
                   <th style="padding:6px 4px;text-align:center;font-weight:500;">Kom</th>
                   <th style="padding:6px 4px;text-align:right;font-weight:500;">Cena</th>
                 </tr>
@@ -512,18 +562,16 @@ public class OrdersController(
 
     private static string BuildUserConfirmationEmail(
         string name, int orderId,
-        List<(string Name, int Qty, decimal Price)> items,
+        List<(string Name, string? VariantLabel, int Qty, decimal Price)> items,
         decimal subtotal, decimal discount, string? couponCode,
-        decimal total, bool freeShippingApplied, string address, string? phone,
+        decimal total, decimal shippingCost, bool freeShippingApplied, string address, string? phone,
         string paymentMethod, DateTime createdAt, string contactEmail,
         string? bankTransferSlipHtml = null)
     {
         var discountRow = discount > 0
             ? $"""<tr><td style="color:#c0392b;padding:3px 0;">Popust{(string.IsNullOrEmpty(couponCode) ? "" : $" ({couponCode})")}</td><td style="text-align:right;color:#c0392b;">&minus;{discount:N0} RSD</td></tr>"""
             : "";
-        var shippingRow = freeShippingApplied
-            ? $"""<tr><td style="color:#16a34a;padding:3px 0;">Dostava</td><td style="text-align:right;color:#16a34a;font-weight:600;">Besplatna</td></tr>"""
-            : "";
+        var shippingRow = BuildShippingRowHtml(freeShippingApplied, shippingCost);
         var phoneRow = string.IsNullOrWhiteSpace(phone)
             ? ""
             : $"""<p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Telefon:</strong> {phone}</p>""";
@@ -578,17 +626,15 @@ public class OrdersController(
 
     private static string BuildAdminNotificationEmail(
         string customerName, string customerEmail, int orderId,
-        List<(string Name, int Qty, decimal Price)> items,
+        List<(string Name, string? VariantLabel, int Qty, decimal Price)> items,
         decimal subtotal, decimal discount, string? couponCode,
-        decimal total, bool freeShippingApplied, string address, string? phone,
+        decimal total, decimal shippingCost, bool freeShippingApplied, string address, string? phone,
         string paymentMethod, DateTime createdAt)
     {
         var discountRow = discount > 0
             ? $"""<tr><td style="color:#dc2626;padding:3px 0;">Popust{(string.IsNullOrEmpty(couponCode) ? "" : $" ({couponCode})")}</td><td style="text-align:right;color:#dc2626;">&minus;{discount:N0} RSD</td></tr>"""
             : "";
-        var shippingRow = freeShippingApplied
-            ? $"""<tr><td style="color:#16a34a;padding:3px 0;">Dostava</td><td style="text-align:right;color:#16a34a;font-weight:600;">Besplatna</td></tr>"""
-            : "";
+        var shippingRow = BuildShippingRowHtml(freeShippingApplied, shippingCost);
         var phoneRow = string.IsNullOrWhiteSpace(phone)
             ? ""
             : $"""<p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Telefon:</strong> {phone}</p>""";
