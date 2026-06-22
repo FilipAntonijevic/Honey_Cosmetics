@@ -383,6 +383,8 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 }
 .product-card button { font-size: 0.65rem; border-radius: 10px; padding: 0.55rem 0.85rem; }
 .product-card-actions {
+  --pca-btn-size: 2rem;
+  --pca-view-width: calc(var(--pca-btn-size) * 2.5);
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -396,7 +398,7 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #d9c5b3;
+  border: 1px solid #e0d4c8;
   padding: 0;
   cursor: pointer;
   flex-shrink: 0;
@@ -404,22 +406,22 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   text-decoration: none;
 }
 .product-card-action--wishlist {
-  width: 2rem;
-  height: 2rem;
+  width: var(--pca-btn-size);
+  height: var(--pca-btn-size);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.85);
-  color: var(--espresso);
+  background: #fff;
+  color: #131313;
 }
 .product-card-action--wishlist:hover {
   background: #fff;
-  border-color: #8b6b47;
-  color: #8b6b47;
+  border-color: #c9b8a8;
+  color: #131313;
 }
 .product-card-action--view {
-  width: auto;
-  min-width: 2.5rem;
-  height: 2rem;
-  padding: 0 0.65rem;
+  width: var(--pca-view-width);
+  min-width: var(--pca-view-width);
+  height: var(--pca-btn-size);
+  padding: 0;
   border-radius: 999px;
   background: var(--beige);
   border-color: #d4c4ad;
@@ -432,12 +434,12 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 }
 .product-card-action--wishlist.is-active {
   background: #fff;
-  border-color: #d9c5b3;
+  border-color: #e0d4c8;
   color: #131313;
 }
 .product-card-action--wishlist.is-active:hover {
   background: #fff;
-  border-color: #8b6b47;
+  border-color: #c9b8a8;
   color: #131313;
 }
 .product-card-action:focus-visible {
@@ -3589,19 +3591,6 @@ body.is-adm-modal-open {
   margin-top: 0;
   padding-top: 0.08rem;
   font-size: 0.88rem;
-}
-.pop-strip .product-card-actions {
-  margin-top: 0.2rem;
-  padding-top: 0;
-}
-.pop-strip .product-card-action--wishlist {
-  width: 1.75rem;
-  height: 1.75rem;
-}
-.pop-strip .product-card-action--view {
-  min-width: 2.15rem;
-  height: 1.75rem;
-  padding: 0 0.5rem;
 }
 .pop-strip .product-card > img,
 .pop-strip .product-card-media img,

@@ -5,11 +5,11 @@ function HeartIcon({ filled }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="19"
-      height="19"
+      width="17"
+      height="17"
       fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
