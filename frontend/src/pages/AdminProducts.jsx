@@ -24,7 +24,21 @@ export default function AdminProducts() {
         || (p.category?.toLowerCase().includes(q) ?? false),
       )
     }
-    return [...list].sort((a, b) => (a.stockQuantity ?? 0) - (b.stockQuantity ?? 0))
+
+    const byGroup = new Map()
+    for (const p of list) {
+      const key = p.variantGroupId ?? p.id
+      const entry = byGroup.get(key)
+      if (!entry) {
+        byGroup.set(key, { rep: p, totalStock: p.stockQuantity ?? 0, count: 1 })
+      } else {
+        entry.totalStock += p.stockQuantity ?? 0
+        entry.count += 1
+        if (p.isDefaultVariant && !entry.rep.isDefaultVariant) entry.rep = p
+      }
+    }
+
+    return [...byGroup.values()].sort((a, b) => a.totalStock - b.totalStock)
   }, [products, search])
 
   return (
@@ -59,8 +73,8 @@ export default function AdminProducts() {
         </div>
       ) : (
         <div className="adm-product-grid adm-product-grid--pick">
-          {displayed.map((product) => {
-            const stock = product.stockQuantity ?? 0
+          {displayed.map(({ rep: product, totalStock, count }) => {
+            const stock = totalStock
             return (
               <Link key={product.id} to={`/admin/products/${product.id}`} className="adm-product-card adm-product-card--link">
                 <div className="adm-product-img-wrap">
@@ -79,6 +93,9 @@ export default function AdminProducts() {
                     <span className="adm-product-type">{product.productType}</span>
                     {product.category && (
                       <span className="adm-product-cat">{product.category}</span>
+                    )}
+                    {count > 1 && (
+                      <span className="adm-product-cat">{count} gramaže</span>
                     )}
                   </div>
                   <div className={`adm-product-stock-qty${stock <= 0 ? ' adm-product-stock-qty--out' : ''}`}>

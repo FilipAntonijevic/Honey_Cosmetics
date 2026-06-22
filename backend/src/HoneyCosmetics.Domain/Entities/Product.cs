@@ -27,5 +27,7 @@ public class Product
     /// <summary>Gramaza / zapremina (npr. 15ml, 8ml, 38gr).</summary>
     public string? VariantLabel { get; set; }
     public int VariantSortOrder { get; set; }
+    /// <summary>Da li je ova opcija (gramaza) podrazumevana u grupi varijanti — bira je admin.</summary>
+    public bool IsDefaultVariant { get; set; }
     public List<ProductImage> AdditionalImages { get; set; } = new();
 }

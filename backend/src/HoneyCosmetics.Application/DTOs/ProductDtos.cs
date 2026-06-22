@@ -16,14 +16,25 @@ public record ProductRequest(
     [Range(0, 9999999)] decimal? UnitTransportCost = null,
     int? VariantGroupId = null,
     string? VariantLabel = null,
-    int VariantSortOrder = 0);
+    int VariantSortOrder = 0,
+    IReadOnlyList<ProductOptionInput>? Options = null);
+
+/// <summary>Jedna opcija (gramaza) proizvoda koju admin unosi u editoru opcija.</summary>
+public record ProductOptionInput(
+    int? Id,
+    [Required] string Label,
+    [Range(0.01, 9999999)] decimal Price,
+    bool IsDefault = false,
+    int SortOrder = 0);
 
 public record ProductVariantOption(
     int Id,
     string VariantLabel,
     decimal Price,
     bool InStock,
-    int StockQuantity);
+    int StockQuantity,
+    bool IsDefault = false,
+    int SortOrder = 0);
 
 public record ProductResponse(
     int Id,
@@ -47,7 +58,8 @@ public record ProductResponse(
     int? VariantGroupId = null,
     string? VariantLabel = null,
     int VariantSortOrder = 0,
-    IReadOnlyList<ProductVariantOption>? Variants = null);
+    IReadOnlyList<ProductVariantOption>? Variants = null,
+    bool IsDefaultVariant = false);
 
 public record BestsellersUpdateRequest(IReadOnlyList<int> ProductIds);
 

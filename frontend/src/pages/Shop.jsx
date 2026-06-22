@@ -5,7 +5,7 @@ import ApiImage from '../components/ApiImage'
 import ProductCardActions from '../components/ProductCardActions'
 import { useStore } from '../context/StoreContext'
 import { formatProductTypeDisplay, resolveProductTypeApi } from '../lib/productTypes'
-import { groupProductsForDisplay, pickDefaultVariantProduct, productHasVariantPicker } from '../lib/productVariants'
+import { groupProductsForDisplay, pickDefaultVariantProduct } from '../lib/productVariants'
 
 /** Fallback ID-jevi dok se /product-types ne učita (redosled iz baze). */
 const PRODUCT_TYPE_IDS = {
@@ -273,7 +273,6 @@ export default function Shop() {
       <div className="product-grid">
         {groupProductsForDisplay(filteredProducts).map((product) => {
           const display = pickDefaultVariantProduct(product, product.variants)
-          const hasPicker = productHasVariantPicker(display)
           return (
           <article key={display.variantGroupId ?? display.id} className="product-card">
             <Link to={`/products/${display.id}`} className="product-card-media" tabIndex={-1}>
@@ -285,9 +284,6 @@ export default function Shop() {
               </h3>
               <p>{[formatProductTypeDisplay(display.productType), display.category].filter(Boolean).join(' · ')}</p>
               <strong>{Number(display.price).toLocaleString('sr-RS')} RSD</strong>
-              {hasPicker ? (
-                <p className="product-card-variant-hint">Vise gramaza — izaberite na stranici proizvoda</p>
-              ) : null}
               <ProductCardActions product={display} onToggleWishlist={toggleWishlist} />
             </div>
           </article>

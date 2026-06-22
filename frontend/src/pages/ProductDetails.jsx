@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
 import ProductGallery from '../components/ProductGallery'
 import ProductSizePicker from '../components/ProductSizePicker'
 import { useStore } from '../context/StoreContext'
+import { getDefaultVariant, getVariantOptions } from '../lib/productVariants'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 
 function formatPrice(value) {
@@ -75,11 +76,13 @@ export default function ProductDetails() {
   const [related, setRelated] = useState([])
   const [loading, setLoading] = useState(true)
   const [quantity, setQuantity] = useState(1)
+  const [selectedOptionId, setSelectedOptionId] = useState(null)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setQuantity(1)
+    setSelectedOptionId(null)
 
     Promise.all([
       api.get(`/products/${id}`),
@@ -105,14 +108,43 @@ export default function ProductDetails() {
     }
   }, [id])
 
-  const inStock = product ? isInStock(product) : false
-  const maxQty = product ? Math.max(0, product.stockQuantity ?? 0) : 0
+  const options = useMemo(() => (product ? getVariantOptions(product) : []), [product])
+
+  const selectedOption = useMemo(() => {
+    if (!options.length) return null
+    if (selectedOptionId != null) {
+      const found = options.find((o) => o.id === selectedOptionId)
+      if (found) return found
+    }
+    const landing = options.find((o) => o.id === product?.id)
+    return landing ?? getDefaultVariant(product)
+  }, [options, selectedOptionId, product])
+
+  const effective = useMemo(() => {
+    if (!product) return null
+    if (!selectedOption) return product
+    return {
+      ...product,
+      id: selectedOption.id,
+      price: selectedOption.price,
+      stockQuantity: selectedOption.stockQuantity,
+      variantLabel: selectedOption.variantLabel,
+    }
+  }, [product, selectedOption])
+
+  const inStock = effective ? isInStock(effective) : false
+  const maxQty = effective ? Math.max(0, effective.stockQuantity ?? 0) : 0
+
+  const onSelectOption = (variant) => {
+    setSelectedOptionId(variant.id)
+    setQuantity(1)
+  }
 
   const addWithQty = () => {
-    if (!product || !inStock) return
+    if (!effective || !inStock) return
     const capped = clampCartQuantity(quantity, maxQty)
     for (let i = 0; i < capped; i += 1) {
-      addToCart(product)
+      addToCart(effective)
     }
   }
 
@@ -147,12 +179,12 @@ export default function ProductDetails() {
         <div className="pd-hero">
           <div className="pd-info">
             <h1 className="pd-title">{product.name}</h1>
-            <p className="pd-price">{formatPrice(product.price)}</p>
+            <p className="pd-price">{formatPrice(effective?.price ?? product.price)}</p>
 
             <ProductSizePicker
-              product={product}
               variants={product.variants}
-              selectedId={product.id}
+              selectedId={selectedOption?.id ?? product.id}
+              onSelect={onSelectOption}
             />
 
             <div className="pd-buy">

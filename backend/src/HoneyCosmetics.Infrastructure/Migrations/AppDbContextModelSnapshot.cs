@@ -524,6 +524,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<decimal?>("UnitTransportCost")
                         .HasColumnType("numeric");
 
+                    b.Property<bool>("IsDefaultVariant")
+                        .HasColumnType("boolean");
+
                     b.Property<int?>("VariantGroupId")
                         .HasColumnType("integer");
 

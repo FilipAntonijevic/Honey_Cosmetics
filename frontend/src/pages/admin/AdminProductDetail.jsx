@@ -642,6 +642,24 @@ export default function AdminProductDetail() {
               </p>
             )}
           </div>
+          {product.variants?.length > 1 && (
+            <div className="adm-product-hub__variants">
+              <span className="adm-product-hub__variants-label">Gramaže:</span>
+              {product.variants
+                .slice()
+                .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.id ?? 0) - (b.id ?? 0))
+                .map((v) => (
+                  <Link
+                    key={v.id}
+                    to={`/admin/products/${v.id}`}
+                    className={`adm-variant-chip${String(v.id) === String(id) ? ' is-active' : ''}`}
+                    title="Otvori ovu gramažu (lager, statistika)"
+                  >
+                    {v.variantLabel} · {v.stockQuantity ?? 0} kom{v.isDefault ? ' ★' : ''}
+                  </Link>
+                ))}
+            </div>
+          )}
         </div>
       </div>
 

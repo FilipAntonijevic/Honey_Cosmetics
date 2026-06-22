@@ -12,7 +12,9 @@ public static class ProductMapper
             p.VariantLabel ?? string.Empty,
             p.Price,
             p.StockQuantity > 0,
-            p.StockQuantity);
+            p.StockQuantity,
+            p.IsDefaultVariant,
+            p.VariantSortOrder);
 
     public static ProductResponse ToResponse(
         Product p,
@@ -48,6 +50,7 @@ public static class ProductMapper
             p.VariantGroupId,
             p.VariantLabel,
             p.VariantSortOrder,
-            variants);
+            variants,
+            p.IsDefaultVariant);
     }
 }

@@ -90,6 +90,10 @@ public static partial class ProductVariantService
         if (siblings.Count == 0)
             throw new ArgumentException("No variants.", nameof(siblings));
 
+        var adminDefault = siblings.FirstOrDefault(s => s.IsDefaultVariant);
+        if (adminDefault is not null)
+            return adminDefault;
+
         var preferred = siblings.FirstOrDefault(s =>
             string.Equals(s.VariantLabel, DefaultMl, StringComparison.OrdinalIgnoreCase)
             || string.Equals(s.VariantLabel, DefaultGr, StringComparison.OrdinalIgnoreCase));

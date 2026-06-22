@@ -6,14 +6,12 @@ import { apiImageUrl } from '../../lib/assets'
 const EMPTY_FORM = {
   name: '',
   description: '',
-  price: '',
   imageUrls: [''],
   productTypeId: '',
   categoryId: '',
   unitCostPrice: '',
   unitTransportCost: '',
-  variantGroupId: '',
-  variantLabel: '',
+  options: [{ id: null, label: '', price: '', isDefault: true }],
 }
 
 function productToImageUrls(product) {
@@ -21,6 +19,24 @@ function productToImageUrls(product) {
   const extra = (product.additionalImageUrls ?? []).map((u) => u.trim()).filter(Boolean)
   const urls = main ? [main, ...extra] : extra
   return urls.length > 0 ? urls : ['']
+}
+
+function productToOptions(product) {
+  const variants = product.variants?.length ? product.variants : null
+  if (variants) {
+    const opts = variants
+      .slice()
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.id ?? 0) - (b.id ?? 0))
+      .map((v) => ({
+        id: v.id,
+        label: v.variantLabel ?? '',
+        price: String(v.price ?? ''),
+        isDefault: !!v.isDefault,
+      }))
+    if (!opts.some((o) => o.isDefault) && opts.length) opts[0].isDefault = true
+    return opts
+  }
+  return [{ id: product.id, label: product.variantLabel ?? '', price: String(product.price ?? ''), isDefault: true }]
 }
 
 export default function AdminProductFormPage() {
@@ -45,14 +61,12 @@ export default function AdminProductFormPage() {
         setForm({
           name: data.name,
           description: data.description ?? '',
-          price: String(data.price),
           imageUrls: productToImageUrls(data),
           productTypeId: String(data.productTypeId ?? ''),
           categoryId: data.categoryId != null ? String(data.categoryId) : '',
           unitCostPrice: data.unitCostPrice != null ? String(data.unitCostPrice) : '',
           unitTransportCost: data.unitTransportCost != null ? String(data.unitTransportCost) : '',
-          variantGroupId: data.variantGroupId != null ? String(data.variantGroupId) : '',
-          variantLabel: data.variantLabel ?? '',
+          options: productToOptions(data),
         })
       })
       .catch(() => setError('Proizvod nije pronađen.'))
@@ -88,28 +102,74 @@ export default function AdminProductFormPage() {
     })
   }
 
+  const setOptionField = (index, key, value) => {
+    setForm((f) => {
+      const options = f.options.map((o, i) => (i === index ? { ...o, [key]: value } : o))
+      return { ...f, options }
+    })
+  }
+
+  const setDefaultOption = (index) => {
+    setForm((f) => ({
+      ...f,
+      options: f.options.map((o, i) => ({ ...o, isDefault: i === index })),
+    }))
+  }
+
+  const addOption = () => {
+    setForm((f) => ({
+      ...f,
+      options: [...f.options, { id: null, label: '', price: '', isDefault: f.options.length === 0 }],
+    }))
+  }
+
+  const removeOption = (index) => {
+    setForm((f) => {
+      if (f.options.length <= 1) return f
+      const wasDefault = f.options[index].isDefault
+      const options = f.options.filter((_, i) => i !== index)
+      if (wasDefault && !options.some((o) => o.isDefault) && options.length) {
+        options[0] = { ...options[0], isDefault: true }
+      }
+      return { ...f, options }
+    })
+  }
+
   const save = async (e) => {
     e.preventDefault()
     setError('')
     const urls = form.imageUrls.map((u) => u.trim()).filter(Boolean)
-    if (!form.name.trim() || !form.price || !form.productTypeId || urls.length === 0) {
-      setError('Naziv, cena, vrsta i bar jedna slika su obavezni.')
+    if (!form.name.trim() || !form.productTypeId || urls.length === 0) {
+      setError('Naziv, vrsta i bar jedna slika su obavezni.')
       return
     }
+    const options = form.options.map((o, i) => ({
+      id: o.id ?? null,
+      label: o.label.trim(),
+      price: parseFloat(o.price),
+      isDefault: !!o.isDefault,
+      sortOrder: (i + 1) * 10,
+    }))
+    if (options.length === 0 || options.some((o) => !o.label || !Number.isFinite(o.price) || o.price <= 0)) {
+      setError('Svaka opcija mora imati gramazu i cenu veću od 0.')
+      return
+    }
+    if (!options.some((o) => o.isDefault)) options[0].isDefault = true
+    const defaultOpt = options.find((o) => o.isDefault) ?? options[0]
+
     setSaving(true)
     try {
       const payload = {
         name: form.name.trim(),
         description: form.description.trim(),
-        price: parseFloat(form.price),
+        price: defaultOpt.price,
         imageUrl: urls[0],
         additionalImageUrls: urls.slice(1),
         productTypeId: parseInt(form.productTypeId, 10),
         categoryId: form.categoryId ? parseInt(form.categoryId, 10) : null,
         unitCostPrice: form.unitCostPrice ? parseFloat(form.unitCostPrice) : null,
         unitTransportCost: form.unitTransportCost ? parseFloat(form.unitTransportCost) : null,
-        variantGroupId: form.variantGroupId ? parseInt(form.variantGroupId, 10) : null,
-        variantLabel: form.variantLabel.trim() || null,
+        options,
       }
       if (isNew) {
         const { data } = await api.post('/admin/products', payload)
@@ -118,8 +178,9 @@ export default function AdminProductFormPage() {
           state: data.restored ? { restored: true } : undefined,
         })
       } else {
-        await api.put(`/admin/products/${id}`, payload)
-        navigate(`/admin/products/${id}`)
+        const { data } = await api.put(`/admin/products/${id}`, payload)
+        const target = data?.id ?? id
+        navigate(`/admin/products/${target}`)
       }
     } catch (err) {
       const d = err.response?.data
@@ -162,23 +223,62 @@ export default function AdminProductFormPage() {
             </select>
           </div>
         </div>
-        <div className="adm-form-row adm-form-row--2">
-          <div>
-            <label>Gramaza (npr. 15ml, 38gr)</label>
-            <input className="adm-input" value={form.variantLabel} onChange={set('variantLabel')} placeholder="Prazno = bez varijante" />
-          </div>
-          <div>
-            <label>ID grupe varijanti</label>
-            <input className="adm-input" type="number" min="1" value={form.variantGroupId} onChange={set('variantGroupId')} placeholder="ID prvog proizvoda u grupi" />
-          </div>
-        </div>
-        <p className="adm-form-hint" style={{ marginTop: '-0.5rem' }}>
-          Naziv bez gramaze — gramazu unesite u polje ispod. Za drugu gramazu kreirajte novi proizvod sa istim nazivom i istim ID grupe.
-        </p>
+
         <div className="adm-form-row">
-          <label>Cena prodaje (RSD) *</label>
-          <input className="adm-input" type="number" min="0" step="0.01" value={form.price} onChange={set('price')} required />
+          <label>Opcije (gramaže) i cene *</label>
+          <div className="adm-options">
+            <div className="adm-options-head">
+              <span className="adm-options-col adm-options-col--def">Default</span>
+              <span className="adm-options-col adm-options-col--label">Gramaza</span>
+              <span className="adm-options-col adm-options-col--price">Cena (RSD)</span>
+              <span className="adm-options-col adm-options-col--act" />
+            </div>
+            {form.options.map((opt, index) => (
+              <div key={opt.id ?? `new-${index}`} className="adm-options-row">
+                <span className="adm-options-col adm-options-col--def">
+                  <input
+                    type="radio"
+                    name="default-option"
+                    checked={!!opt.isDefault}
+                    onChange={() => setDefaultOption(index)}
+                    aria-label="Podrazumevana opcija"
+                  />
+                </span>
+                <input
+                  className="adm-input adm-options-col--label"
+                  value={opt.label}
+                  onChange={(e) => setOptionField(index, 'label', e.target.value)}
+                  placeholder="npr. 15ml"
+                />
+                <input
+                  className="adm-input adm-options-col--price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={opt.price}
+                  onChange={(e) => setOptionField(index, 'price', e.target.value)}
+                  placeholder="0.00"
+                />
+                <span className="adm-options-col adm-options-col--act">
+                  <button
+                    type="button"
+                    className="adm-btn adm-btn--icon"
+                    onClick={() => removeOption(index)}
+                    disabled={form.options.length <= 1}
+                    title="Ukloni opciju"
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            ))}
+            <button type="button" className="adm-btn" onClick={addOption}>+ Dodaj opciju</button>
+          </div>
+          <p className="adm-form-hint">
+            Ako proizvod ima jednu gramažu — ostavite jednu opciju. Lager za svaku opciju se vodi na njenoj stranici (nabavka).
+          </p>
         </div>
+
         <div className="adm-form-row adm-form-row--2">
           <div>
             <label>Cena nabavke po komadu (RSD, opciono)</label>

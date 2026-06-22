@@ -133,6 +133,26 @@ public class AdminController(
             return BadRequest(ex.Message);
         }
 
+        if (request.Options is { Count: > 0 })
+        {
+            ProductVariantService.NormalizeProductNaming(product);
+            product.VariantLabel = null;
+            product.VariantGroupId = null;
+            await db.SaveChangesAsync();
+
+            var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
+                db, product, request, allowReuseAnchor: true);
+            if (optError is not null)
+                return BadRequest(optError);
+
+            var result = defaultRow ?? product;
+            await db.Entry(result).Reference(p => p.Category).LoadAsync();
+            await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
+            await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
+            var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
+            return Ok(new { product = MapProduct(result, optSiblings), restored });
+        }
+
         try
         {
             await ProductVariantService.EnsureVariantGroupAsync(
@@ -192,6 +212,24 @@ public class AdminController(
 
         var stockBefore = product.StockQuantity;
         ProductCatalogService.ApplyRequest(product, request);
+
+        if (request.Options is { Count: > 0 })
+        {
+            product.Name = ProductVariantService.StripVariantFromName(product.Name);
+            await db.SaveChangesAsync();
+
+            var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
+                db, product, request, allowReuseAnchor: false);
+            if (optError is not null)
+                return BadRequest(optError);
+
+            var result = defaultRow ?? product;
+            await db.Entry(result).Reference(p => p.Category).LoadAsync();
+            await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
+            await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
+            var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
+            return Ok(MapProduct(result, optSiblings));
+        }
 
         try
         {

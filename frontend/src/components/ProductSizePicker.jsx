@@ -1,25 +1,9 @@
-import { useNavigate } from 'react-router-dom'
-import { getConfiguredVariantOptions } from '../lib/productVariants'
-
-export default function ProductSizePicker({ product, variants, selectedId, onSelect }) {
-  const navigate = useNavigate()
-  const configured = getConfiguredVariantOptions(product)
+export default function ProductSizePicker({ variants, selectedId, onSelect }) {
   const options = (variants?.length ? variants : [])
     .slice()
-    .sort((a, b) => {
-      const order = configured ?? []
-      const ai = order.findIndex((x) => x.toLowerCase() === a.variantLabel?.toLowerCase())
-      const bi = order.findIndex((x) => x.toLowerCase() === b.variantLabel?.toLowerCase())
-      return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi)
-    })
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.id ?? 0) - (b.id ?? 0))
 
   if (options.length <= 1) return null
-
-  const handleSelect = (variant) => {
-    if (variant.id === selectedId) return
-    onSelect?.(variant)
-    navigate(`/products/${variant.id}`, { replace: true })
-  }
 
   return (
     <div className="pd-variant-picker" role="group" aria-label="Izaberite gramazu">
@@ -33,7 +17,7 @@ export default function ProductSizePicker({ product, variants, selectedId, onSel
               key={variant.id}
               type="button"
               className={`pd-variant-option${active ? ' is-active' : ''}${out ? ' is-out' : ''}`}
-              onClick={() => handleSelect(variant)}
+              onClick={() => onSelect?.(variant)}
               aria-pressed={active}
               disabled={out && !active}
               title={out ? 'Nije na stanju' : undefined}
