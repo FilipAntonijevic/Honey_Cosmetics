@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import api from '../api'
+import { userFacingEmailError } from '../lib/emailErrors'
 import PhoneField from '../components/PhoneField'
 import { PHONE_DEFAULT, cleanPhone } from '../utils/phone'
 import { publicUrl } from '../lib/assets'
@@ -26,8 +27,8 @@ export default function Collaboration() {
       await api.post('/contact/collaboration', { ...form, phone: cleanPhone(form.phone) ?? '' })
       setSent(true)
       setForm(EMPTY)
-    } catch {
-      setError('Greška pri slanju. Pokušajte ponovo.')
+    } catch (err) {
+      setError(userFacingEmailError(err, 'collaboration'))
     } finally {
       setSending(false)
     }

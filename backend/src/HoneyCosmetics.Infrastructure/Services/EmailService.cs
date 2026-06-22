@@ -50,11 +50,8 @@ public class EmailService : IEmailService
 
         if (!response.IsSuccessStatusCode)
         {
-            var responseBody =
-                await response.Body.ReadAsStringAsync(cancellationToken);
-
-            throw new Exception(
-                $"SendGrid email failed: {responseBody}");
+            _ = await response.Body.ReadAsStringAsync(cancellationToken);
+            throw new InvalidOperationException("Slanje emaila nije uspelo.");
         }
     }
 }

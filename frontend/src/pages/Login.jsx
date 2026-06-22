@@ -2,6 +2,7 @@ import { useLayoutEffect, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
+import { userFacingEmailError } from '../lib/emailErrors'
 import PhoneField from '../components/PhoneField'
 import { PHONE_DEFAULT, cleanPhone } from '../utils/phone'
 
@@ -128,18 +129,7 @@ export default function Account({ initialMode = 'login' }) {
           'Backend još uvek koristi staru registraciju (nalog se odmah kreira). Zaustavite dotnet run i pokrenite ponovo.',
         )
       } else {
-        const msg = err.response?.data
-        const detail =
-          typeof msg === 'string'
-            ? msg
-            : msg?.title || msg?.detail || msg?.message
-        setError(
-          typeof detail === 'string' && detail.length < 200
-            ? detail
-            : err.response?.status === 400
-              ? 'Proverite unete podatke (email, lozinka).'
-              : 'Registracija nije uspela. Pokušajte ponovo.',
-        )
+        setError(userFacingEmailError(err, 'registration'))
       }
     } finally {
       setLoading(false)
@@ -162,7 +152,7 @@ export default function Account({ initialMode = 'login' }) {
           <div className="auth-success">
             <p>
               {devConfirmLink ? (
-                'Registracija je sačuvana. SendGrid nije podešen — aktivirajte nalog linkom ispod:'
+                'Registracija je sačuvana. Potvrdite nalog linkom ispod (samo u razvoju):'
               ) : (
                 <>
                   Poslali smo vam email sa linkom za potvrdu na adresu{' '}
@@ -196,12 +186,7 @@ export default function Account({ initialMode = 'login' }) {
                     })
                     if (data.devConfirmationLink) setDevConfirmLink(data.devConfirmationLink)
                   } catch (err) {
-                    const msg = err.response?.data
-                    setError(
-                      typeof msg === 'string' && msg.length < 160
-                        ? msg
-                        : 'Slanje emaila nije uspelo.',
-                    )
+                    setError(userFacingEmailError(err, 'resendConfirmation'))
                   } finally {
                     setResendLoading(false)
                   }

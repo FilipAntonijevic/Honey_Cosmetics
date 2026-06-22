@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import api from '../api'
+import { userFacingEmailError } from '../lib/emailErrors'
 import useSiteLinks from '../hooks/useSiteLinks'
 import PhoneField from '../components/PhoneField'
 import { PHONE_DEFAULT, cleanPhone } from '../utils/phone'
@@ -73,8 +74,8 @@ export default function Contact() {
       })
       setSent(true)
       setForm(EMPTY_FORM)
-    } catch {
-      setError('Slanje nije uspelo. Pokušajte ponovo ili nas kontaktirajte direktno.')
+    } catch (err) {
+      setError(userFacingEmailError(err, 'contact'))
     } finally {
       setSending(false)
     }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
+import { userFacingEmailError } from '../lib/emailErrors'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -15,8 +16,8 @@ export default function ForgotPassword() {
     try {
       await api.post('/auth/forgot-password', { email })
       setSent(true)
-    } catch {
-      setToast('Nešto nije u redu. Pokušajte ponovo.')
+    } catch (err) {
+      setToast(userFacingEmailError(err, 'forgotPassword'))
     } finally {
       setLoading(false)
     }

@@ -12,7 +12,8 @@ namespace HoneyCosmetics.Api.Controllers;
 public class ContactController(
     AppDbContext db,
     IEmailService emailService,
-    IOptions<SendGridSettings> sendGridOptions) : ControllerBase
+    IOptions<SendGridSettings> sendGridOptions,
+    ILogger<ContactController> logger) : ControllerBase
 {
     public record CollaborationRequest(
         string FullName,
@@ -58,10 +59,18 @@ public class ContactController(
             </div>
             """;
 
-        await emailService.SendAsync(
-            adminEmail,
-            $"Saradnja: {request.FullName}",
-            html);
+        try
+        {
+            await emailService.SendAsync(
+                adminEmail,
+                $"Saradnja: {request.FullName}",
+                html);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Collaboration email failed for {Email}", request.Email);
+            return StatusCode(503, "Došlo je do greške prilikom slanja poruke o saradnji. Pokušajte ponovo kasnije.");
+        }
 
         return Ok();
     }
@@ -109,10 +118,18 @@ public class ContactController(
             """;
 
         var fullName = $"{request.FirstName.Trim()} {request.LastName.Trim()}".Trim();
-        await emailService.SendAsync(
-            inbox,
-            $"Kontakt sa sajta — {fullName}",
-            html);
+        try
+        {
+            await emailService.SendAsync(
+                inbox,
+                $"Kontakt sa sajta — {fullName}",
+                html);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Contact message email failed for {Email}", request.Email);
+            return StatusCode(503, "Došlo je do greške prilikom slanja poruke. Pokušajte ponovo kasnije.");
+        }
 
         return Ok();
     }

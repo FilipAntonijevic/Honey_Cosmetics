@@ -68,17 +68,17 @@ public class AuthController(
             db.PendingRegistrations.Remove(pending);
             await db.SaveChangesAsync();
             logger.LogError(ex, "Confirmation email failed for {Email}", email);
-            return StatusCode(503, "Nismo mogli da pošaljemo email za potvrdu. Proverite SendGrid podešavanja i pokušajte ponovo.");
+            return StatusCode(503, "Došlo je do greške prilikom registracije. Pokušajte ponovo kasnije.");
         }
 
         var devLink = environment.IsDevelopment() && !IsSendGridConfigured() ? link : null;
         var message = legacyProfile is null
             ? devLink is null
                 ? "Poslali smo vam email sa linkom za potvrdu. Kliknite na link da biste aktivirali nalog."
-                : "Registracija je sačuvana. SendGrid nije podešen — koristite link ispod (samo u razvoju)."
+                : "Registracija je sačuvana. Koristite link ispod za potvrdu (samo u razvoju)."
             : devLink is null
                 ? "Poslali smo vam email za potvrdu. Pronašli smo vaš postojeći profil kupca — nakon potvrde biće automatski povezan sa nalogom."
-                : "Registracija je sačuvana. Postojeći profil kupca biće povezan nakon potvrde. SendGrid nije podešen — koristite link ispod (samo u razvoju).";
+                : "Registracija je sačuvana. Postojeći profil kupca biće povezan nakon potvrde. Koristite link ispod (samo u razvoju).";
         return Ok(new RegisterResponse(message, devLink));
     }
 
@@ -109,7 +109,7 @@ public class AuthController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Resend confirmation email failed for {Email}", email);
-            return StatusCode(503, "Nismo mogli da pošaljemo email. Pokušajte ponovo kasnije.");
+            return StatusCode(503, "Došlo je do greške prilikom slanja emaila za potvrdu registracije. Pokušajte ponovo kasnije.");
         }
 
         var devLink = environment.IsDevelopment() && !IsSendGridConfigured() ? link : null;
@@ -236,7 +236,15 @@ public class AuthController(
 
         var link = $"{GetFrontendBaseUrl()}/reset-password?token={Uri.EscapeDataString(user.ResetToken)}";
         var body = BuildForgotPasswordEmail(user.FirstName, link);
-        await emailService.SendAsync(user.Email, "Honey Cosmetics — Reset lozinke", body);
+        try
+        {
+            await emailService.SendAsync(user.Email, "Honey Cosmetics — Reset lozinke", body);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Forgot password email failed for {Email}", user.Email);
+            return StatusCode(503, "Došlo je do greške prilikom slanja linka za reset lozinke. Pokušajte ponovo kasnije.");
+        }
         return Ok();
     }
 
