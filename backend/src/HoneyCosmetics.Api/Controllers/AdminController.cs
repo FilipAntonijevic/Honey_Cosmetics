@@ -113,7 +113,7 @@ public class AdminController(
             .Include(x => x.AdditionalImages)
             .ToListAsync();
         products.Sort((a, b) => ProductNaturalNameComparer.Instance.Compare(a.Name, b.Name));
-        return Ok(products.Select(MapProduct));
+        return Ok(products.Select(p => MapProduct(p)));
     }
 
     [HttpPost("products")]
@@ -608,7 +608,7 @@ public class AdminController(
             .Where(x => x.IsBestseller)
             .OrderBy(x => x.BestsellerSortOrder)
             .ToListAsync();
-        return Ok(list.Select(MapProduct));
+        return Ok(list.Select(p => MapProduct(p)));
     }
 
     [HttpPut("bestsellers")]
