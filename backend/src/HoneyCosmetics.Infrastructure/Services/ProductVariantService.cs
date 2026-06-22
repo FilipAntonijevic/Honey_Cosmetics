@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using HoneyCosmetics.Application;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -10,9 +11,6 @@ public static partial class ProductVariantService
     public const string DefaultMl = "15ml";
     public const string DefaultGr = "15gr";
 
-    [GeneratedRegex(@"\s*[\(\-–]?\s*(\d+)\s*(ml|gr)\s*\)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex TrailingVariantInNameRegex();
-
     [GeneratedRegex(@"(\d+)\s*(ml|gr)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VariantTokenRegex();
 
@@ -22,18 +20,22 @@ public static partial class ProductVariantService
     public static int ResolveGroupId(Product p) =>
         p.VariantGroupId ?? p.Id;
 
-    public static string StripVariantFromName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            return string.Empty;
+    public static string StripVariantFromName(string name) =>
+        ProductDisplayNaming.StripVariantFromName(name);
 
-        var trimmed = name.Trim();
-        var match = TrailingVariantInNameRegex().Match(trimmed);
-        if (!match.Success)
-            return trimmed;
+    /// <summary>Čist naziv proizvoda bez gramaze.</summary>
+    public static string GetDisplayName(string name, string? variantLabel = null) =>
+        ProductDisplayNaming.GetDisplayName(name, variantLabel);
 
-        return trimmed[..match.Index].TrimEnd(' ', '-', '–', '(');
-    }
+    public static string GetDisplayName(Product product) =>
+        ProductDisplayNaming.GetDisplayName(product);
+
+    /// <summary>Za evidenciju (ledger, email): naziv i gramaza odvojeno.</summary>
+    public static string FormatForRecord(Product product) =>
+        ProductDisplayNaming.FormatForRecord(product);
+
+    public static string FormatForRecord(string name, string? variantLabel) =>
+        ProductDisplayNaming.FormatForRecord(name, variantLabel);
 
     public static string? TryExtractVariantLabel(string? text)
     {
@@ -54,30 +56,6 @@ public static partial class ProductVariantService
 
         var extracted = TryExtractVariantLabel(label);
         return extracted ?? label.Trim();
-    }
-
-    /// <summary>Čist naziv proizvoda bez gramaze.</summary>
-    public static string GetDisplayName(string name, string? variantLabel = null) =>
-        StripVariantFromName(name);
-
-    public static string GetDisplayName(Product product) =>
-        GetDisplayName(product.Name, product.VariantLabel);
-
-    /// <summary>Za evidenciju (ledger, email): naziv i gramaza odvojeno.</summary>
-    public static string FormatForRecord(Product product)
-    {
-        var name = GetDisplayName(product);
-        return string.IsNullOrWhiteSpace(product.VariantLabel)
-            ? name
-            : $"{name} · {product.VariantLabel}";
-    }
-
-    public static string FormatForRecord(string name, string? variantLabel)
-    {
-        var clean = GetDisplayName(name, variantLabel);
-        return string.IsNullOrWhiteSpace(variantLabel)
-            ? clean
-            : $"{clean} · {variantLabel}";
     }
 
     public static void NormalizeProductNaming(Product product)

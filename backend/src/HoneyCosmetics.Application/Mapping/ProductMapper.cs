@@ -1,3 +1,4 @@
+using HoneyCosmetics.Application;
 using HoneyCosmetics.Application.DTOs;
 using HoneyCosmetics.Domain.Entities;
 
@@ -24,7 +25,7 @@ public static class ProductMapper
 
         return new ProductResponse(
             p.Id,
-            ProductVariantService.GetDisplayName(p),
+            ProductDisplayNaming.GetDisplayName(p),
             p.Description,
             p.Price,
             p.ImageUrl,
