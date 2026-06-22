@@ -4,9 +4,8 @@ import { useStore } from '../context/StoreContext'
 function HeartIcon({ filled }) {
   return (
     <svg
+      className="product-card-heart-icon"
       viewBox="0 0 24 24"
-      width="17"
-      height="17"
       fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth="1.75"

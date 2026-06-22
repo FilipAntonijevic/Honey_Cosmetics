@@ -381,10 +381,10 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   color: #1a1a2e;
   letter-spacing: 0.02em;
 }
-.product-card button { font-size: 0.65rem; border-radius: 10px; padding: 0.55rem 0.85rem; }
+.product-card button:not(.product-card-action) { font-size: 0.65rem; border-radius: 10px; padding: 0.55rem 0.85rem; }
 .product-card-actions {
-  --pca-btn-size: 2rem;
-  --pca-view-width: calc(var(--pca-btn-size) * 2.5);
+  --pca-heart-size: 1.65rem;
+  --pca-view-width: calc(var(--pca-heart-size) * 2.5);
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -402,25 +402,35 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   padding: 0;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
   text-decoration: none;
 }
 .product-card-action--wishlist {
-  width: var(--pca-btn-size);
-  height: var(--pca-btn-size);
-  border-radius: 50%;
-  background: #fff;
+  width: auto;
+  height: auto;
+  min-width: var(--pca-heart-size);
+  min-height: var(--pca-heart-size);
+  border: none;
+  border-radius: 0;
+  background: transparent;
   color: #131313;
+  padding: 0;
+}
+.product-card-heart-icon {
+  width: var(--pca-heart-size);
+  height: var(--pca-heart-size);
+  display: block;
 }
 .product-card-action--wishlist:hover {
-  background: #fff;
-  border-color: #c9b8a8;
+  background: transparent;
+  border: none;
   color: #131313;
+  opacity: 0.72;
 }
 .product-card-action--view {
   width: var(--pca-view-width);
   min-width: var(--pca-view-width);
-  height: var(--pca-btn-size);
+  height: var(--pca-heart-size);
   padding: 0;
   border-radius: 999px;
   background: var(--beige);
@@ -433,14 +443,16 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   color: #8b6b47;
 }
 .product-card-action--wishlist.is-active {
-  background: #fff;
-  border-color: #e0d4c8;
+  background: transparent;
+  border: none;
   color: #131313;
+  opacity: 1;
 }
 .product-card-action--wishlist.is-active:hover {
-  background: #fff;
-  border-color: #c9b8a8;
+  background: transparent;
+  border: none;
   color: #131313;
+  opacity: 0.72;
 }
 .product-card-action:focus-visible {
   outline: 2px solid #8b6b47;
