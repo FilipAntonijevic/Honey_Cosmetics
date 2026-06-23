@@ -17,6 +17,25 @@ import { groupProductsForDisplay } from '../lib/productVariants'
 
 const POP_VISIBLE_MAX = 5
 
+// Izmeri tačnu širinu shop kartice rekonstruišući shop kontekst (.shell > .product-grid),
+// jer --shop-card-width koristi 100% koji zavisi od kontejnera.
+function measureShopCardWidthPx() {
+  if (typeof document === 'undefined') return 0
+  const shell = document.createElement('div')
+  shell.className = 'shell'
+  shell.style.cssText = 'position:fixed;left:-9999px;top:0;visibility:hidden;pointer-events:none;'
+  const grid = document.createElement('div')
+  grid.className = 'product-grid'
+  const card = document.createElement('div')
+  card.className = 'product-card'
+  grid.appendChild(card)
+  shell.appendChild(grid)
+  document.body.appendChild(shell)
+  const width = Math.round(card.getBoundingClientRect().width)
+  document.body.removeChild(shell)
+  return width
+}
+
 /** Traka: [poslednjih V] + [svi proizvodi] + [prvih V] — kružno pomeranje kao hero. */
 function buildProductSlides(products, visible) {
   const N = products.length
@@ -475,6 +494,8 @@ function ProductCarousel({ products }) {
   const fallbackRef = useRef(null)
   const touchStartX = useRef(null)
   const touchStartY = useRef(null)
+  const draggingRef = useRef(false)
+  const [dragOffset, setDragOffset] = useState(0)
   const [index, setIndex, indexRef] = useSyncedIndex(1)
   const [stepPx, setStepPx] = useState(0)
   const [withTransition, setWithTransition] = useState(true)
@@ -501,8 +522,22 @@ function ProductCarousel({ products }) {
     const visible = getVisibleSlotCount(viewport.clientWidth)
     setVisibleSlots(visible)
     const gap = parseFloat(getComputedStyle(track).gap || '16')
-    const cardWidth = (viewport.clientWidth - (visible - 1) * gap) / visible
-    if (cardWidth <= 0) return
+    let cardWidth
+    if (visible === 1) {
+      // Telefon: jedna kartica istih dimenzija kao u shopu, centrirana
+      cardWidth = measureShopCardWidthPx()
+      if (cardWidth <= 0) return
+      const outer = viewport.getBoundingClientRect().width
+      const pad = Math.max(0, Math.round((outer - cardWidth) / 2))
+      viewport.style.paddingLeft = `${pad}px`
+      viewport.style.paddingRight = `${pad}px`
+    } else {
+      // Desktop: N kartica koje popune red
+      viewport.style.paddingLeft = ''
+      viewport.style.paddingRight = ''
+      cardWidth = (viewport.clientWidth - (visible - 1) * gap) / visible
+      if (cardWidth <= 0) return
+    }
     viewport.style.setProperty('--pop-card-width', `${cardWidth}px`)
     viewport.style.setProperty('--pop-visible', String(visible))
     const step = cardWidth + gap
@@ -681,24 +716,61 @@ function ProductCarousel({ products }) {
   }, [resetAutoScroll, navigateNext])
 
   const onTouchStart = (e) => {
+    if (isLocked()) return
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
+    draggingRef.current = false
+    setPaused(true)
+  }
+  const onTouchMove = (e) => {
+    if (touchStartX.current == null) return
+    const dx = e.touches[0].clientX - touchStartX.current
+    const dy = e.touches[0].clientY - touchStartY.current
+    if (!draggingRef.current) {
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+        // vertikalni skrol — prepusti pregledaču
+        touchStartX.current = null
+        setPaused(false)
+        return
+      }
+      if (Math.abs(dx) > 6) {
+        draggingRef.current = true
+        setWithTransition(false)
+      } else {
+        return
+      }
+    }
+    setDragOffset(dx)
   }
   const onTouchEnd = (e) => {
-    if (touchStartX.current == null) return
-    const dx = e.changedTouches[0].clientX - touchStartX.current
-    const dy = e.changedTouches[0].clientY - touchStartY.current
-    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 0) navigatePrev()
-      else navigateNext()
-    }
+    const wasDragging = draggingRef.current
+    const startX = touchStartX.current
     touchStartX.current = null
     touchStartY.current = null
+    draggingRef.current = false
+    setPaused(false)
+    if (!wasDragging || startX == null) {
+      setDragOffset(0)
+      return
+    }
+    const dx = e.changedTouches[0].clientX - startX
+    const step = stepRef.current || 200
+    const threshold = Math.min(60, step * 0.22)
+    setWithTransition(true)
+    setDragOffset(0)
+    if (dx <= -threshold) {
+      resetAutoScroll()
+      navigateNext()
+    } else if (dx >= threshold) {
+      resetAutoScroll()
+      navigatePrev()
+    }
   }
 
   if (!N) return null
 
-  const translateX = stepPx > 0 ? Math.round(index * stepPx) : 0
+  const baseTranslate = stepPx > 0 ? index * stepPx : 0
+  const translateX = Math.round(baseTranslate - dragOffset)
 
   return (
     <div
@@ -708,6 +780,7 @@ function ProductCarousel({ products }) {
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
       <button
