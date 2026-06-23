@@ -447,10 +447,6 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
   )
 }
 
-function getVisibleSlotCount(viewportWidth) {
-  if (viewportWidth <= 768) return 1
-  return POP_VISIBLE_MAX
-}
 
 function ProductCarousel({ products }) {
   const N = products.length
@@ -495,25 +491,26 @@ function ProductCarousel({ products }) {
     const viewport = viewportRef.current
     const track = trackRef.current
     if (!viewport || !track || N === 0) return
-    const visible = getVisibleSlotCount(viewport.clientWidth)
-    setVisibleSlots(visible)
     const gap = parseFloat(getComputedStyle(track).gap || '16')
-    let cardWidth
-    if (visible === 1) {
-      // Telefon: jedna kartica istih dimenzija kao u shopu, centrirana
-      cardWidth = measureShopCardWidthPx()
-      if (cardWidth <= 0) return
+    // Širina kartice je UVEK ista kao u shopu.
+    const cardWidth = measureShopCardWidthPx()
+    if (cardWidth <= 0) return
+    const vw = viewport.clientWidth
+    let visible
+    if (vw <= 768) {
+      // Telefon: jedna kartica, centrirana
+      visible = 1
       const outer = viewport.getBoundingClientRect().width
       const pad = Math.max(0, Math.round((outer - cardWidth) / 2))
       viewport.style.paddingLeft = `${pad}px`
       viewport.style.paddingRight = `${pad}px`
     } else {
-      // Desktop: N kartica koje popune red
+      // Desktop: koliko shop-kartica stane u red
       viewport.style.paddingLeft = ''
       viewport.style.paddingRight = ''
-      cardWidth = (viewport.clientWidth - (visible - 1) * gap) / visible
-      if (cardWidth <= 0) return
+      visible = Math.max(1, Math.min(N, Math.floor((vw + gap) / (cardWidth + gap))))
     }
+    setVisibleSlots(visible)
     viewport.style.setProperty('--pop-card-width', `${cardWidth}px`)
     viewport.style.setProperty('--pop-visible', String(visible))
     const step = cardWidth + gap
