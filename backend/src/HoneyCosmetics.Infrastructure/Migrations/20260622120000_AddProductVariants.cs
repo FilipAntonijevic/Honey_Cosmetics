@@ -1,9 +1,12 @@
+using HoneyCosmetics.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace HoneyCosmetics.Infrastructure.Migrations;
 
+[DbContext(typeof(AppDbContext))]
 [Migration("20260622120000_AddProductVariants")]
 public partial class AddProductVariants : Migration
 {

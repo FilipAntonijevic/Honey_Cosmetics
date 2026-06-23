@@ -52,7 +52,7 @@ export default function Layout({ children }) {
   const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock } = useStore()
   const [vrste, setVrste] = useState([])
   const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
-  const { itemsTotal, grandTotal: checkoutTotalWithShipping } = useCheckoutTotals(siteLinks)
+  const { itemsTotal } = useCheckoutTotals(siteLinks)
   const [sitePopup, setSitePopup] = useState(null)
   const [sitePopupVisible, setSitePopupVisible] = useState(false)
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
@@ -604,7 +604,7 @@ export default function Layout({ children }) {
               <div className="mini-cart-drawer-footer">
                 <div className="mini-cart-divider" />
                 <p className="mini-cart-total">
-                  Ukupno: <strong>{checkoutTotalWithShipping.toLocaleString('sr-RS')} RSD</strong>
+                  Ukupno: <strong>{itemsTotal.toLocaleString('sr-RS')} RSD</strong>
                 </p>
                 <div className="mini-cart-divider" />
                 <div className="mini-cart-actions">

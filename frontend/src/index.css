@@ -384,7 +384,8 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 .product-card button:not(.product-card-action) { font-size: 0.65rem; border-radius: 10px; padding: 0.55rem 0.85rem; }
 .product-card-actions {
   --pca-heart-size: 1.65rem;
-  --pca-view-width: calc(var(--pca-heart-size) * 2.5);
+  --pca-view-width: calc(var(--pca-heart-size) * 2.5 * 1.1);
+  --pca-view-height: calc(var(--pca-heart-size) * 1.1);
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -430,7 +431,7 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 .product-card-action--view {
   width: var(--pca-view-width);
   min-width: var(--pca-view-width);
-  height: var(--pca-heart-size);
+  height: var(--pca-view-height);
   padding: 0;
   border-radius: 999px;
   background: var(--beige);
