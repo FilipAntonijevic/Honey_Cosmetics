@@ -76,7 +76,11 @@ public class ProductsController(AppDbContext db) : ControllerBase
                 c.Name,
                 c.ImageUrl,
                 c.ProductTypeId,
-                c.Products.Count(p => !p.IsDeleted)))
+                c.Products
+                    .Where(p => !p.IsDeleted)
+                    .Select(p => p.VariantGroupId ?? p.Id)
+                    .Distinct()
+                    .Count()))
             .ToListAsync();
 
         return Ok(list);
