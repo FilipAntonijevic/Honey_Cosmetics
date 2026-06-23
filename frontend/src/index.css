@@ -5915,15 +5915,28 @@ body.is-adm-modal-open {
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 50%;
-  border: 1px solid #d9c5b3;
+  border: 2px solid #000;
   background: #fff;
-  color: var(--espresso);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  color: #000;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.contact-social-btn svg [stroke] {
+  stroke: #000;
+}
+.contact-social-btn--instagram svg [stroke] {
+  stroke-width: 2.35;
+}
+.contact-social-btn--tiktok svg,
+.contact-social-btn--tiktok svg path {
+  fill: #000;
 }
 .contact-social-btn:hover {
-  background: #f6efe7;
-  border-color: #b09888;
-  color: var(--espresso);
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+.contact-social-btn:hover svg [stroke] {
+  stroke: #fff;
 }
 .contact-form {
   display: flex;
@@ -6217,39 +6230,57 @@ body.is-adm-modal-open {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  border: 1.6px solid #2b2b2b;
+  border: 2px solid #000;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #2b2b2b;
-  background-color: #ffffff;
-  overflow: hidden;
-  isolation: isolate;
-  box-shadow: 0 0 0 3px #ffffff, 0 2px 8px rgba(0, 0, 0, 0.12);
-  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-}
-.community-social::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background-color: #ffffff;
-  z-index: 0;
+  color: #000;
+  background: #fff;
+  box-shadow: none;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 .community-social svg {
   position: relative;
   z-index: 1;
   width: 29px;
   height: 29px;
+  color: #000;
+}
+.community-social svg [stroke] {
+  stroke: #000;
+}
+.community-social--instagram svg,
+.community-social--tiktok svg {
+  filter: contrast(1.15);
+}
+.community-social--instagram svg {
+  width: 30px;
+  height: 30px;
+}
+.community-social--instagram svg [stroke] {
+  stroke: #000;
+  stroke-width: 2.35;
+}
+.community-social--tiktok svg {
+  width: 31px;
+  height: 31px;
+}
+.community-social--tiktok svg,
+.community-social--tiktok svg path {
+  fill: #000;
+  color: #000;
 }
 .community-social:hover {
-  background-color: #2b2b2b;
+  background: #000;
   color: #fff;
+  border-color: #000;
   transform: translateY(-1px);
-  box-shadow: 0 0 0 3px #ffffff, 0 4px 12px rgba(0, 0, 0, 0.18);
 }
-.community-social:hover::before {
-  background-color: #2b2b2b;
+.community-social:hover svg {
+  color: #fff;
+}
+.community-social:hover svg [stroke] {
+  stroke: #fff;
 }
 .community-social.is-disabled {
   cursor: default;
