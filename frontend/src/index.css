@@ -1675,6 +1675,22 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 .adm-table-row:hover { background: #f9fafb; }
 .adm-table-row.expanded { background: #f0f4ff; }
 .adm-table-row td { padding: 0.85rem 1rem; vertical-align: middle; }
+.adm-th-actions,
+.adm-td-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+.adm-table-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+.adm-table-actions .adm-btn {
+  flex-shrink: 0;
+}
 .adm-td-id { font-weight: 600; color: #6b7280; }
 .adm-td-total { font-weight: 600; color: #1a1a2e; white-space: nowrap; }
 .adm-customer-name { font-weight: 500; color: #111827; }

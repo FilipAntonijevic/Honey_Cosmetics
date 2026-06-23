@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
-import ProductNameWithVariant from '../components/ProductNameWithVariant'
 import AdminModal from '../components/admin/AdminModal'
+import {
+  expandSelectionWithGroupMembers,
+  groupProductsWithMembers,
+  resolveGroupKey,
+} from '../lib/productVariants'
 
 const emptyForm = { name: '', imageUrl: '' }
 
@@ -69,12 +73,23 @@ export default function AdminCategories() {
 
   const productCountByCategory = useMemo(() => {
     const counts = new Map()
+    const seen = new Map()
     for (const p of typeProducts) {
       if (p.categoryId == null) continue
+      const groupKey = resolveGroupKey(p)
+      if (!seen.has(p.categoryId)) seen.set(p.categoryId, new Set())
+      const groups = seen.get(p.categoryId)
+      if (groups.has(groupKey)) continue
+      groups.add(groupKey)
       counts.set(p.categoryId, (counts.get(p.categoryId) ?? 0) + 1)
     }
     return counts
   }, [typeProducts])
+
+  const assignProductGroups = useMemo(
+    () => groupProductsWithMembers(typeProducts),
+    [typeProducts],
+  )
 
   /* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect -- mount fetch */
   useEffect(() => {
@@ -121,9 +136,10 @@ export default function AdminCategories() {
     setAssignSearch('')
     setAssignError('')
     setAssignLoading(true)
-    const inCategory = typeProducts
-      .filter((p) => p.categoryId === row.id)
-      .map((p) => p.id)
+    const inCategory = expandSelectionWithGroupMembers(
+      typeProducts.filter((p) => p.categoryId === row.id).map((p) => p.id),
+      typeProducts,
+    )
     setAssignProductIds(inCategory)
     setAssignInitialIds(inCategory)
     setAssignLoading(false)
@@ -144,29 +160,38 @@ export default function AdminCategories() {
     return sortedA.some((id, i) => id !== sortedB[i])
   }, [assignProductIds, assignInitialIds])
 
-  const filteredAssignProducts = useMemo(() => {
+  const filteredAssignGroups = useMemo(() => {
     const term = assignSearch.trim().toLowerCase()
-    return typeProducts.filter((p) => {
+    return assignProductGroups.filter(({ rep }) => {
       if (!term) return true
-      const hay = [p.name, p.category, p.variantLabel].filter(Boolean).join(' ').toLowerCase()
+      const hay = [rep.name, rep.category].filter(Boolean).join(' ').toLowerCase()
       return hay.includes(term)
     })
-  }, [typeProducts, assignSearch])
+  }, [assignProductGroups, assignSearch])
 
-  const toggleAssignProduct = (id) => {
-    setAssignProductIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
+  const selectedAssignGroupCount = useMemo(() => {
+    const selected = new Set(assignProductIds)
+    return assignProductGroups.filter((g) => g.memberIds.every((id) => selected.has(id))).length
+  }, [assignProductGroups, assignProductIds])
+
+  const isGroupSelected = (memberIds) => memberIds.every((id) => assignProductIds.includes(id))
+
+  const toggleAssignGroup = (memberIds) => {
+    setAssignProductIds((prev) => {
+      const allSelected = memberIds.every((id) => prev.includes(id))
+      if (allSelected) return prev.filter((id) => !memberIds.includes(id))
+      return [...new Set([...prev, ...memberIds])]
+    })
     setAssignError('')
   }
 
   const selectAllFiltered = () => {
-    const ids = filteredAssignProducts.map((p) => p.id)
+    const ids = filteredAssignGroups.flatMap((g) => g.memberIds)
     setAssignProductIds((prev) => [...new Set([...prev, ...ids])])
   }
 
   const clearFiltered = () => {
-    const filtered = new Set(filteredAssignProducts.map((p) => p.id))
+    const filtered = new Set(filteredAssignGroups.flatMap((g) => g.memberIds))
     setAssignProductIds((prev) => prev.filter((id) => !filtered.has(id)))
   }
 
@@ -309,7 +334,7 @@ export default function AdminCategories() {
                 <th>Slika</th>
                 <th>Naziv</th>
                 <th>Artikala</th>
-                <th style={{ width: '280px' }} />
+                <th className="adm-th-actions">Akcije</th>
               </tr>
             </thead>
             <tbody>
@@ -324,14 +349,14 @@ export default function AdminCategories() {
                   </td>
                   <td className="adm-customer-name">{row.name}</td>
                   <td>{productCountByCategory.get(row.id) ?? 0}</td>
-                  <td>
-                    <button type="button" className="adm-btn adm-btn-sm adm-btn-primary" onClick={() => openAssign(row)}>
-                      Ubaci artikle
-                    </button>
-                    {' '}
-                    <button type="button" className="adm-btn adm-btn-sm" onClick={() => openEdit(row)}>Izmeni</button>
-                    {' '}
-                    <button type="button" className="adm-btn adm-btn-sm adm-btn-danger" onClick={() => deleteRow(row.id, row.name)}>Obriši</button>
+                  <td className="adm-td-actions">
+                    <div className="adm-table-actions">
+                      <button type="button" className="adm-btn adm-btn-sm adm-btn-primary" onClick={() => openAssign(row)}>
+                        Ubaci artikle
+                      </button>
+                      <button type="button" className="adm-btn adm-btn-sm" onClick={() => openEdit(row)}>Izmeni</button>
+                      <button type="button" className="adm-btn adm-btn-sm adm-btn-danger" onClick={() => deleteRow(row.id, row.name)}>Obriši</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -392,7 +417,7 @@ export default function AdminCategories() {
             {' · '}
             Vrsta: <strong>{assignCategory.productTypeName || selectedTypeLabel}</strong>
             {' · '}
-            Izabrano: <strong>{assignProductIds.length}</strong>
+            Izabrano: <strong>{selectedAssignGroupCount}</strong>
           </p>
         )}
 
@@ -415,30 +440,34 @@ export default function AdminCategories() {
 
         {assignLoading ? (
           <div className="adm-loading">Učitavanje proizvoda…</div>
-        ) : filteredAssignProducts.length === 0 ? (
+        ) : filteredAssignGroups.length === 0 ? (
           <div className="adm-empty">Nema proizvoda ove vrste{assignSearch.trim() ? ' za ovu pretragu' : ''}.</div>
         ) : (
           <ul className="adm-cat-assign-list">
-            {filteredAssignProducts.map((p) => {
-              const checked = assignProductIds.includes(p.id)
-              const inOtherCategory = p.categoryId != null && p.categoryId !== assignCategory?.id
+            {filteredAssignGroups.map(({ rep, memberIds }) => {
+              const checked = isGroupSelected(memberIds)
+              const inOtherCategory = memberIds.some((id) => {
+                const p = typeProducts.find((row) => row.id === id)
+                return p?.categoryId != null && p.categoryId !== assignCategory?.id
+              })
               return (
-                <li key={p.id} className={`adm-cat-assign-item${checked ? ' is-selected' : ''}`}>
+                <li key={resolveGroupKey(rep)} className={`adm-cat-assign-item${checked ? ' is-selected' : ''}`}>
                   <label className="adm-cat-assign-label">
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => toggleAssignProduct(p.id)}
+                      onChange={() => toggleAssignGroup(memberIds)}
                     />
-                    {p.imageUrl ? (
-                      <ApiImage src={p.imageUrl} alt="" className="adm-best-thumb" />
+                    {rep.imageUrl ? (
+                      <ApiImage src={rep.imageUrl} alt="" className="adm-best-thumb" />
                     ) : (
                       <div className="adm-best-thumb adm-best-thumb-empty" />
                     )}
                     <span className="adm-cat-assign-meta">
-                      <ProductNameWithVariant name={p.name} variantLabel={p.variantLabel} className="adm-best-name" />
+                      <span className="adm-best-name">{rep.name}</span>
                       <span className="adm-best-sub">
-                        {inOtherCategory ? `Trenutno: ${p.category}` : p.category ? `U kategoriji: ${p.category}` : 'Bez kategorije'}
+                        {inOtherCategory ? `Trenutno: ${rep.category}` : rep.category ? `U kategoriji: ${rep.category}` : 'Bez kategorije'}
+                        {memberIds.length > 1 ? ` · ${memberIds.length} opcije` : ''}
                       </span>
                     </span>
                   </label>

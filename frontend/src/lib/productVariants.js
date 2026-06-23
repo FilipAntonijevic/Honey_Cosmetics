@@ -50,6 +50,36 @@ export function resolveGroupKey(product) {
   return product.variantGroupId ?? product.id
 }
 
+/** Jedna stavka po grupi varijanti + svi ID-evi u grupi (za admin dodelu kategorije). */
+export function groupProductsWithMembers(products) {
+  const byGroup = new Map()
+  for (const product of products) {
+    const key = resolveGroupKey(product)
+    const entry = byGroup.get(key)
+    if (!entry) {
+      byGroup.set(key, { key, memberIds: [product.id], rep: product })
+    } else {
+      entry.memberIds.push(product.id)
+      if (product.isDefaultVariant && !entry.rep.isDefaultVariant) entry.rep = product
+    }
+  }
+  return sortProductsByName([...byGroup.values()].map((g) => g.rep)).map((rep) =>
+    byGroup.get(resolveGroupKey(rep)),
+  )
+}
+
+export function expandSelectionWithGroupMembers(selectedIds, products) {
+  const idSet = new Set(selectedIds)
+  const groups = groupProductsWithMembers(products)
+  const expanded = new Set(selectedIds)
+  for (const group of groups) {
+    if (group.memberIds.some((id) => idSet.has(id))) {
+      group.memberIds.forEach((id) => expanded.add(id))
+    }
+  }
+  return [...expanded]
+}
+
 /** Jedna kartica po grupi varijanti; prikazuje se podrazumevana opcija. */
 export function groupProductsForDisplay(products) {
   const allById = new Map(products.map((p) => [p.id, p]))

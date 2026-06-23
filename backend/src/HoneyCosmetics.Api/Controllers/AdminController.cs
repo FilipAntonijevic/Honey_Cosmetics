@@ -605,6 +605,7 @@ public class AdminController(
             return NotFound();
 
         var productIds = (request.ProductIds ?? Array.Empty<int>()).Distinct().ToList();
+        productIds = await ExpandProductIdsWithVariantSiblingsAsync(productIds);
 
         if (productIds.Count > 0)
         {
@@ -1011,6 +1012,30 @@ public class AdminController(
     {
         if (categoryId is null) return Task.FromResult(true);
         return db.Categories.AnyAsync(c => c.Id == categoryId.Value && c.ProductTypeId == productTypeId);
+    }
+
+    private async Task<List<int>> ExpandProductIdsWithVariantSiblingsAsync(List<int> productIds)
+    {
+        if (productIds.Count == 0)
+            return productIds;
+
+        var seeds = await db.Products
+            .ActiveProducts()
+            .Where(p => productIds.Contains(p.Id))
+            .ToListAsync();
+
+        if (seeds.Count == 0)
+            return productIds;
+
+        var groupIds = seeds.Select(ProductVariantService.ResolveGroupId).Distinct().ToList();
+
+        return await db.Products
+            .ActiveProducts()
+            .Where(p => groupIds.Contains(p.Id)
+                || (p.VariantGroupId != null && groupIds.Contains(p.VariantGroupId.Value)))
+            .Select(p => p.Id)
+            .Distinct()
+            .ToListAsync();
     }
 
     private async Task DeactivateAllSitePopupsAsync()
