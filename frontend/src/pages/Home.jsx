@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
 import { publicUrl } from '../lib/assets'
-import { formatProductTypeDisplay } from '../lib/productTypes'
 import {
   attachResolvedImageSrc,
   attachResolvedImageSrcPartial,
@@ -11,8 +10,7 @@ import {
   preloadProductImagesMediumAwait,
   resolveDirectImageSrc,
 } from '../lib/imagePreload'
-import FitOneLineTitle from '../components/FitOneLineTitle'
-import ProductCardActions from '../components/ProductCardActions'
+import ProductCard from '../components/ProductCard'
 import { groupProductsForDisplay } from '../lib/productVariants'
 
 const POP_VISIBLE_MAX = 5
@@ -449,28 +447,6 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
   )
 }
 
-function ProductCarouselCard({ product, onToggleWishlist }) {
-  return (
-    <article className="product-card">
-      <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
-        {product.imageSrc ? (
-          <img src={product.imageSrc} alt={product.name} loading="eager" decoding="async" draggable="false" />
-        ) : null}
-      </Link>
-      <div className="product-card-body">
-        <h3>
-          <FitOneLineTitle as={Link} to={`/products/${product.id}`}>
-            {product.name}
-          </FitOneLineTitle>
-        </h3>
-        <p>{[formatProductTypeDisplay(product.productType), product.category].filter(Boolean).join(' · ')}</p>
-        <strong>{Number(product.price).toLocaleString('sr-RS')} RSD</strong>
-        <ProductCardActions product={product} onToggleWishlist={onToggleWishlist} />
-      </div>
-    </article>
-  )
-}
-
 function getVisibleSlotCount(viewportWidth) {
   if (viewportWidth <= 768) return 1
   return POP_VISIBLE_MAX
@@ -813,10 +789,11 @@ function ProductCarousel({ products }) {
           onTransitionEnd={onTransitionEnd}
         >
           {slides.map(({ product, slideKey }) => (
-            <ProductCarouselCard
+            <ProductCard
               key={slideKey}
               product={product}
               onToggleWishlist={toggleWishlist}
+              eager
             />
           ))}
         </div>

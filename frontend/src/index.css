@@ -364,8 +364,16 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   font-weight: 500;
   color: #1a1a2e;
   line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.product-card-body h3 a { color: inherit; }
+.product-card-body h3 a {
+  color: inherit;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .product-card-body h3 a:hover { color: #8B6B47; }
 .product-card-body p {
   margin: 0;

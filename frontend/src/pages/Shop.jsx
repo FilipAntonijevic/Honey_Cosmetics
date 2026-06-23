@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
-import ProductCardActions from '../components/ProductCardActions'
+import ProductCard from '../components/ProductCard'
 import { useStore } from '../context/StoreContext'
 import { formatProductTypeDisplay, resolveProductTypeApi } from '../lib/productTypes'
 import { groupProductsForDisplay, pickDefaultVariantProduct } from '../lib/productVariants'
@@ -274,19 +274,11 @@ export default function Shop() {
         {groupProductsForDisplay(filteredProducts).map((product) => {
           const display = pickDefaultVariantProduct(product, product.variants)
           return (
-          <article key={display.variantGroupId ?? display.id} className="product-card">
-            <Link to={`/products/${display.id}`} className="product-card-media" tabIndex={-1}>
-              <ApiImage src={display.imageUrl} alt={display.name} loading="lazy" variant="medium" />
-            </Link>
-            <div className="product-card-body">
-              <h3>
-                <Link to={`/products/${display.id}`}>{display.name}</Link>
-              </h3>
-              <p>{[formatProductTypeDisplay(display.productType), display.category].filter(Boolean).join(' · ')}</p>
-              <strong>{Number(display.price).toLocaleString('sr-RS')} RSD</strong>
-              <ProductCardActions product={display} onToggleWishlist={toggleWishlist} />
-            </div>
-          </article>
+            <ProductCard
+              key={display.variantGroupId ?? display.id}
+              product={display}
+              onToggleWishlist={toggleWishlist}
+            />
           )
         })}
       </div>
