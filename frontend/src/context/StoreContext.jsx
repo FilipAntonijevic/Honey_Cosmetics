@@ -103,9 +103,39 @@ export function StoreProvider({ children }) {
   const [cartAddTick, setCartAddTick] = useState(0)
   const [checkoutCoupon, setCheckoutCoupon] = useState(null)
   const [initializing, setInitializing] = useState(true)
+  // ID-jevi porudžbina koje je korisnik napravio, a još nije pogledao detalje.
+  const [unseenOrders, setUnseenOrders] = useState([])
 
   useEffect(() => localStorage.setItem('honey_cart', JSON.stringify(cart)), [cart])
   useEffect(() => localStorage.setItem('honey_wishlist', JSON.stringify(wishlist)), [wishlist])
+
+  // Učitaj/očisti notifikacije porudžbina kad se promeni korisnik.
+  useEffect(() => {
+    if (!user?.id) {
+      setUnseenOrders([])
+      return
+    }
+    setUnseenOrders(fromStorage(`honey_unseen_orders_${user.id}`, []))
+  }, [user?.id])
+
+  // Sačuvaj notifikacije porudžbina (po korisniku).
+  useEffect(() => {
+    if (!user?.id) return
+    try {
+      localStorage.setItem(`honey_unseen_orders_${user.id}`, JSON.stringify(unseenOrders))
+    } catch {
+      /* ignore quota errors */
+    }
+  }, [unseenOrders, user?.id])
+
+  const addOrderNotification = useCallback((orderId) => {
+    if (orderId == null) return
+    setUnseenOrders((prev) => (prev.includes(orderId) ? prev : [...prev, orderId]))
+  }, [])
+
+  const markOrderSeen = useCallback((orderId) => {
+    setUnseenOrders((prev) => (prev.includes(orderId) ? prev.filter((id) => id !== orderId) : prev))
+  }, [])
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -381,6 +411,9 @@ export function StoreProvider({ children }) {
       toast,
       cartAddTick,
       initializing,
+      unseenOrders,
+      addOrderNotification,
+      markOrderSeen,
       login,
       register,
       logout,
@@ -398,7 +431,7 @@ export function StoreProvider({ children }) {
       setToast,
       setCart,
     }),
-    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, login, register, logout, clearCartAfterOrder, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser],
+    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, unseenOrders, addOrderNotification, markOrderSeen, login, register, logout, clearCartAfterOrder, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

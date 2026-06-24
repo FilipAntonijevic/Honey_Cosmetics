@@ -91,6 +91,19 @@ export default function AdminOrders() {
     }
   }
 
+  const onUpdatePayment = async (orderId, isPaid) => {
+    try {
+      await api.put(`/admin/orders/${orderId}/payment`, { isPaid })
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, isPaid } : o)))
+    } catch (err) {
+      const msg = typeof err.response?.data === 'string'
+        ? err.response.data
+        : 'Nije moguće ažurirati status uplate.'
+      alert(msg)
+      throw err
+    }
+  }
+
   const handleSearchKeyDown = (e) => {
     if (e.key !== 'Enter') return
     e.preventDefault()
@@ -125,6 +138,7 @@ export default function AdminOrders() {
         orders={displayed}
         loading={loading}
         onUpdateOrder={onUpdateOrder}
+        onUpdatePayment={onUpdatePayment}
         sortable
         fillHeight
         columnFilters={{

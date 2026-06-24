@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import api from '../api'
+import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
-import BankTransferSlip, { hasTemplate } from '../components/BankTransferSlip'
+import { hasTemplate } from '../components/BankTransferSlip'
+import UplatnicaSlip from '../components/UplatnicaSlip'
 import useSiteLinks from '../hooks/useSiteLinks'
 import ProductNameWithVariant from '../components/ProductNameWithVariant'
 
@@ -50,6 +52,7 @@ export default function MyOrders() {
   const [expandedId, setExpandedId] = useState(null)
   const [loading, setLoading] = useState(true)
   const siteLinks = useSiteLinks()
+  const { unseenOrders, markOrderSeen } = useStore()
 
   useEffect(() => {
     api.get('/orders/mine')
@@ -69,7 +72,11 @@ export default function MyOrders() {
     })
 
   const toggleOrder = (orderId) => {
-    setExpandedId((prev) => (prev === orderId ? null : orderId))
+    setExpandedId((prev) => {
+      const next = prev === orderId ? null : orderId
+      if (next === orderId) markOrderSeen(orderId)
+      return next
+    })
   }
 
   return (
@@ -100,7 +107,12 @@ export default function MyOrders() {
                 aria-controls={`order-details-${order.id}`}
               >
                 <div className="order-card-header">
-                  <span className="order-card-id">Porudžbina #{order.id}</span>
+                  <span className="order-card-id">
+                    Porudžbina #{order.id}
+                    {unseenOrders.includes(order.id) && (
+                      <span className="order-card-new">Novo</span>
+                    )}
+                  </span>
                   <span className="order-card-date">{fmtDate(order.createdAt)}</span>
                   <span
                     className="order-status"
@@ -233,18 +245,34 @@ export default function MyOrders() {
                       <dt>Status</dt>
                       <dd>{STATUS_LABEL[order.status] ?? order.status}</dd>
                     </div>
+                    {isBankTransfer(order.paymentMethod) && (
+                      <div>
+                        <dt>Status uplate</dt>
+                        <dd>
+                          <span className={`order-pay-badge${order.isPaid ? ' order-pay-badge--paid' : ''}`}>
+                            {order.isPaid ? 'Plaćeno' : 'Čeka se uplata'}
+                          </span>
+                        </dd>
+                      </div>
+                    )}
                     <div>
                       <dt>Datum porudžbine</dt>
                       <dd>{fmtDate(order.createdAt)}</dd>
                     </div>
                   </dl>
                   {isBankTransfer(order.paymentMethod) && hasTemplate(siteLinks) && (
-                    <BankTransferSlip
-                      template={siteLinks}
-                      orderId={order.id}
-                      amount={order.total}
-                      mode="confirmed"
-                    />
+                    <>
+                      {!order.isPaid && (
+                        <p className="order-pay-note">
+                          Vaša porudžbina neće biti poslata dok sredstva ne budu uplaćena.
+                        </p>
+                      )}
+                      <UplatnicaSlip
+                        template={siteLinks}
+                        orderId={order.id}
+                        amount={order.total}
+                      />
+                    </>
                   )}
                 </section>
               </div>

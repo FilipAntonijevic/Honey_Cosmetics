@@ -49,7 +49,7 @@ const buildViberHref = (raw) => {
 }
 
 export default function Layout({ children }) {
-  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock } = useStore()
+  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock, unseenOrders } = useStore()
   const [vrste, setVrste] = useState([])
   const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
   const { itemsTotal } = useCheckoutTotals(siteLinks)
@@ -424,6 +424,7 @@ export default function Layout({ children }) {
     user,
     wishlist,
     cartCount,
+    orderNotifCount: unseenOrders.length,
     searchInput,
     onSearchChange: (e) => setSearchInput(e.target.value),
     onSearchSubmit: submitProductSearch,
@@ -553,9 +554,6 @@ export default function Layout({ children }) {
                           variantLabel={item.variantLabel}
                           className="mini-cart-name"
                         />
-                        <span className="mini-cart-unit-price">
-                          {Number(item.price).toLocaleString('sr-RS')} RSD
-                        </span>
                         <div className="mini-cart-qty-row">
                           <div className="mini-cart-qty">
                             <button

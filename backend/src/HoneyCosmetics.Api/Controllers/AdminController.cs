@@ -102,6 +102,17 @@ public class AdminController(
         return Ok(new { order.Id, status = order.Status.ToString() });
     }
 
+    [HttpPut("orders/{orderId:int}/payment")]
+    public async Task<IActionResult> UpdateOrderPayment(int orderId, [FromBody] UpdateOrderPaymentRequest request)
+    {
+        var order = await db.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
+        if (order is null) return NotFound();
+
+        order.IsPaid = request.IsPaid;
+        await db.SaveChangesAsync();
+        return Ok(new { order.Id, isPaid = order.IsPaid });
+    }
+
     // ── Products ─────────────────────────────────────────────────────────────
     [HttpGet("products")]
     public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetProducts()
@@ -1104,6 +1115,7 @@ public class AdminController(
         o.Phone,
         o.PaymentMethod.ToString(),
         o.Status.ToString(),
+        o.IsPaid,
         o.Subtotal,
         o.Discount,
         o.CouponCode,
@@ -1117,6 +1129,8 @@ public class AdminController(
 
 public record UpdateOrderStatusRequest(OrderStatus Status, decimal? AdminDeliveryCost = null);
 
+public record UpdateOrderPaymentRequest(bool IsPaid);
+
 public record AdminOrderResponse(
     int Id,
     string CustomerName,
@@ -1125,6 +1139,7 @@ public record AdminOrderResponse(
     string? Phone,
     string PaymentMethod,
     string Status,
+    bool IsPaid,
     decimal Subtotal,
     decimal Discount,
     string? CouponCode,

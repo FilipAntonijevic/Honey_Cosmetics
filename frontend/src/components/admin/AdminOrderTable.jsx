@@ -173,6 +173,7 @@ export default function AdminOrderTable({
   orders,
   loading = false,
   onUpdateOrder,
+  onUpdatePayment,
   showCustomer = true,
   compact = false,
   readOnly = false,
@@ -182,6 +183,7 @@ export default function AdminOrderTable({
 }) {
   const [expanded, setExpanded] = useState(null)
   const [updating, setUpdating] = useState(null)
+  const [payUpdating, setPayUpdating] = useState(null)
   const [statusConfirm, setStatusConfirm] = useState(null)
   const [deliveryCostInput, setDeliveryCostInput] = useState('')
   const [confirmError, setConfirmError] = useState('')
@@ -234,6 +236,16 @@ export default function AdminOrderTable({
       await onUpdateOrder(orderId, status, adminDeliveryCost)
     } finally {
       setUpdating(null)
+    }
+  }
+
+  const togglePayment = async (order) => {
+    if (!onUpdatePayment) return
+    setPayUpdating(order.id)
+    try {
+      await onUpdatePayment(order.id, !order.isPaid)
+    } finally {
+      setPayUpdating(null)
     }
   }
 
@@ -458,6 +470,26 @@ export default function AdminOrderTable({
                                 <strong>Trošak dostave (admin):</strong>{' '}
                                 {fmtMoney(order.freeShippingDeliveryCost)} RSD
                               </>
+                            )}
+                            {order.paymentMethod === 'BankTransfer' && (
+                              <div className="adm-order-pay">
+                                <strong>Status uplate:</strong>{' '}
+                                <span className={`adm-pay-badge${order.isPaid ? ' adm-pay-badge--paid' : ''}`}>
+                                  {order.isPaid ? 'Plaćeno' : 'Čeka se uplata'}
+                                </span>
+                                {!readOnly && onUpdatePayment && (
+                                  <button
+                                    type="button"
+                                    className="adm-btn adm-btn-sm adm-order-pay-btn"
+                                    disabled={payUpdating === order.id}
+                                    onClick={(e) => { e.stopPropagation(); togglePayment(order) }}
+                                  >
+                                    {payUpdating === order.id
+                                      ? 'Čuvanje…'
+                                      : order.isPaid ? 'Označi kao neplaćeno' : 'Označi kao plaćeno'}
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                           <div className="adm-order-items">

@@ -99,7 +99,6 @@ export default function Cart() {
                         variantLabel={item.variantLabel}
                         className="cart-name"
                       />
-                      <div className="cart-unit-price">{fmt(price(item))} RSD</div>
                       <div className="cart-qty-row">
                         <div className="cart-qty">
                           <button type="button" className="cart-qty-btn" onClick={() => changeQty(item.id, -1)}>−</button>

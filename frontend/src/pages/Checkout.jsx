@@ -5,7 +5,8 @@ import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
 import PhoneField from '../components/PhoneField'
 import FreeShippingBar from '../components/FreeShippingBar'
-import BankTransferSlip, { hasTemplate } from '../components/BankTransferSlip'
+import { hasTemplate } from '../components/BankTransferSlip'
+import UplatnicaSlip from '../components/UplatnicaSlip'
 import useSiteLinks from '../hooks/useSiteLinks'
 import useCheckoutTotals from '../hooks/useCheckoutTotals'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
@@ -24,6 +25,7 @@ export default function Checkout() {
     clearCartAfterOrder,
     setToast,
     refreshCartStock,
+    addOrderNotification,
   } = useStore()
   const siteLinks = useSiteLinks()
   const { freeShippingThreshold } = siteLinks
@@ -156,6 +158,7 @@ export default function Checkout() {
           couponCode: form.couponCode || null,
         })
         await clearCartAfterOrder()
+        addOrderNotification(data.id)
         if (isBankTransfer) {
           setCompletedBankOrder(data)
         } else {
@@ -178,9 +181,7 @@ export default function Checkout() {
           navigate('/')
         }
       }
-      setToast(isBankTransfer
-        ? 'Porudžbina je kreirana. Izvršite uplatu prema uputstvu ispod.'
-        : 'Porudžbina je uspešno kreirana!')
+      setToast('Porudžbina je kreirana')
     } catch (err) {
       setError(err.response?.data ?? 'Greška prilikom naručivanja. Pokušajte ponovo.')
     } finally {
@@ -209,11 +210,10 @@ export default function Checkout() {
           <p className="co-bank-success-lead">
             Izvršite bankovnu uplatu prema uputstvu ispod. Porudžbina se šalje tek nakon evidentirane uplate.
           </p>
-          <BankTransferSlip
+          <UplatnicaSlip
             template={siteLinks}
             orderId={completedBankOrder.id}
             amount={completedBankOrder.total}
-            mode="confirmed"
           />
           <div className="co-bank-success-actions">
             {user ? (
@@ -340,12 +340,16 @@ export default function Checkout() {
               {form.paymentMethod === '1' && (
                 <div className="co-payment-slip-wrap">
                   {hasTemplate(siteLinks) ? (
-                    <BankTransferSlip
-                      template={siteLinks}
-                      amount={grandTotal}
-                      mode="preview"
-                      variant="checkout"
-                    />
+                    <>
+                      <UplatnicaSlip
+                        template={siteLinks}
+                        amount={grandTotal}
+                        payerName={`${form.firstName} ${form.lastName}`.trim() || null}
+                      />
+                      <p className="co-payment-hint co-payment-hint--inline co-payment-hint--slip">
+                        Vaša porudžbina neće biti poslata dok sredstva ne budu uplaćena.
+                      </p>
+                    </>
                   ) : (
                     <p className="co-payment-hint co-payment-hint--inline">
                       Platite narudžbinu direktno na našem računu. Vaša porudžbina neće biti poslata dok sredstva ne budu uplaćena.

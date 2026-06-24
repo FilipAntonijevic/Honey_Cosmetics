@@ -585,13 +585,37 @@ function ProductCarousel({ products }) {
     else busyRef.current = false
   }, [startIndex, snapLow, jumpWithoutTransition, isSnapping, indexRef])
 
-  const scheduleCloneFallback = useCallback(() => {
+  // Sigurnosni tajmer: ako 'transitionend' ne stigne (npr. promena ne pomera
+  // transform), oslobodi zaključavanja da bi sledeći prevlak uvek radio.
+  const scheduleSettleFallback = useCallback(() => {
     clearFallback()
     fallbackRef.current = setTimeout(() => {
       const i = indexRef.current
-      if (i < startIndex || i > snapLow) snapIfOnClone()
+      if (i < startIndex || i > snapLow) {
+        snapIfOnClone()
+      } else {
+        wrapLockRef.current = false
+        busyRef.current = false
+      }
     }, productTransitionFallbackMs)
   }, [clearFallback, snapIfOnClone, startIndex, snapLow, indexRef])
+
+  // Trenutno "smiri" traku: normalizuj klon-poziciju u stvarni indeks (bez
+  // pomeranja vidljivog proizvoda) i oslobodi zaključavanja, kako bi novi
+  // prevlak mogao odmah da krene — i u toku tekuće animacije.
+  const settleNow = useCallback(() => {
+    clearFallback()
+    const i = indexRef.current
+    let target = i
+    if (i > snapLow) target = i - N
+    else if (i < startIndex) target = i + N
+    if (target !== i) {
+      setWithTransition(false)
+      setIndex(target)
+    }
+    wrapLockRef.current = false
+    busyRef.current = false
+  }, [clearFallback, snapLow, startIndex, N, setIndex, indexRef])
 
   const navigateNext = useCallback(() => {
     if (N === 0 || stepRef.current <= 0 || isLocked()) return
@@ -607,14 +631,15 @@ function ProductCarousel({ products }) {
       busyRef.current = true
       setWithTransition(true)
       setIndex(snapHigh)
-      scheduleCloneFallback()
+      scheduleSettleFallback()
       return
     }
 
     busyRef.current = true
     setWithTransition(true)
     setIndex(i + 1)
-  }, [N, snapLow, snapHigh, isOnClone, isLocked, snapIfOnClone, scheduleCloneFallback, setIndex, indexRef])
+    scheduleSettleFallback()
+  }, [N, snapLow, snapHigh, isOnClone, isLocked, snapIfOnClone, scheduleSettleFallback, setIndex, indexRef])
 
   const navigatePrev = useCallback(() => {
     if (N === 0 || stepRef.current <= 0 || isLocked()) return
@@ -630,14 +655,15 @@ function ProductCarousel({ products }) {
       busyRef.current = true
       setWithTransition(true)
       setIndex(startIndex - 1)
-      scheduleCloneFallback()
+      scheduleSettleFallback()
       return
     }
 
     busyRef.current = true
     setWithTransition(true)
     setIndex(i - 1)
-  }, [N, startIndex, isOnClone, isLocked, snapIfOnClone, scheduleCloneFallback, setIndex, indexRef])
+    scheduleSettleFallback()
+  }, [N, startIndex, isOnClone, isLocked, snapIfOnClone, scheduleSettleFallback, setIndex, indexRef])
 
   const onTransitionEnd = useCallback(
     (e) => {
@@ -689,7 +715,10 @@ function ProductCarousel({ products }) {
   }, [resetAutoScroll, navigateNext])
 
   const onTouchStart = (e) => {
-    if (isLocked()) return
+    // Ne odbacuj dodir ako traka još uvek "radi" — umesto toga je smiri i
+    // dozvoli novi prevlak. Tako korisnik može da vrti proizvode u krug
+    // bez čekanja da se prethodna animacija završi.
+    settleNow()
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
     draggingRef.current = false
@@ -723,6 +752,7 @@ function ProductCarousel({ products }) {
     draggingRef.current = false
     setPaused(false)
     if (!wasDragging || startX == null) {
+      setWithTransition(true)
       setDragOffset(0)
       return
     }

@@ -394,7 +394,7 @@ public class OrdersController(
     }
 
     private static OrderResponse MapOrder(Order order) =>
-        new(order.Id, order.DeliveryAddress, order.Phone, order.PaymentMethod, order.Status.ToString(), order.Subtotal, order.Discount, order.CouponCode, order.ShippingCost, order.Total, order.FreeShippingApplied, order.CreatedAt,
+        new(order.Id, order.DeliveryAddress, order.Phone, order.PaymentMethod, order.Status.ToString(), order.IsPaid, order.Subtotal, order.Discount, order.CouponCode, order.ShippingCost, order.Total, order.FreeShippingApplied, order.CreatedAt,
             order.Items.Select(MapOrderItem).ToList());
 
     private static OrderItemResponse MapOrderItem(OrderItem item) =>

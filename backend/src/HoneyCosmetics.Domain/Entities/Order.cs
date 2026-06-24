@@ -23,6 +23,8 @@ public class Order
     /// <summary>Trošak dostave koji je admin platio kuriru (besplatna dostava za kupca).</summary>
     public decimal? FreeShippingDeliveryCost { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
+    /// <summary>Da li je uplata evidentirana (relevantno za bankovni prenos). Admin označava ručno.</summary>
+    public bool IsPaid { get; set; }
     public bool FinanceRecorded { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<OrderItem> Items { get; set; } = [];
