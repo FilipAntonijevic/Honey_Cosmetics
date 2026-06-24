@@ -1,4 +1,4 @@
-import { hasTemplate } from './BankTransferSlip'
+import { hasBankTransferInfo } from './BankTransferSlip'
 
 const fmtMoney = (n) =>
   Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -13,11 +13,11 @@ const fmtMoney = (n) =>
  * @param {string|null|undefined} payerName — ime uplatioca (kupca), opciono
  */
 export default function UplatnicaSlip({ template, orderId, amount, payerName }) {
-  if (!hasTemplate(template)) return null
+  if (!hasBankTransferInfo(template)) return null
 
-  const recipient = template.bankTransferRecipientName?.trim()
+  const recipient = template.bankTransferRecipientName?.trim() || '—'
   const address = template.bankTransferRecipientAddress?.trim()
-  const account = template.bankTransferAccountNumber?.trim()
+  const account = template.bankTransferAccountNumber?.trim() || '—'
   const purposeBase = template.bankTransferPurpose?.trim() || 'Uplata porudžbine'
   const purpose = orderId != null ? `${purposeBase} #${orderId}` : purposeBase
   const refNumber = orderId != null ? String(orderId) : null

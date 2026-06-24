@@ -5203,6 +5203,15 @@ body.is-adm-modal-open {
   }
 }
 
+.bank-pay-loading {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  color: #7c4a03;
+  font-style: italic;
+}
+.bank-pay-missing {
+  margin: 0.5rem 0 0;
+}
 .co-bank-success {
   max-width: 640px;
   margin: 0 auto;
@@ -6531,6 +6540,11 @@ body.is-adm-modal-open {
   border-radius: 14px;
   padding: 1.35rem 1.6rem 1.35rem;
   box-shadow: 0 2px 8px rgba(20, 24, 50, 0.04);
+}
+.adm-links-uplatnica-preview {
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e3e6ee;
 }
 .adm-links-section-heading {
   font-size: 0.7rem;

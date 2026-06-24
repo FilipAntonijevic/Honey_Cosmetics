@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
-import { hasTemplate } from '../components/BankTransferSlip'
-import UplatnicaSlip from '../components/UplatnicaSlip'
+import BankTransferPaymentInfo from '../components/BankTransferPaymentInfo'
 import useSiteLinks from '../hooks/useSiteLinks'
 import ProductNameWithVariant from '../components/ProductNameWithVariant'
 
@@ -53,6 +52,7 @@ export default function MyOrders() {
   const [loading, setLoading] = useState(true)
   const siteLinks = useSiteLinks()
   const { unseenOrders, markOrderSeen } = useStore()
+  const siteLinksLoading = siteLinks.loading
 
   useEffect(() => {
     api.get('/orders/mine')
@@ -260,15 +260,16 @@ export default function MyOrders() {
                       <dd>{fmtDate(order.createdAt)}</dd>
                     </div>
                   </dl>
-                  {isBankTransfer(order.paymentMethod) && hasTemplate(siteLinks) && (
+                  {isBankTransfer(order.paymentMethod) && (
                     <>
                       {!order.isPaid && (
                         <p className="order-pay-note">
                           Vaša porudžbina neće biti poslata dok sredstva ne budu uplaćena.
                         </p>
                       )}
-                      <UplatnicaSlip
+                      <BankTransferPaymentInfo
                         template={siteLinks}
+                        loading={siteLinksLoading}
                         orderId={order.id}
                         amount={order.total}
                       />

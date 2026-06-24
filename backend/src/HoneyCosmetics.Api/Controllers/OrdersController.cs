@@ -500,10 +500,12 @@ public class OrdersController(
 
         var recipient = settings.BankTransferRecipientName?.Trim();
         var account = settings.BankTransferAccountNumber?.Trim();
-        if (string.IsNullOrEmpty(recipient) || string.IsNullOrEmpty(account))
+        var address = settings.BankTransferRecipientAddress?.Trim();
+        if (string.IsNullOrEmpty(recipient) && string.IsNullOrEmpty(account) && string.IsNullOrEmpty(address))
             return null;
 
-        var address = settings.BankTransferRecipientAddress?.Trim();
+        recipient = string.IsNullOrEmpty(recipient) ? "—" : recipient;
+        account = string.IsNullOrEmpty(account) ? "—" : account;
         var purposeBase = string.IsNullOrWhiteSpace(settings.BankTransferPurpose)
             ? "Uplata porudžbine"
             : settings.BankTransferPurpose.Trim();

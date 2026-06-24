@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import api from '../api'
 import ViberIcon from '../components/icons/ViberIcon'
+import UplatnicaSlip from '../components/UplatnicaSlip'
+import { hasBankTransferInfo } from '../components/BankTransferSlip'
 
 const EMPTY = {
   instagramUrl: '',
@@ -340,6 +342,18 @@ export default function AdminLinks() {
           onChange={set('bankTransferPurpose')}
           type="text"
         />
+
+        {hasBankTransferInfo(form) && (
+          <div className="adm-links-uplatnica-preview">
+            <p className="adm-links-section-heading adm-links-section-heading--spaced">Pregled uplatnice (kako je vidi kupac)</p>
+            <UplatnicaSlip
+              template={form}
+              orderId={12345}
+              amount={4990}
+              payerName="Ime Prezime (primer)"
+            />
+          </div>
+        )}
 
         {error && <div className="adm-links-error">{String(error)}</div>}
         {message && <div className="adm-links-ok">{message}</div>}

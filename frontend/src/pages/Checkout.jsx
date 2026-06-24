@@ -5,8 +5,7 @@ import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
 import PhoneField from '../components/PhoneField'
 import FreeShippingBar from '../components/FreeShippingBar'
-import { hasTemplate } from '../components/BankTransferSlip'
-import UplatnicaSlip from '../components/UplatnicaSlip'
+import BankTransferPaymentInfo from '../components/BankTransferPaymentInfo'
 import useSiteLinks from '../hooks/useSiteLinks'
 import useCheckoutTotals from '../hooks/useCheckoutTotals'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
@@ -28,7 +27,7 @@ export default function Checkout() {
     addOrderNotification,
   } = useStore()
   const siteLinks = useSiteLinks()
-  const { freeShippingThreshold } = siteLinks
+  const { freeShippingThreshold, loading: siteLinksLoading } = siteLinks
   const { itemsTotal, shipping, grandTotal, freeShippingApplied } = useCheckoutTotals(siteLinks)
   const navigate = useNavigate()
 
@@ -210,8 +209,9 @@ export default function Checkout() {
           <p className="co-bank-success-lead">
             Izvršite bankovnu uplatu prema uputstvu ispod. Porudžbina se šalje tek nakon evidentirane uplate.
           </p>
-          <UplatnicaSlip
+          <BankTransferPaymentInfo
             template={siteLinks}
+            loading={siteLinksLoading}
             orderId={completedBankOrder.id}
             amount={completedBankOrder.total}
           />
@@ -339,22 +339,15 @@ export default function Checkout() {
               </label>
               {form.paymentMethod === '1' && (
                 <div className="co-payment-slip-wrap">
-                  {hasTemplate(siteLinks) ? (
-                    <>
-                      <UplatnicaSlip
-                        template={siteLinks}
-                        amount={grandTotal}
-                        payerName={`${form.firstName} ${form.lastName}`.trim() || null}
-                      />
-                      <p className="co-payment-hint co-payment-hint--inline co-payment-hint--slip">
-                        Vaša porudžbina neće biti poslata dok sredstva ne budu uplaćena.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="co-payment-hint co-payment-hint--inline">
-                      Platite narudžbinu direktno na našem računu. Vaša porudžbina neće biti poslata dok sredstva ne budu uplaćena.
-                    </p>
-                  )}
+                  <BankTransferPaymentInfo
+                    template={siteLinks}
+                    loading={siteLinksLoading}
+                    amount={grandTotal}
+                    payerName={`${form.firstName} ${form.lastName}`.trim() || null}
+                  />
+                  <p className="co-payment-hint co-payment-hint--inline co-payment-hint--slip">
+                    Vaša porudžbina neće biti poslata dok sredstva ne budu uplaćena.
+                  </p>
                 </div>
               )}
             </div>

@@ -1,6 +1,17 @@
 const fmtMoney = (n) =>
   Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+/** Da li postoji bar neki podatak za prikaz uplatnice kupcu. */
+function hasBankTransferInfo(template) {
+  if (!template) return false
+  return Boolean(
+    template.bankTransferAccountNumber?.trim()
+    || template.bankTransferRecipientName?.trim()
+    || template.bankTransferRecipientAddress?.trim(),
+  )
+}
+
+/** Kompletan template — račun + primalac (za email i potvrdu). */
 function hasTemplate(template) {
   return Boolean(
     template?.bankTransferAccountNumber?.trim()
@@ -112,4 +123,4 @@ export default function BankTransferSlip({
   )
 }
 
-export { hasTemplate }
+export { hasTemplate, hasBankTransferInfo }
