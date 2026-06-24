@@ -12,7 +12,7 @@ const fmtMoney = (n) =>
  * @param {number|null|undefined} amount — iznos za uplatu
  * @param {string|null|undefined} payerName — ime uplatioca (kupca), opciono
  */
-export default function UplatnicaSlip({ template, orderId, amount, payerName }) {
+export default function UplatnicaSlip({ template, orderId, amount, payerName, layout = 'default' }) {
   if (!hasBankTransferInfo(template)) return null
 
   const recipient = template.bankTransferRecipientName?.trim() || '—'
@@ -21,9 +21,27 @@ export default function UplatnicaSlip({ template, orderId, amount, payerName }) 
   const purposeBase = template.bankTransferPurpose?.trim() || 'Uplata porudžbine'
   const purpose = orderId != null ? `${purposeBase} #${orderId}` : purposeBase
   const refNumber = orderId != null ? String(orderId) : null
+  const isWide = layout === 'wide'
+  const rootClass = isWide ? 'uplatnica uplatnica--wide' : 'uplatnica'
+
+  const amountField = (
+    <div className={`uplatnica__field uplatnica__field--amount${isWide ? ' uplatnica__field--hero' : ''}`}>
+      <span className="uplatnica__label">iznos</span>
+      <span className="uplatnica__value">
+        {amount != null ? `=${fmtMoney(amount)}` : '—'}
+      </span>
+    </div>
+  )
+
+  const accountField = (
+    <div className={`uplatnica__field uplatnica__field--account${isWide ? ' uplatnica__field--hero' : ''}`}>
+      <span className="uplatnica__label">račun primaoca</span>
+      <span className="uplatnica__value uplatnica__value--mono">{account}</span>
+    </div>
+  )
 
   return (
-    <div className="uplatnica" role="img" aria-label="Primer uplatnice za bankovni prenos">
+    <div className={rootClass} role="img" aria-label="Primer uplatnice za bankovni prenos">
       <div className="uplatnica__header">
         <span className="uplatnica__brand">NALOG ZA UPLATU</span>
         <span className="uplatnica__tag">uplatnica</span>
@@ -49,27 +67,37 @@ export default function UplatnicaSlip({ template, orderId, amount, payerName }) 
         </div>
 
         <div className="uplatnica__col uplatnica__col--right">
-          <div className="uplatnica__row">
-            <div className="uplatnica__field uplatnica__field--sm">
-              <span className="uplatnica__label">šifra plaćanja</span>
-              <span className="uplatnica__value">189</span>
-            </div>
-            <div className="uplatnica__field uplatnica__field--sm">
-              <span className="uplatnica__label">valuta</span>
-              <span className="uplatnica__value">RSD</span>
-            </div>
-            <div className="uplatnica__field uplatnica__field--amount">
-              <span className="uplatnica__label">iznos</span>
-              <span className="uplatnica__value">
-                {amount != null ? `=${fmtMoney(amount)}` : '—'}
-              </span>
-            </div>
-          </div>
-
-          <div className="uplatnica__field">
-            <span className="uplatnica__label">račun primaoca</span>
-            <span className="uplatnica__value uplatnica__value--mono">{account}</span>
-          </div>
+          {isWide ? (
+            <>
+              <div className="uplatnica__row uplatnica__row--codes">
+                <div className="uplatnica__field uplatnica__field--sm">
+                  <span className="uplatnica__label">šifra plaćanja</span>
+                  <span className="uplatnica__value">189</span>
+                </div>
+                <div className="uplatnica__field uplatnica__field--sm">
+                  <span className="uplatnica__label">valuta</span>
+                  <span className="uplatnica__value">RSD</span>
+                </div>
+              </div>
+              {amountField}
+              {accountField}
+            </>
+          ) : (
+            <>
+              <div className="uplatnica__row">
+                <div className="uplatnica__field uplatnica__field--sm">
+                  <span className="uplatnica__label">šifra plaćanja</span>
+                  <span className="uplatnica__value">189</span>
+                </div>
+                <div className="uplatnica__field uplatnica__field--sm">
+                  <span className="uplatnica__label">valuta</span>
+                  <span className="uplatnica__value">RSD</span>
+                </div>
+                {amountField}
+              </div>
+              {accountField}
+            </>
+          )}
 
           <div className="uplatnica__row">
             <div className="uplatnica__field uplatnica__field--model">

@@ -272,6 +272,7 @@ export default function MyOrders() {
                         loading={siteLinksLoading}
                         orderId={order.id}
                         amount={order.total}
+                        layout="wide"
                       />
                     </>
                   )}
