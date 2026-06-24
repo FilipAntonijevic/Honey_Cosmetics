@@ -280,44 +280,48 @@ export function StoreProvider({ children }) {
     }
   }, [user])
 
-  const addToCart = useCallback((product) => {
+  const addToCart = useCallback((product, qty = 1) => {
     if (!isInStock(product)) {
       setToast('Proizvod trenutno nije na stanju.')
       return false
     }
     const stock = Number(product.stockQuantity) || 0
-    let addedQty = 0
+    const requestedAdd = Math.max(1, Math.floor(Number(qty) || 1))
+    const existing = cart.find((item) => item.id === product.id)
+    const currentQty = Number(existing?.quantity) || 0
+    const nextQty = clampCartQuantity(currentQty + requestedAdd, stock)
+    const addedQty = nextQty - currentQty
+
+    if (addedQty <= 0) {
+      setToast('Nema dovoljno proizvoda na stanju.')
+      return false
+    }
+
     setCart((prev) => {
-      const existing = prev.find((item) => item.id === product.id)
-      const currentQty = Number(existing?.quantity) || 0
-      const requested = currentQty + 1
-      const nextQty = clampCartQuantity(requested, stock)
-      if (nextQty <= currentQty) return prev
-      addedQty = nextQty - currentQty
-      if (existing) {
+      const ex = prev.find((item) => item.id === product.id)
+      if (ex) {
+        const prevQty = Number(ex.quantity) || 0
+        const updatedQty = clampCartQuantity(prevQty + requestedAdd, stock)
         return prev.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: nextQty, stockQuantity: stock, inStock: true }
+            ? { ...item, quantity: updatedQty, stockQuantity: stock, inStock: true }
             : item,
         )
       }
-      return [...prev, { ...product, quantity: nextQty, stockQuantity: stock, inStock: true }]
+      return [...prev, { ...product, quantity: clampCartQuantity(requestedAdd, stock), stockQuantity: stock, inStock: true }]
     })
-    if (addedQty > 0) {
-      if (canSyncWithServer(user, false)) {
-        api.post('/cart', { productId: product.id, quantity: addedQty }).catch(() => {})
-      }
-      const isMobile = typeof window !== 'undefined'
-        && window.matchMedia('(max-width: 768px)').matches
-      if (!isMobile) {
-        setToast('Proizvod dodat u korpu.')
-      }
-      setCartAddTick((t) => t + 1)
-      return true
+
+    if (canSyncWithServer(user, false)) {
+      api.post('/cart', { productId: product.id, quantity: addedQty }).catch(() => {})
     }
-    setToast('Nema dovoljno proizvoda na stanju.')
-    return false
-  }, [user])
+    const isMobile = typeof window !== 'undefined'
+      && window.matchMedia('(max-width: 768px)').matches
+    if (!isMobile) {
+      setToast('Proizvod dodat u korpu.')
+    }
+    setCartAddTick((t) => t + 1)
+    return true
+  }, [user, cart])
 
   const removeFromCart = useCallback(
     (productId) => {

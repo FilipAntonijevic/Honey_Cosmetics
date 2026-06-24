@@ -143,9 +143,7 @@ export default function ProductDetails() {
   const addWithQty = () => {
     if (!effective || !inStock) return
     const capped = clampCartQuantity(quantity, maxQty)
-    for (let i = 0; i < capped; i += 1) {
-      addToCart(effective)
-    }
+    if (capped > 0) addToCart(effective, capped)
   }
 
   if (loading) {
