@@ -171,7 +171,11 @@ public class OrdersController(
                 user.FullName, order.Id, orderItems, order.Subtotal, order.Discount,
                 order.CouponCode, order.Total, order.ShippingCost, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
                 order.PaymentMethod.ToString(), order.CreatedAt, contactEmail, bankSlipHtml);
-            await emailService.SendAsync(user.Email, $"Honey Cosmetics — Potvrda porudžbine #{order.Id}", body);
+            await emailService.SendAsync(
+                user.Email,
+                $"Honey Cosmetics — Potvrda porudžbine #{order.Id}",
+                body,
+                contactEmail);
             logger.LogInformation("[Order {OrderId}] User email sent OK", order.Id);
         }
         catch (Exception ex) { logger.LogError(ex, "[Order {OrderId}] User email FAILED: {Msg}", order.Id, ex.Message); }
@@ -318,7 +322,8 @@ public class OrdersController(
                         order.PaymentMethod.ToString(),
                         order.CreatedAt,
                         contactEmailGuest,
-                        bankSlipHtmlGuest));
+                        bankSlipHtmlGuest),
+                    contactEmailGuest);
             }
             catch (Exception ex) { logger.LogError(ex, "Failed to send guest confirmation email for order {OrderId}", order.Id); }
         }

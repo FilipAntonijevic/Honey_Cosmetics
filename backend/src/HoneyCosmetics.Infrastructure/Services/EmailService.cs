@@ -36,8 +36,13 @@ public class EmailService : IEmailService
         var client = new SendGridClient(_settings.ApiKey);
         var from = new EmailAddress(_settings.FromEmail, _settings.FromName);
         var toEmail = new EmailAddress(to);
+        var plainText = EmailContentHelper.ToPlainText(body);
 
-        var msg = MailHelper.CreateSingleEmail(from, toEmail, subject, "", body);
+        var msg = MailHelper.CreateSingleEmail(from, toEmail, subject, plainText, body);
+
+        msg.SetClickTracking(false, false);
+        msg.SetOpenTracking(false);
+        msg.AddCategory("transactional");
 
         if (!string.IsNullOrWhiteSpace(replyTo))
             msg.ReplyTo = new EmailAddress(replyTo.Trim());
