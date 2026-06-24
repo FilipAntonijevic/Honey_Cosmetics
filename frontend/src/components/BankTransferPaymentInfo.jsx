@@ -11,7 +11,6 @@ export default function BankTransferPaymentInfo({
   amount,
   payerName,
   className = '',
-  layout = 'default',
 }) {
   if (loading) {
     return (
@@ -28,7 +27,6 @@ export default function BankTransferPaymentInfo({
         orderId={orderId}
         amount={amount}
         payerName={payerName}
-        layout={layout}
       />
     )
   }

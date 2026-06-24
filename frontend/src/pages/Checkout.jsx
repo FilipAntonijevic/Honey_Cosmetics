@@ -214,7 +214,6 @@ export default function Checkout() {
             loading={siteLinksLoading}
             orderId={completedBankOrder.id}
             amount={completedBankOrder.total}
-            layout="wide"
           />
           <div className="co-bank-success-actions">
             {user ? (
@@ -345,7 +344,6 @@ export default function Checkout() {
                     loading={siteLinksLoading}
                     amount={grandTotal}
                     payerName={`${form.firstName} ${form.lastName}`.trim() || null}
-                    layout="wide"
                   />
                   <p className="co-payment-hint co-payment-hint--inline co-payment-hint--slip">
                     Vaša porudžbina neće biti poslata dok sredstva ne budu uplaćena.
