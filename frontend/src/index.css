@@ -3637,20 +3637,36 @@ body.is-adm-modal-open {
 /* ===== Popular products (Home carousel) ===== */
 .pop-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: center;
   margin-bottom: 1.2rem;
-  gap: 1rem;
+  gap: 0.65rem;
+}
+.pop-head-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: clamp(0.75rem, 2.5vw, 1.25rem);
+}
+.pop-head-line {
+  flex: 1 1 auto;
+  height: 1px;
+  min-width: 1.5rem;
+  background: #c9b8a8;
 }
 .pop-title {
   margin: 0;
-  padding-left: 2ch;
-  font-size: clamp(1.4rem, 2.2vw, 1.9rem);
+  padding: 0;
+  flex: 0 0 auto;
+  font-size: clamp(1rem, 2vw, 1.35rem);
+  font-weight: 600;
   color: #1a1a2e;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
 }
 .pop-head-link {
-  margin-right: 2ch;
   font-size: 0.85rem;
   color: #8B6B47;
   letter-spacing: 0.05em;

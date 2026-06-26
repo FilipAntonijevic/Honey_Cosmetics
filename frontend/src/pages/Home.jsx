@@ -925,7 +925,11 @@ export default function Home() {
         <section className="section-gap pop-section">
           <div className="shell">
             <div className="pop-head">
-              <h2 className="pop-title">Popularni proizvodi</h2>
+              <div className="pop-head-row">
+                <span className="pop-head-line" aria-hidden="true" />
+                <h2 className="pop-title">Popularni proizvodi</h2>
+                <span className="pop-head-line" aria-hidden="true" />
+              </div>
               <Link to="/shop?bestsellers=1" className="pop-head-link">Vidi sve →</Link>
             </div>
             <ProductCarousel products={bestsellers} />
