@@ -166,7 +166,7 @@ public static class WishlistStockNotificationService
             : $"""<p style="margin:0.25rem 0 0;font-size:0.85rem;color:#9b8276;">{encodedCategory}</p>""";
 
         return $"""
-            <div style="font-family:Georgia,serif;max-width:560px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
+            <div style="font-family:'Source Sans Pro',Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
               <h2 style="color:#3f2b22;margin-bottom:0;">Honey Cosmetics</h2>
               <p style="color:#9b8276;font-size:0.82rem;margin-top:0.2rem;">Premium Beauty</p>
               <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.2rem 0;">

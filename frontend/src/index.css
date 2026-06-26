@@ -1,15 +1,10 @@
-@font-face {
-  font-family: 'COTERIE';
-  src: local('COTERIE');
-  font-display: swap;
-}
-
 :root {
   --cream: #f8f4ef;
   --beige: #e8dbc8;
   --espresso: #3f2b22;
   --charcoal: #131313;
   --white: #fff;
+  --font-primary: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   /* Shop category navbar + title band gradient (aligned for seamless blend) */
   --category-strip-fill: #8b6b47;
   --z-sticky-header: 1000;
@@ -45,7 +40,7 @@ html {
 }
 body {
   margin: 0;
-  font-family: 'COTERIE', 'Cormorant Garamond', 'Georgia', serif;
+  font-family: var(--font-primary);
   font-variant-numeric: lining-nums;
   font-feature-settings: "lnum" 1;
   background: #fdf9f5;
@@ -1468,7 +1463,7 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   height: 100vh;
   overflow: hidden;
   background: var(--cream);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-primary);
 }
 
 .adm-sidebar {
@@ -5150,7 +5145,7 @@ body.is-adm-modal-open {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-primary);
 }
 .uplatnica__sheet {
   border: 1.5px solid #d98a2b;
@@ -6427,7 +6422,7 @@ body.is-adm-modal-open {
   margin: 0 0 0.5rem;
 }
 .collaboration-title {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-primary);
   font-size: 2rem;
   font-weight: 700;
   color: var(--espresso);
@@ -6535,7 +6530,7 @@ body.is-adm-modal-open {
   gap: 1rem;
 }
 .about-title {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-primary);
   font-size: clamp(1.8rem, 3vw, 2.4rem);
   letter-spacing: 0.18em;
   color: var(--espresso);
@@ -6544,7 +6539,7 @@ body.is-adm-modal-open {
   margin: 0 0 0.6rem;
 }
 .about-subtitle {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-primary);
   font-size: 1.25rem;
   letter-spacing: 0.06em;
   color: var(--espresso);

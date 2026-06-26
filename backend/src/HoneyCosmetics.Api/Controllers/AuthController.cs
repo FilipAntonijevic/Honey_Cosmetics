@@ -411,7 +411,7 @@ public class AuthController(
             .Replace("+", "-").Replace("/", "_").Replace("=", "");
 
     private static string BuildConfirmEmailBody(string name, string link) => $"""
-        <div style="font-family:Georgia,serif;max-width:520px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
+        <div style="font-family:'Source Sans Pro',Arial,Helvetica,sans-serif;max-width:520px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
           <h2 style="color:#3f2b22;margin-bottom:0.3rem;">Honey Cosmetics</h2>
           <p style="color:#9b8276;font-size:0.85rem;margin-top:0;">Premium Beauty</p>
           <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.5rem 0;">
@@ -423,7 +423,7 @@ public class AuthController(
         """;
 
     private static string BuildForgotPasswordEmail(string name, string link) => $"""
-        <div style="font-family:Georgia,serif;max-width:520px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
+        <div style="font-family:'Source Sans Pro',Arial,Helvetica,sans-serif;max-width:520px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
           <h2 style="color:#3f2b22;margin-bottom:0.3rem;">Honey Cosmetics</h2>
           <p style="color:#9b8276;font-size:0.85rem;margin-top:0;">Premium Beauty</p>
           <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.5rem 0;">
