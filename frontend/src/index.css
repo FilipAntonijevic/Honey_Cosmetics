@@ -3807,11 +3807,18 @@ body.is-adm-modal-open {
 }
 
 /* ===== Hero carousel (Home page) — visina bannera +10% u odnosu na 200/49 ===== */
-.hero-carousel {
+.hero-carousel-wrap {
   position: relative;
   width: 100%;
   max-width: 100%;
-  margin: 0;
+  margin-top: 1cm;
+}
+.hero-carousel {
+  position: relative;
+  width: auto;
+  max-width: none;
+  margin-left: 1.5cm;
+  margin-right: 1.5cm;
   overflow: hidden;
   background: #f4ebe0;
   outline: none;
@@ -3912,12 +3919,6 @@ body.is-adm-modal-open {
 }
 
 @media (max-width: 900px) {
-  .hero-carousel {
-    width: 100%;
-    max-width: 100%;
-    margin-left: 0;
-    margin-right: 0;
-  }
   .hero-arrow { width: 2.2rem; height: 2.2rem; }
   .hero-arrow.left { left: max(0.05rem, env(safe-area-inset-left, 0px)); }
   .hero-arrow.right { right: max(0.05rem, env(safe-area-inset-right, 0px)); }
