@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import FitOneLineTitle from './FitOneLineTitle'
 
 export default function ProductCardActions({ product }) {
   return (
@@ -8,7 +9,16 @@ export default function ProductCardActions({ product }) {
         className="product-card-action product-card-action--view"
         aria-label={`O proizvodu: ${product.name}`}
       >
-        o proizvodu →
+        <span className="product-card-action__label-wrap">
+          <FitOneLineTitle
+            as="span"
+            className="product-card-action__label"
+            maxRem={0.68}
+            minRem={0.38}
+          >
+            više o proizvodu →
+          </FitOneLineTitle>
+        </span>
       </Link>
     </div>
   )

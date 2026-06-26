@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { formatProductTypeDisplay } from '../lib/productTypes'
 import ApiImage from './ApiImage'
-import { publicUrl } from '../lib/assets'
+import { logoUrl, publicUrl } from '../lib/assets'
 import ProductNameWithVariant from './ProductNameWithVariant'
 import { useStore } from '../context/StoreContext'
 import SiteHeaderPanel from './SiteHeaderPanel'
@@ -11,6 +11,7 @@ import useCheckoutTotals from '../hooks/useCheckoutTotals'
 import FreeShippingBar from './FreeShippingBar'
 import Toast from './Toast'
 import SitePopupModal, { getDismissedSitePopupId } from './SitePopupModal'
+import CommunityBanner from './CommunityBanner'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 
 const EMPTY_LINKS = {
@@ -46,6 +47,72 @@ const buildViberHref = (raw) => {
   const withPlus = cleanDigits(v)
   // viber://chat expects %2B encoded leading +
   return withPlus ? `viber://chat?number=${encodeURIComponent(withPlus)}` : ''
+}
+
+function FooterSocials({ instagramUrl, tikTokUrl, mailHref }) {
+  return (
+    <div className="footer-socials">
+      {instagramUrl ? (
+        <a
+          href={instagramUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="footer-social footer-social--instagram"
+          aria-label="Instagram"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+            <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+          </svg>
+        </a>
+      ) : (
+        <span className="footer-social footer-social--instagram is-disabled" aria-label="Instagram (link nije podešen)" aria-disabled="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+            <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+          </svg>
+        </span>
+      )}
+
+      {tikTokUrl ? (
+        <a
+          href={tikTokUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="footer-social footer-social--tiktok"
+          aria-label="TikTok"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V9.34a8.16 8.16 0 0 0 4.77 1.52V7.4a4.85 4.85 0 0 1-1.84-.71z" />
+          </svg>
+        </a>
+      ) : (
+        <span className="footer-social footer-social--tiktok is-disabled" aria-label="TikTok (link nije podešen)" aria-disabled="true">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V9.34a8.16 8.16 0 0 0 4.77 1.52V7.4a4.85 4.85 0 0 1-1.84-.71z" />
+          </svg>
+        </span>
+      )}
+
+      {mailHref ? (
+        <a href={mailHref} className="footer-social footer-social--email" aria-label="Email">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+            <polyline points="22,6 12,13 2,6" />
+          </svg>
+        </a>
+      ) : (
+        <span className="footer-social footer-social--email is-disabled" aria-label="Email (nije podešen)" aria-disabled="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+            <polyline points="22,6 12,13 2,6" />
+          </svg>
+        </span>
+      )}
+    </div>
+  )
 }
 
 export default function Layout({ children }) {
@@ -266,6 +333,10 @@ export default function Layout({ children }) {
   const flowHeaderRef = useRef(null)
   /** Jednom aktiviran reveal ostaje dok korisnik ne skroluje nadole — flow header ne gasi visibility. */
   const revealLockedRef = useRef(false)
+  /** Y pozicija na početku gesta skrola nagore (pre pojave reveal-a). */
+  const scrollUpFromYRef = useRef(null)
+  /** Najviša tačka (najmanji Y) dok je reveal aktivan — skrol nadole od nje gasi banner. */
+  const revealLowestYRef = useRef(null)
 
   const getScrollY = () =>
     Math.max(
@@ -284,6 +355,8 @@ export default function Layout({ children }) {
   useEffect(() => {
     lastScrollY.current = getScrollY()
     revealLockedRef.current = false
+    scrollUpFromYRef.current = null
+    revealLowestYRef.current = null
     setRevealVisible(false)
     setUserMenuOpen(false)
     setPhoneMenuOpen(false)
@@ -300,9 +373,22 @@ export default function Layout({ children }) {
   }, [])
 
   useEffect(() => {
-    const SCROLL_DOWN_DISMISS = 12
+    const SCROLL_UP_REVEAL = 50
     const TOP = 2
     let touchStartY = 0
+
+    const hideReveal = () => {
+      revealLockedRef.current = false
+      scrollUpFromYRef.current = null
+      revealLowestYRef.current = null
+      setRevealVisible(false)
+    }
+
+    const closeHeaderMenus = () => {
+      setUserMenuOpen(false)
+      setPhoneMenuOpen(false)
+      setCategoriesMenuOpen(false)
+    }
 
     const onScroll = () => {
       let y = getScrollY()
@@ -311,33 +397,44 @@ export default function Layout({ children }) {
         y = 0
       }
 
-      const delta = y - lastScrollY.current
+      const prevY = lastScrollY.current
+      const delta = y - prevY
       lastScrollY.current = y
 
       if (y <= TOP) {
-        revealLockedRef.current = false
-        setRevealVisible(false)
+        hideReveal()
+        closeHeaderMenus()
+        return
+      }
+
+      if (revealLockedRef.current) {
+        if (revealLowestYRef.current == null || y < revealLowestYRef.current) {
+          revealLowestYRef.current = y
+        }
+        if (y > revealLowestYRef.current) {
+          hideReveal()
+          closeHeaderMenus()
+          return
+        }
+        setRevealVisible(true)
+        return
       }
 
       if (delta > 0) {
-        if (revealLockedRef.current && delta >= SCROLL_DOWN_DISMISS) {
-          revealLockedRef.current = false
-          setRevealVisible(false)
-        }
-        setUserMenuOpen(false)
-        setPhoneMenuOpen(false)
-        setCategoriesMenuOpen(false)
+        scrollUpFromYRef.current = null
+        closeHeaderMenus()
         return
       }
 
       if (delta < 0) {
-        if (y <= TOP) return
-        if (revealLockedRef.current) {
-          setRevealVisible(true)
-          return
+        if (scrollUpFromYRef.current == null) {
+          scrollUpFromYRef.current = prevY
         }
-        if (!isFlowHeaderBottomVisible()) {
+        const scrolledUp = scrollUpFromYRef.current - y
+        if (scrolledUp >= SCROLL_UP_REVEAL && !isFlowHeaderBottomVisible()) {
           revealLockedRef.current = true
+          revealLowestYRef.current = y
+          scrollUpFromYRef.current = null
           setRevealVisible(true)
         }
       }
@@ -346,6 +443,11 @@ export default function Layout({ children }) {
     const onWheel = (e) => {
       if (getScrollY() <= TOP && e.deltaY < 0) {
         e.preventDefault()
+        return
+      }
+      if (e.deltaY > 0 && revealLockedRef.current) {
+        hideReveal()
+        closeHeaderMenus()
       }
     }
 
@@ -636,88 +738,24 @@ export default function Layout({ children }) {
 
       <main>{children}</main>
 
-      {/* Community banner (image + social row) — shown only on the home page. */}
-      {isHome && (
-      <section className="community-banner">
-        <img
-          src={publicUrl('/sections/Samo-za-dugorocne-klijente.png')}
-          alt="Pridružite se našoj zajednici – Bestsellers, Novi proizvodi, Popusti, Specijalne ponude"
-          className="community-banner-img"
-          loading="lazy"
-          draggable="false"
-        />
-        <div className="community-banner-socials">
-          {siteLinks.instagramUrl ? (
-            <a
-              href={siteLinks.instagramUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="community-social community-social--instagram"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.35">
-                <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-              </svg>
-            </a>
-          ) : (
-            <span className="community-social community-social--instagram is-disabled" aria-label="Instagram (link nije podešen)" aria-disabled="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.35">
-                <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-              </svg>
-            </span>
-          )}
-
-          {siteLinks.tikTokUrl ? (
-            <a
-              href={siteLinks.tikTokUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="community-social community-social--tiktok"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#000">
-                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V9.34a8.16 8.16 0 0 0 4.77 1.52V7.4a4.85 4.85 0 0 1-1.84-.71z" />
-              </svg>
-            </a>
-          ) : (
-            <span className="community-social community-social--tiktok is-disabled" aria-label="TikTok (link nije podešen)" aria-disabled="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#000">
-                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V9.34a8.16 8.16 0 0 0 4.77 1.52V7.4a4.85 4.85 0 0 1-1.84-.71z" />
-              </svg>
-            </span>
-          )}
-
-          {mailHref ? (
-            <a href={mailHref} className="community-social community-social--email" aria-label="Email">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                <polyline points="22,6 12,13 2,6" />
-              </svg>
-            </a>
-          ) : (
-            <span className="community-social community-social--email is-disabled" aria-label="Email (nije podešen)" aria-disabled="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                <polyline points="22,6 12,13 2,6" />
-              </svg>
-            </span>
-          )}
-        </div>
-      </section>
-      )}
+      {/* Community sekcija iznad footera — samo početna */}
+      {isHome && <CommunityBanner />}
 
       {/* Footer */}
       <footer className="site-footer">
         <div className="footer-inner shell">
           <div className="footer-brand">
             <div className="footer-logo">
-              <img src={publicUrl('/logo.png')} alt="Honey Nail Innovations" className="footer-logo-img" />
+              <img src={logoUrl()} alt="Honey Nail Innovations" className="footer-logo-img" />
             </div>
             <p className="footer-copy">
               © {new Date().getFullYear()} Sva prava zadržana.
             </p>
+            <FooterSocials
+              instagramUrl={siteLinks.instagramUrl}
+              tikTokUrl={siteLinks.tikTokUrl}
+              mailHref={mailHref}
+            />
           </div>
 
           <div className="footer-col">

@@ -11,6 +11,7 @@ import {
   resolveDirectImageSrc,
 } from '../lib/imagePreload'
 import ProductCard from '../components/ProductCard'
+import FitOneLineTitle from '../components/FitOneLineTitle'
 import { groupProductsForDisplay } from '../lib/productVariants'
 
 const POP_VISIBLE_MAX = 5
@@ -494,14 +495,15 @@ function ProductCarousel({ products }) {
     const track = trackRef.current
     if (!viewport || !track || N === 0) return
     const gap = parseFloat(getComputedStyle(track).gap || '16')
-    // Širina kartice je UVEK ista kao u shopu.
-    const cardWidth = measureShopCardWidthPx()
-    if (cardWidth <= 0) return
     const vw = viewport.clientWidth
     let visible
+    let cardWidth
+
     if (vw <= 768) {
       // Telefon: jedna kartica, centrirana
       visible = 1
+      cardWidth = measureShopCardWidthPx()
+      if (cardWidth <= 0) return
       const outer = viewport.getBoundingClientRect().width
       const pad = Math.max(0, Math.round((outer - cardWidth) / 2))
       viewport.style.paddingLeft = `${pad}px`
@@ -510,16 +512,34 @@ function ProductCarousel({ products }) {
       viewport.style.marginLeft = ''
       viewport.style.marginRight = ''
     } else {
-      // Desktop: uvek tačno POP_VISIBLE_MAX kartica — bez dela sledeće
+      // Desktop: tačno 5 kartica u vidljivom prostoru (dinamička širina)
       viewport.style.paddingLeft = ''
       viewport.style.paddingRight = ''
       visible = Math.min(N, POP_VISIBLE_MAX)
+
+      viewport.style.width = '100%'
+      viewport.style.maxWidth = '100%'
+      viewport.style.marginLeft = ''
+      viewport.style.marginRight = ''
+      void viewport.offsetWidth
+
+      const wrap = viewport.parentElement
+      let availableWidth = Math.round(viewport.getBoundingClientRect().width)
+      if (availableWidth <= 0 && wrap) {
+        availableWidth = wrap.clientWidth
+      }
+      if (availableWidth <= 0) return
+
+      cardWidth = Math.floor((availableWidth - Math.max(0, visible - 1) * gap) / visible)
+      if (cardWidth <= 0) return
+
       const stripWidth = visible * cardWidth + Math.max(0, visible - 1) * gap
       viewport.style.width = `${stripWidth}px`
       viewport.style.maxWidth = '100%'
       viewport.style.marginLeft = 'auto'
       viewport.style.marginRight = 'auto'
     }
+
     setVisibleSlots(visible)
     viewport.style.setProperty('--pop-card-width', `${cardWidth}px`)
     viewport.style.setProperty('--pop-visible', String(visible))
@@ -538,6 +558,8 @@ function ProductCarousel({ products }) {
     if (!viewport || !track) return () => cancelAnimationFrame(id)
     const ro = new ResizeObserver(() => measureStep())
     ro.observe(viewport)
+    const wrap = viewport.parentElement
+    if (wrap) ro.observe(wrap)
     window.addEventListener('resize', measureStep)
     return () => {
       cancelAnimationFrame(id)
@@ -931,14 +953,23 @@ export default function Home() {
 
       {bestsellersReady && bestsellers.length > 0 && (
         <section className="section-gap pop-section">
-          <div className="shell">
-            <div className="pop-head">
-              <div className="pop-head-row">
-                <span className="pop-head-line" aria-hidden="true" />
-                <h2 className="pop-title">Popularni proizvodi</h2>
-                <span className="pop-head-line" aria-hidden="true" />
-              </div>
+          <div className="pop-head">
+            <div className="pop-head-row">
+              <span className="pop-head-line" aria-hidden="true" />
+              <h2 className="pop-title-wrap">
+                <FitOneLineTitle
+                  as="span"
+                  className="pop-title"
+                  maxRem={1.35}
+                  minRem={0.45}
+                >
+                  Popularni proizvodi
+                </FitOneLineTitle>
+              </h2>
+              <span className="pop-head-line" aria-hidden="true" />
             </div>
+          </div>
+          <div className="shell">
             <ProductCarousel products={bestsellers} />
             <div className="pop-foot">
               <Link to="/shop?bestsellers=1" className="pop-head-link">Vidi sve →</Link>

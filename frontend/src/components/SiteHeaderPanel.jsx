@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { publicUrl } from '../lib/assets'
+import { logoUrl } from '../lib/assets'
 import ViberIcon from './icons/ViberIcon'
 
 /**
@@ -320,7 +320,7 @@ export default function SiteHeaderPanel({
           onClick={onLogoClick}
           tabIndex={tabOff}
         >
-          <img src={publicUrl('/logo.png')} alt="Honey Nail Innovations" className="logo-img" />
+          <img src={logoUrl()} alt="Honey Nail Innovations" className="logo-img" />
         </Link>
 
         <div className="header-home-center">

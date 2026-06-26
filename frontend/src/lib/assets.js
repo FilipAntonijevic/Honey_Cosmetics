@@ -4,6 +4,11 @@ export function publicUrl(path) {
   return `${import.meta.env.BASE_URL}${clean}`
 }
 
+/** Site logo — povećaj verziju posle zamene frontend/public/logo.png (cache bust). */
+export function logoUrl() {
+  return publicUrl('/logo.png?v=2')
+}
+
 /** Product/category images served by the API (/images/...). */
 export function apiImageUrl(path) {
   if (!path) return ''
