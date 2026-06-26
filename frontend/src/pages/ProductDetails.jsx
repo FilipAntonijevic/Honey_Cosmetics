@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../api'
-import ApiImage from '../components/ApiImage'
+import ProductCard from '../components/ProductCard'
 import ProductGallery from '../components/ProductGallery'
 import ProductSizePicker from '../components/ProductSizePicker'
 import { useStore } from '../context/StoreContext'
@@ -45,30 +45,9 @@ function QuickLink({ to, icon, children }) {
   )
 }
 
-function RelatedCard({ product, onAddToCart }) {
-  return (
-    <article className="product-card">
-      <Link to={`/products/${product.id}`} className="product-card-media" tabIndex={-1}>
-        <ApiImage src={product.imageUrl} alt={product.name} loading="lazy" variant="medium" />
-      </Link>
-      <div className="product-card-body">
-        <h3>
-          <Link to={`/products/${product.id}`}>{product.name}</Link>
-        </h3>
-        <strong>{formatProductPrice(product.price)}</strong>
-        <div className="card-actions">
-          <button type="button" onClick={() => onAddToCart(product)}>
-            Dodaj u korpu
-          </button>
-        </div>
-      </div>
-    </article>
-  )
-}
-
 export default function ProductDetails() {
   const { id } = useParams()
-  const { addToCart } = useStore()
+  const { addToCart, toggleWishlist } = useStore()
   const [product, setProduct] = useState(null)
   const [related, setRelated] = useState([])
   const [loading, setLoading] = useState(true)
@@ -275,7 +254,7 @@ export default function ProductDetails() {
             </h2>
             <div className="pd-related-grid product-grid">
               {related.map((p) => (
-                <RelatedCard key={p.id} product={p} onAddToCart={addToCart} />
+                <ProductCard key={p.id} product={p} onToggleWishlist={toggleWishlist} />
               ))}
             </div>
           </section>
