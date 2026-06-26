@@ -63,7 +63,14 @@ public record ProductResponse(
 
 public record BestsellersUpdateRequest(IReadOnlyList<int> ProductIds);
 
-public record ProductQuery(string? Search, int? CategoryId, int? ProductTypeId, string? Sort);
+public record ProductQuery(string? Search, int? CategoryId, int? ProductTypeId, string? Sort, int? Page = null, int PageSize = 12);
+
+public record PagedProductResponse(
+    IReadOnlyList<ProductResponse> Items,
+    int TotalCount,
+    int Page,
+    int PageSize,
+    bool HasMore);
 
 public record AdminCategoryResponse(int Id, string Name, string ImageUrl, int ProductTypeId, string ProductTypeName);
 

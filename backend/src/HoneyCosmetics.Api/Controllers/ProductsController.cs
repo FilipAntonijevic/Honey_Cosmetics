@@ -88,7 +88,26 @@ public class ProductsController(AppDbContext db) : ControllerBase
 
     [AllowAnonymous]
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetAll([FromQuery] ProductQuery query)
+    public async Task<IActionResult> GetAll([FromQuery] ProductQuery query)
+    {
+        var products = BuildProductQuery(query);
+
+        if (query.Page is > 0)
+        {
+            var page = query.Page.Value;
+            var pageSize = Math.Clamp(query.PageSize, 1, 48);
+            return Ok(await GetPagedAsync(products, query, page, pageSize));
+        }
+
+        var result = await products
+            .Include(x => x.AdditionalImages)
+            .ToListAsync();
+
+        result = ApplySort(result, query.Sort);
+        return Ok(await MapManyWithVariantsAsync(result));
+    }
+
+    private IQueryable<Domain.Entities.Product> BuildProductQuery(ProductQuery query)
     {
         var products = db.Products.ActiveProducts().Include(x => x.Category).Include(x => x.ProductType).AsQueryable();
 
@@ -99,33 +118,74 @@ public class ProductsController(AppDbContext db) : ControllerBase
         }
 
         if (query.CategoryId.HasValue)
-        {
             products = products.Where(x => x.CategoryId == query.CategoryId.Value);
-        }
         else if (query.ProductTypeId.HasValue)
-        {
             products = products.Where(x => x.ProductTypeId == query.ProductTypeId.Value);
-        }
 
-        products = query.Sort?.ToLowerInvariant() switch
+        return query.Sort?.ToLowerInvariant() switch
         {
             "price-asc" => products.OrderBy(x => x.Price),
             "price-desc" => products.OrderByDescending(x => x.Price),
-            _ => products
+            _ => products,
         };
+    }
 
-        var result = await products
+    private static List<Domain.Entities.Product> ApplySort(
+        List<Domain.Entities.Product> products,
+        string? sort)
+    {
+        return sort?.ToLowerInvariant() switch
+        {
+            "z-a" => products.OrderByDescending(x => x.Name, ProductNaturalNameComparer.Instance).ToList(),
+            "price-asc" or "price-desc" => products,
+            _ => products.OrderBy(x => x.Name, ProductNaturalNameComparer.Instance).ToList(),
+        };
+    }
+
+    private static List<Domain.Entities.Product> PickDisplayRepresentatives(
+        IReadOnlyList<Domain.Entities.Product> products)
+    {
+        return products
+            .GroupBy(ProductVariantService.ResolveGroupId)
+            .Select(g => ProductVariantService.PickDefaultVariant(g.ToList()))
+            .ToList();
+    }
+
+    private async Task<PagedProductResponse> GetPagedAsync(
+        IQueryable<Domain.Entities.Product> products,
+        ProductQuery query,
+        int page,
+        int pageSize)
+    {
+        var allProducts = await products.ToListAsync();
+        var representatives = ApplySort(PickDisplayRepresentatives(allProducts), query.Sort);
+
+        var totalCount = representatives.Count;
+        var pageReps = representatives
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        if (pageReps.Count == 0)
+        {
+            return new PagedProductResponse([], totalCount, page, pageSize, false);
+        }
+
+        var pageRepIds = pageReps.Select(p => p.Id).ToHashSet();
+        var fullPageProducts = await db.Products
+            .ActiveProducts()
+            .Include(x => x.Category)
+            .Include(x => x.ProductType)
             .Include(x => x.AdditionalImages)
+            .Where(p => pageRepIds.Contains(p.Id))
             .ToListAsync();
 
-        result = query.Sort?.ToLowerInvariant() switch
-        {
-            "z-a" => result.OrderByDescending(x => x.Name, ProductNaturalNameComparer.Instance).ToList(),
-            "price-asc" or "price-desc" => result,
-            _ => result.OrderBy(x => x.Name, ProductNaturalNameComparer.Instance).ToList(),
-        };
+        var orderById = pageReps.Select((p, i) => (p.Id, i)).ToDictionary(x => x.Id, x => x.i);
+        fullPageProducts.Sort((a, b) => orderById[a.Id].CompareTo(orderById[b.Id]));
 
-        return Ok(await MapManyWithVariantsAsync(result));
+        var items = await MapManyWithVariantsAsync(fullPageProducts);
+        var hasMore = page * pageSize < totalCount;
+        return new PagedProductResponse(items, totalCount, page, pageSize, hasMore);
     }
 
     [AllowAnonymous]

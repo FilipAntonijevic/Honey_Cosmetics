@@ -1,5 +1,10 @@
 import axios from 'axios'
-import { apiImageUrl, apiMediumUrl, apiThumbnailUrl, apiVariantUrlLegacy } from './assets'
+import {
+  apiImageUrl,
+  apiMediumUrl,
+  apiThumbnailUrl,
+  apiVariantUrlLegacy,
+} from './assets'
 
 /** Keš blob/http URL-ova — ApiImage i karusel dele iste učitane slike. */
 const cache = new Map()
@@ -8,6 +13,23 @@ export function getPreloadedImage(url) {
   if (!url) return ''
   const key = apiImageUrl(url)
   return cache.get(key) || ''
+}
+
+/** Keširani URL za thumb/medium/full varijantu (brži koraci u ApiImage). */
+export function getCachedVariantUrl(imageUrl, variant) {
+  if (!imageUrl) return ''
+  if (variant === 'full') return getPreloadedImage(imageUrl)
+
+  const webpKey = variant === 'thumb' ? apiThumbnailUrl(imageUrl) : apiMediumUrl(imageUrl)
+  if (webpKey && cache.has(webpKey)) return cache.get(webpKey)
+
+  const legacyKey =
+    variant === 'thumb'
+      ? apiVariantUrlLegacy(imageUrl, 'thumbs')
+      : apiVariantUrlLegacy(imageUrl, 'medium')
+  if (legacyKey && cache.has(legacyKey)) return cache.get(legacyKey)
+
+  return ''
 }
 
 /** URL spreman za <img> — koristi keš posle preloadProductImagesAwait. */
@@ -79,7 +101,6 @@ function preloadVariant(webpKey, legacyKey) {
 function preloadOne(imageUrl, { full = true } = {}) {
   const key = apiImageUrl(imageUrl)
   if (!key) return Promise.resolve()
-  if (cache.has(key)) return Promise.resolve()
 
   const thumbKey = apiThumbnailUrl(imageUrl)
   const thumbLegacy = apiVariantUrlLegacy(imageUrl, 'thumbs')
@@ -87,25 +108,24 @@ function preloadOne(imageUrl, { full = true } = {}) {
   const mediumLegacy = apiVariantUrlLegacy(imageUrl, 'medium')
 
   let chain = Promise.resolve()
-  if (thumbKey || thumbLegacy)
-    chain = chain.then(() => preloadVariant(thumbKey, thumbLegacy))
-  if (mediumKey || mediumLegacy)
-    chain = chain.then(() => preloadVariant(mediumKey, mediumLegacy))
+  if (thumbKey || thumbLegacy) chain = chain.then(() => preloadVariant(thumbKey, thumbLegacy))
+  if (mediumKey || mediumLegacy) chain = chain.then(() => preloadVariant(mediumKey, mediumLegacy))
+
   if (full) {
     chain = chain.then(() => preloadUrlOnce(key))
-  } else {
-    chain = chain.then(async () => {
-      if (!mediumKey && !mediumLegacy) {
-        await preloadUrlOnce(key)
-        return
-      }
-      await preloadVariant(mediumKey, mediumLegacy)
-      const cachedMedium = (mediumKey && cache.get(mediumKey)) || (mediumLegacy && cache.get(mediumLegacy))
-      if (cachedMedium) cache.set(key, cachedMedium)
-    })
+    return chain
   }
 
-  return chain
+  return chain.then(async () => {
+    if (!mediumKey && !mediumLegacy) {
+      await preloadUrlOnce(key)
+      return
+    }
+    await preloadVariant(mediumKey, mediumLegacy)
+    const cachedMedium =
+      (mediumKey && cache.get(mediumKey)) || (mediumLegacy && cache.get(mediumLegacy))
+    if (cachedMedium) cache.set(key, cachedMedium)
+  })
 }
 
 /** Lista/kartice — dovoljna je srednja rezolucija. */
@@ -131,7 +151,7 @@ export function preloadProductImagesAwait(products) {
   return Promise.all(products.map((p) => preloadOne(p?.imageUrl)))
 }
 
-/** Slideshow / direktne slike iz baze — puna rezolucija, bez WebP varijanti. */
+/** Slideshow / direktne slike iz baze — thumb → medium → full. */
 export function resolveDirectImageSrc(imageUrl) {
   return getPreloadedImage(imageUrl) || apiImageUrl(imageUrl) || ''
 }
@@ -140,8 +160,24 @@ export function preloadDirectImagesAwait(imageUrls) {
   if (!Array.isArray(imageUrls) || imageUrls.length === 0) return Promise.resolve()
   return Promise.all(
     imageUrls.map((url) => {
+      if (!url) return Promise.resolve()
+      const storagePath = url.startsWith('/images/') ? url : null
+      if (storagePath) return preloadOne(storagePath, { full: true })
       const key = apiImageUrl(url)
       return key ? preloadUrlOnce(key) : Promise.resolve()
     }),
   )
+}
+
+/** Samo thumb + medium u pozadini (ne blokira prikaz). */
+export function preloadDirectImagesProgressive(imageUrls) {
+  if (!Array.isArray(imageUrls)) return
+  for (const url of imageUrls) {
+    if (!url) continue
+    if (url.startsWith('/images/')) preloadOne(url, { full: true })
+    else {
+      const key = apiImageUrl(url)
+      if (key) preloadUrlOnce(key)
+    }
+  }
 }

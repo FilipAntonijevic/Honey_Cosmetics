@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
@@ -6,6 +6,8 @@ import ProductCard from '../components/ProductCard'
 import { useStore } from '../context/StoreContext'
 import { formatProductTypeDisplay, resolveProductTypeApi } from '../lib/productTypes'
 import { groupProductsForDisplay, pickDefaultVariantProduct } from '../lib/productVariants'
+
+const SHOP_PAGE_SIZE = 12
 
 /** Fallback ID-jevi dok se /product-types ne učita (redosled iz baze). */
 const PRODUCT_TYPE_IDS = {
@@ -106,13 +108,30 @@ function CategoryStrip({ categories, selectedId, onSelect }) {
   )
 }
 
+function parsePagedProducts(data) {
+  if (Array.isArray(data)) {
+    return { items: data, hasMore: false, totalCount: data.length }
+  }
+  const items = Array.isArray(data?.items) ? data.items : []
+  return {
+    items,
+    hasMore: Boolean(data?.hasMore),
+    totalCount: typeof data?.totalCount === 'number' ? data.totalCount : items.length,
+  }
+}
+
 export default function Shop() {
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [productTypes, setProductTypes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [page, setPage] = useState(1)
   const [searchParams, setSearchParams] = useSearchParams()
   const { toggleWishlist } = useStore()
+  const loadMoreRef = useRef(null)
+  const loadingMoreRef = useRef(false)
 
   const searchTerm = (searchParams.get('search') ?? '').trim()
   const isSearchMode = searchTerm.length > 0
@@ -123,7 +142,8 @@ export default function Shop() {
   const resolvedVrstaName = resolveProductTypeApi(vrstaName)
   const categoryIdParam = bestsellersMode || isSearchMode ? null : searchParams.get('categoryId')
 
-  // Učitaj liste vrsta jednom (radi mapiranja name -> id).
+  const usesPagination = !bestsellersMode
+
   useEffect(() => {
     api
       .get('/product-types')
@@ -138,8 +158,6 @@ export default function Shop() {
 
   const selectedTypeId = selectedType?.id ?? (resolvedVrstaName ? PRODUCT_TYPE_IDS[resolvedVrstaName] : null)
 
-  // Učitaj kategorije za izabranu vrstu.
-  /* eslint-disable react-hooks/set-state-in-effect -- fetch dependant on vrsta */
   useEffect(() => {
     if (!selectedType) {
       setCategories([])
@@ -158,9 +176,7 @@ export default function Shop() {
       cancelled = true
     }
   }, [selectedType])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Ukloni categoryId iz URL-a ako ne pripada trenutnoj vrsti (npr. posle promene taba).
   useEffect(() => {
     if (!selectedType || !categoryIdParam || !categories.length) return
     const valid = categories.some((c) => String(c.id) === String(categoryIdParam))
@@ -171,11 +187,32 @@ export default function Shop() {
     }
   }, [selectedType, categoryIdParam, categories, searchParams, setSearchParams])
 
-  // Učitaj proizvode po izabranom filteru.
+  const buildListParams = useCallback(
+    (pageNum) => {
+      const params = {}
+      if (usesPagination) {
+        params.page = pageNum
+        params.pageSize = SHOP_PAGE_SIZE
+      }
+      if (isSearchMode) {
+        params.search = searchTerm
+      } else if (categoryIdParam) {
+        params.categoryId = categoryIdParam
+      } else if (selectedTypeId) {
+        params.productTypeId = selectedTypeId
+      }
+      return params
+    },
+    [usesPagination, isSearchMode, searchTerm, categoryIdParam, selectedTypeId],
+  )
+
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       setLoading(true)
+      setProducts([])
+      setPage(1)
+      setHasMore(false)
       try {
         if (bestsellersMode) {
           const { data } = await api.get('/products/bestsellers')
@@ -183,19 +220,12 @@ export default function Shop() {
           return
         }
 
-        if (isSearchMode) {
-          const { data } = await api.get('/products', { params: { search: searchTerm } })
-          if (!cancelled) setProducts(Array.isArray(data) ? data : [])
-          return
-        }
-
-        const params = {}
-        if (selectedTypeId) {
-          params.productTypeId = selectedTypeId
-        }
-
-        const { data } = await api.get('/products', { params })
-        if (!cancelled) setProducts(Array.isArray(data) ? data : [])
+        const { data } = await api.get('/products', { params: buildListParams(1) })
+        if (cancelled) return
+        const parsed = parsePagedProducts(data)
+        setProducts(parsed.items)
+        setHasMore(parsed.hasMore)
+        setPage(1)
       } catch {
         if (!cancelled) setProducts([])
       } finally {
@@ -206,12 +236,46 @@ export default function Shop() {
     return () => {
       cancelled = true
     }
-  }, [resolvedVrstaName, selectedTypeId, bestsellersMode, isSearchMode, searchTerm])
+  }, [resolvedVrstaName, selectedTypeId, bestsellersMode, isSearchMode, searchTerm, categoryIdParam, buildListParams])
 
-  const filteredProducts = useMemo(() => {
-    if (bestsellersMode || isSearchMode || !categoryIdParam) return products
-    return products.filter((p) => String(p.categoryId) === String(categoryIdParam))
-  }, [products, categoryIdParam, bestsellersMode, isSearchMode])
+  const loadMore = useCallback(async () => {
+    if (!usesPagination || loadingMoreRef.current || !hasMore) return
+    loadingMoreRef.current = true
+    setLoadingMore(true)
+    const nextPage = page + 1
+    try {
+      const { data } = await api.get('/products', { params: buildListParams(nextPage) })
+      const parsed = parsePagedProducts(data)
+      setProducts((prev) => [...prev, ...parsed.items])
+      setHasMore(parsed.hasMore)
+      setPage(nextPage)
+    } catch {
+      setHasMore(false)
+    } finally {
+      loadingMoreRef.current = false
+      setLoadingMore(false)
+    }
+  }, [usesPagination, hasMore, page, buildListParams])
+
+  useEffect(() => {
+    if (!usesPagination || loading || !hasMore) return
+    const node = loadMoreRef.current
+    if (!node) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) loadMore()
+      },
+      { root: null, rootMargin: '320px 0px', threshold: 0 },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [usesPagination, loading, hasMore, loadMore, products.length])
+
+  const displayProducts = useMemo(
+    () => groupProductsForDisplay(products),
+    [products],
+  )
 
   const onSelectCategory = (id) => {
     const next = new URLSearchParams(searchParams)
@@ -240,14 +304,14 @@ export default function Shop() {
     if (loading) {
       return (
         <div className="skeleton-grid">
-          {Array.from({ length: 6 }).map((_, index) => (
+          {Array.from({ length: SHOP_PAGE_SIZE }).map((_, index) => (
             <div key={index} className="skeleton" />
           ))}
         </div>
       )
     }
 
-    if (!filteredProducts.length) {
+    if (!displayProducts.length) {
       const isTypePage = !isSearchMode && !bestsellersMode && Boolean(displayVrstaName)
       const emptyMessage = isSearchMode
         ? `Nema proizvoda čiji naziv sadrži „${searchTerm}".`
@@ -270,20 +334,44 @@ export default function Shop() {
     }
 
     return (
-      <div className="product-grid">
-        {groupProductsForDisplay(filteredProducts).map((product) => {
-          const display = pickDefaultVariantProduct(product, product.variants)
-          return (
-            <ProductCard
-              key={display.variantGroupId ?? display.id}
-              product={display}
-              onToggleWishlist={toggleWishlist}
-            />
-          )
-        })}
-      </div>
+      <>
+        <div className="product-grid">
+          {displayProducts.map((product) => {
+            const display = pickDefaultVariantProduct(product, product.variants)
+            return (
+              <ProductCard
+                key={display.variantGroupId ?? display.id}
+                product={display}
+                onToggleWishlist={toggleWishlist}
+              />
+            )
+          })}
+        </div>
+        {usesPagination && hasMore ? (
+          <div className="shop-load-more" ref={loadMoreRef} aria-hidden="true">
+            {loadingMore ? (
+              <div className="skeleton-grid shop-load-more__skeleton">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="skeleton" />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </>
     )
-  }, [loading, filteredProducts, toggleWishlist, bestsellersMode, isSearchMode, searchTerm, displayVrstaName, categoryIdParam])
+  }, [
+    loading,
+    displayProducts,
+    toggleWishlist,
+    bestsellersMode,
+    isSearchMode,
+    searchTerm,
+    displayVrstaName,
+    usesPagination,
+    hasMore,
+    loadingMore,
+  ])
 
   return (
     <section className="page shop-page">

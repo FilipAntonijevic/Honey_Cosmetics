@@ -2,14 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
-import { publicUrl } from '../lib/assets'
+import { publicUrl, toImageStoragePath } from '../lib/assets'
 import {
-  attachResolvedImageSrc,
-  attachResolvedImageSrcPartial,
-  preloadDirectImagesAwait,
-  preloadProductImagesMediumAwait,
-  resolveDirectImageSrc,
+  preloadDirectImagesProgressive,
+  preloadProductImagesMedium,
 } from '../lib/imagePreload'
+import ApiImage from '../components/ApiImage'
 import ProductCard from '../components/ProductCard'
 import FitOneLineTitle from '../components/FitOneLineTitle'
 import { groupProductsForDisplay } from '../lib/productVariants'
@@ -141,6 +139,22 @@ function useHeroMobile() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
   return mobile
+}
+
+function HeroSlideImage({ src, loading }) {
+  const storagePath = toImageStoragePath(src)
+  if (storagePath.startsWith('/images/')) {
+    return (
+      <ApiImage
+        src={storagePath}
+        alt=""
+        variant="full"
+        loading={loading}
+        className="hero-slide-img"
+      />
+    )
+  }
+  return <img src={src} alt="" loading={loading} draggable="false" />
 }
 
 function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
@@ -406,7 +420,7 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
         >
           {trackSlides.map((src, i) => (
             <div className="hero-slide" key={`${src}-${i}`} aria-hidden={i !== index}>
-              <img src={src} alt="" loading={i === 1 ? 'eager' : 'lazy'} draggable="false" />
+              <HeroSlideImage src={src} loading={i === 1 ? 'eager' : 'lazy'} />
             </div>
           ))}
         </div>
@@ -888,15 +902,14 @@ export default function Home() {
           .flatMap((s) => [s.imageUrl, s.mobileImageUrl || s.imageUrl])
           .filter(Boolean)
         if (paths.length === 0) return
-        await preloadDirectImagesAwait(paths)
-        if (cancelled) return
         const mapped = items
           .map((s) => ({
-            desktop: resolveDirectImageSrc(s.imageUrl),
-            mobile: resolveDirectImageSrc(s.mobileImageUrl || s.imageUrl),
+            desktop: s.imageUrl,
+            mobile: s.mobileImageUrl || s.imageUrl,
           }))
           .filter((s) => s.desktop)
         if (mapped.length > 0) setHeroSlides(mapped)
+        preloadDirectImagesProgressive(paths)
       })
       .catch(() => {})
     return () => {
@@ -923,16 +936,13 @@ export default function Home() {
         }
 
         const firstBatch = list.slice(0, POP_VISIBLE_MAX)
-        await preloadProductImagesMediumAwait(firstBatch)
         if (cancelled) return
 
-        setBestsellers(attachResolvedImageSrcPartial(groupProductsForDisplay(list), POP_VISIBLE_MAX))
+        setBestsellers(groupProductsForDisplay(list))
         setBestsellersReady(true)
-
+        preloadProductImagesMedium(firstBatch)
         if (list.length > POP_VISIBLE_MAX) {
-          preloadProductImagesMediumAwait(list.slice(POP_VISIBLE_MAX)).then(() => {
-            if (!cancelled) setBestsellers(attachResolvedImageSrc(groupProductsForDisplay(list)))
-          })
+          preloadProductImagesMedium(list.slice(POP_VISIBLE_MAX))
         }
       } catch {
         if (!cancelled) {

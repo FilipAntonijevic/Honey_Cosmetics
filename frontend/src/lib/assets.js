@@ -46,6 +46,24 @@ export function apiVariantUrlLegacy(path, folder) {
   return apiImageUrl(`/images/${folder}/${fileName}`)
 }
 
+/** Putanja u skladištu (/images/...) iz API putanje ili punog URL-a. */
+export function toImageStoragePath(path) {
+  if (!path) return ''
+  const trimmed = String(path).trim()
+  if (trimmed.startsWith('/images/')) return trimmed
+
+  const api = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  if (api && /^https?:\/\//i.test(trimmed)) {
+    const root = api.replace(/\/api\/?$/i, '')
+    if (trimmed.startsWith(root)) {
+      const rest = trimmed.slice(root.length)
+      return rest.startsWith('/') ? rest : `/${rest}`
+    }
+  }
+
+  return ''
+}
+
 /** Mala verzija (~64px) — blur placeholder. */
 export function apiThumbnailUrl(path) {
   return apiVariantUrl(path, 'thumbs')

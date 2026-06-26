@@ -6,7 +6,7 @@ import {
   apiThumbnailUrl,
   apiVariantUrlLegacy,
 } from '../lib/assets'
-import { getPreloadedImage } from '../lib/imagePreload'
+import { getCachedVariantUrl } from '../lib/imagePreload'
 
 async function fetchBlobUrl(url) {
   const { data } = await axios.get(url, {
@@ -49,6 +49,15 @@ async function loadVariant(webpUrl, legacyUrl, useBlob) {
   throw new Error('variant unavailable')
 }
 
+async function loadVariantStep(src, variant, webpUrl, legacyUrl, useBlob) {
+  const cached = getCachedVariantUrl(src, variant)
+  if (cached) {
+    await loadImageElement(cached)
+    return cached
+  }
+  return loadVariant(webpUrl, legacyUrl, useBlob)
+}
+
 /**
  * Progresivno: thumb (blur) → medium → full.
  * variant="medium" — za kartice u prodavnici (ne učitava original).
@@ -86,13 +95,6 @@ export default function ApiImage({
     setDisplaySrc('')
     setFullReady(false)
 
-    const cached = getPreloadedImage(src)
-    if (cached) {
-      setDisplaySrc(cached)
-      setFullReady(true)
-      return
-    }
-
     let cancelled = false
     let blobUrls = []
 
@@ -102,39 +104,28 @@ export default function ApiImage({
     }
 
     const run = async () => {
-      let hasDisplay = false
-
       try {
         try {
-          const thumb = await loadVariant(thumbDirect, thumbLegacy, useBlob)
+          const thumb = await loadVariantStep(src, 'thumb', thumbDirect, thumbLegacy, useBlob)
           if (!cancelled) setThumbSrc(trackBlob(thumb))
         } catch {
           /* thumb još nije generisan */
         }
 
         try {
-          const medium = await loadVariant(mediumDirect, mediumLegacy, useBlob)
+          const medium = await loadVariantStep(src, 'medium', mediumDirect, mediumLegacy, useBlob)
           if (cancelled) return
           setDisplaySrc(trackBlob(medium))
-          hasDisplay = true
-          if (!wantFull) setFullReady(true)
-        } catch {
-          /* medium još nije generisan — fallback na original ispod */
-        }
-
-        if (!wantFull) {
-          if (!hasDisplay && !cancelled) {
-            const full = await resolveUrl(fullDirect, useBlob)
-            await loadImageElement(full)
-            if (!cancelled) {
-              setDisplaySrc(trackBlob(full))
-              setFullReady(true)
-            }
+          if (!wantFull) {
+            setFullReady(true)
+            return
           }
-          return
+        } catch {
+          /* medium još nije generisan */
         }
 
-        const full = await resolveUrl(fullDirect, useBlob)
+        const fullCached = getCachedVariantUrl(src, 'full')
+        const full = fullCached || (await resolveUrl(fullDirect, useBlob))
         await loadImageElement(full)
         if (cancelled) return
         setDisplaySrc(trackBlob(full))
@@ -160,7 +151,14 @@ export default function ApiImage({
     return <span className={`api-image api-image--pending${className ? ` ${className}` : ''}`} style={style} aria-hidden />
   }
 
-  const wrapClass = ['api-image', fullReady ? 'api-image--ready' : '', className].filter(Boolean).join(' ')
+  const wrapClass = [
+    'api-image',
+    fullReady ? 'api-image--ready' : '',
+    !thumbSrc ? 'api-image--no-thumb' : '',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <span className={wrapClass} style={style}>
@@ -171,6 +169,7 @@ export default function ApiImage({
           aria-hidden
           className="api-image__placeholder"
           loading={loading}
+          decoding="async"
         />
       ) : null}
       {displaySrc ? (
@@ -178,7 +177,6 @@ export default function ApiImage({
           src={displaySrc}
           alt={alt}
           className={['api-image__full', imgClassName].filter(Boolean).join(' ')}
-          style={style}
           loading={loading}
           decoding="async"
         />
