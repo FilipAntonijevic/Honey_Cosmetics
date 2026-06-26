@@ -17,8 +17,10 @@ export default function Wishlist() {
   }, [])
 
   const items = useMemo(() => {
-    if (!catalogById) return wishlist
-    return wishlist.map((item) => {
+    if (!catalogById) return []
+    return wishlist
+      .filter((item) => catalogById.has(item.id))
+      .map((item) => {
       const p = catalogById.get(item.id)
       if (!p) return item
       return {
@@ -33,10 +35,12 @@ export default function Wishlist() {
     })
   }, [wishlist, catalogById])
 
+  const showEmpty = catalogById ? items.length === 0 : wishlist.length === 0
+
   return (
     <section className="page shell">
       <h1>Wishlist</h1>
-      {!wishlist.length ? (
+      {showEmpty ? (
         <div className="wishlist-row">
           <p className="wishlist-empty">Wishlist je prazna.</p>
           <Link className="wishlist-pick-btn" to="/shop">izaberi proizvode</Link>

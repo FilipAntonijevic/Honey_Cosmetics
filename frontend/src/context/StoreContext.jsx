@@ -175,11 +175,12 @@ export function StoreProvider({ children }) {
           setToast('Sesija je istekla. Prijavite se ponovo.')
         }
       } else {
-        // Guest: remove cart items that no longer exist in the DB
+        // Guest: ukloni iz korpe i wishlist-e proizvode koji više ne postoje
         try {
           const { data: products } = await api.get('/products')
           const validIds = new Set(products.map(p => p.id))
           setCart(prev => prev.filter(item => validIds.has(item.id)))
+          setWishlist(prev => prev.filter(item => validIds.has(item.id)))
         } catch {}
       }
       setInitializing(false)
