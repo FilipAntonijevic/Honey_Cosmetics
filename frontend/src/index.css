@@ -3847,6 +3847,7 @@ body.is-adm-modal-open {
   outline: none;
   user-select: none;
   aspect-ratio: 200 / 61.96;
+  border-radius: 12px;
 }
 .hero-track {
   display: flex;
@@ -3904,16 +3905,23 @@ body.is-adm-modal-open {
 .hero-arrow svg { display: block; }
 .hero-arrow:hover {
   color: #8B6B47;
-  transform: translateY(-50%);
   opacity: 1;
+}
+.hero-arrow.left:hover {
+  transform: translate(-6px, -50%);
+}
+.hero-arrow.right:hover {
+  transform: translate(6px, -50%);
 }
 .hero-arrow:focus { outline: none; }
 .hero-arrow:focus-visible { outline: 2px solid #8B6B47; outline-offset: 3px; border-radius: 4px; }
 .hero-arrow.left {
-  left: max(0.2rem, env(safe-area-inset-left, 0px));
+  left: max(0px, env(safe-area-inset-left, 0px));
+  transform: translate(-6px, -50%);
 }
 .hero-arrow.right {
-  right: max(0.2rem, env(safe-area-inset-right, 0px));
+  right: max(0px, env(safe-area-inset-right, 0px));
+  transform: translate(6px, -50%);
 }
 
 .hero-dots {
@@ -3943,8 +3951,16 @@ body.is-adm-modal-open {
 
 @media (max-width: 900px) {
   .hero-arrow { width: 2.2rem; height: 2.2rem; }
-  .hero-arrow.left { left: max(0.05rem, env(safe-area-inset-left, 0px)); }
-  .hero-arrow.right { right: max(0.05rem, env(safe-area-inset-right, 0px)); }
+  .hero-arrow.left {
+    left: max(0px, env(safe-area-inset-left, 0px));
+    transform: translate(-5px, -50%);
+  }
+  .hero-arrow.right {
+    right: max(0px, env(safe-area-inset-right, 0px));
+    transform: translate(5px, -50%);
+  }
+  .hero-arrow.left:hover { transform: translate(-5px, -50%); }
+  .hero-arrow.right:hover { transform: translate(5px, -50%); }
 }
 
 @media (max-width: 768px) {
