@@ -3842,7 +3842,7 @@ body.is-adm-modal-open {
   outline: none;
   user-select: none;
   aspect-ratio: 200 / 61.96;
-  border-radius: 12px;
+  border-radius: 20px;
 }
 .hero-track {
   display: flex;
