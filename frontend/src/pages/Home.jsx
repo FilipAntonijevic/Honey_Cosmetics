@@ -506,11 +506,19 @@ function ProductCarousel({ products }) {
       const pad = Math.max(0, Math.round((outer - cardWidth) / 2))
       viewport.style.paddingLeft = `${pad}px`
       viewport.style.paddingRight = `${pad}px`
+      viewport.style.width = ''
+      viewport.style.marginLeft = ''
+      viewport.style.marginRight = ''
     } else {
-      // Desktop: koliko shop-kartica stane u red
+      // Desktop: uvek tačno POP_VISIBLE_MAX kartica — bez dela sledeće
       viewport.style.paddingLeft = ''
       viewport.style.paddingRight = ''
-      visible = Math.max(1, Math.min(N, Math.floor((vw + gap) / (cardWidth + gap))))
+      visible = Math.min(N, POP_VISIBLE_MAX)
+      const stripWidth = visible * cardWidth + Math.max(0, visible - 1) * gap
+      viewport.style.width = `${stripWidth}px`
+      viewport.style.maxWidth = '100%'
+      viewport.style.marginLeft = 'auto'
+      viewport.style.marginRight = 'auto'
     }
     setVisibleSlots(visible)
     viewport.style.setProperty('--pop-card-width', `${cardWidth}px`)
