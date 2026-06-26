@@ -99,7 +99,7 @@ public static class ProductOptionsService
             }
 
             // Zajednička polja proizvoda (sa anchor-a).
-            row.Name = anchor.Name;
+            var baseName = ProductVariantService.StripVariantFromName(anchor.Name);
             row.Description = anchor.Description;
             row.ImageUrl = anchor.ImageUrl;
             row.ProductTypeId = anchor.ProductTypeId;
@@ -107,12 +107,24 @@ public static class ProductOptionsService
 
             // Polja specifična za opciju.
             row.Price = o.Price;
-            row.VariantLabel = o.Label;
-            row.IsDefaultVariant = o.IsDefault;
-            row.VariantSortOrder = o.SortOrder > 0
-                ? o.SortOrder
-                : ProductVariantService.VariantSortKey(o.Label);
-            row.VariantGroupId = single ? null : groupId;
+            if (single)
+            {
+                row.Name = $"{baseName} {o.Label}".Trim();
+                row.VariantLabel = null;
+                row.VariantGroupId = null;
+                row.IsDefaultVariant = false;
+                row.VariantSortOrder = 0;
+            }
+            else
+            {
+                row.Name = baseName;
+                row.VariantLabel = o.Label;
+                row.IsDefaultVariant = o.IsDefault;
+                row.VariantSortOrder = o.SortOrder > 0
+                    ? o.SortOrder
+                    : ProductVariantService.VariantSortKey(o.Label);
+                row.VariantGroupId = groupId;
+            }
 
             resultRows.Add(row);
             if (o.IsDefault)

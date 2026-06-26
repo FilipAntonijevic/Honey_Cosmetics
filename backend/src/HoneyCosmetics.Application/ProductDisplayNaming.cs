@@ -21,8 +21,16 @@ public static partial class ProductDisplayNaming
         return trimmed[..match.Index].TrimEnd(' ', '-', '–', '(');
     }
 
-    public static string GetDisplayName(string name, string? variantLabel = null) =>
-        StripVariantFromName(name);
+    public static string GetDisplayName(string name, string? variantLabel = null)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return string.Empty;
+
+        if (string.IsNullOrWhiteSpace(variantLabel))
+            return name.Trim();
+
+        return StripVariantFromName(name);
+    }
 
     public static string GetDisplayName(Product product) =>
         GetDisplayName(product.Name, product.VariantLabel);

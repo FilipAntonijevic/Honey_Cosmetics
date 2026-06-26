@@ -9,7 +9,10 @@ export function stripVariantFromName(name) {
 }
 
 export function getProductDisplayName(item) {
-  return stripVariantFromName(item?.productName ?? item?.name ?? '')
+  const raw = String(item?.productName ?? item?.name ?? '').trim()
+  const label = getVariantLabel(item)
+  if (!label) return raw
+  return stripVariantFromName(raw)
 }
 
 export function getVariantLabel(item) {

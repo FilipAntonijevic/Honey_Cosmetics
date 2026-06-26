@@ -60,8 +60,11 @@ public static partial class ProductVariantService
 
     public static void NormalizeProductNaming(Product product)
     {
+        if (string.IsNullOrWhiteSpace(product.VariantLabel))
+            return;
+
         var extracted = TryExtractVariantLabel(product.Name);
-        if (string.IsNullOrWhiteSpace(product.VariantLabel) && extracted is not null)
+        if (extracted is not null)
             product.VariantLabel = extracted;
 
         product.VariantLabel = NormalizeVariantLabel(product.VariantLabel);
