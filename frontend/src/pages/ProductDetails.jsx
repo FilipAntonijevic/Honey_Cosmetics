@@ -7,10 +7,7 @@ import ProductSizePicker from '../components/ProductSizePicker'
 import { useStore } from '../context/StoreContext'
 import { getDefaultVariant, getVariantOptions } from '../lib/productVariants'
 import { clampCartQuantity, isInStock } from '../utils/stock'
-
-function formatPrice(value) {
-  return `${Number(value).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} RSD`
-}
+import { formatProductPrice } from '../utils/price'
 
 function DescriptionBlock({ text }) {
   if (!text?.trim()) return null
@@ -58,7 +55,7 @@ function RelatedCard({ product, onAddToCart }) {
         <h3>
           <Link to={`/products/${product.id}`}>{product.name}</Link>
         </h3>
-        <strong>{formatPrice(product.price)}</strong>
+        <strong>{formatProductPrice(product.price)}</strong>
         <div className="card-actions">
           <button type="button" onClick={() => onAddToCart(product)}>
             Dodaj u korpu
@@ -177,7 +174,7 @@ export default function ProductDetails() {
         <div className="pd-hero">
           <div className="pd-info">
             <h1 className="pd-title">{product.name}</h1>
-            <p className="pd-price">{formatPrice(effective?.price ?? product.price)}</p>
+            <p className="pd-price">{formatProductPrice(effective?.price ?? product.price)}</p>
 
             <ProductSizePicker
               variants={product.variants}

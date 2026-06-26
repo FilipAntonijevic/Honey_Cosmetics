@@ -274,6 +274,10 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   color: inherit;
   text-decoration: none;
 }
+.product-card-media-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
 .product-card-media .api-image,
 .product-card > .api-image {
   width: 100%;
@@ -348,7 +352,8 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   display: flex;
   flex-direction: column;
   gap: 0.12rem;
-  background: linear-gradient(180deg, #f6efe7 0%, #ebe3d8 100%);
+  --product-card-body-bg: #f6efe7;
+  background: linear-gradient(180deg, var(--product-card-body-bg) 0%, #ebe3d8 100%);
   padding: 0.45rem 0.6rem 0.5rem;
   margin-top: 0;
   min-height: 0;
@@ -386,41 +391,44 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 }
 .product-card button:not(.product-card-action) { font-size: 0.65rem; border-radius: 10px; padding: 0.55rem 0.85rem; }
 .product-card-actions {
-  --pca-heart-size: 1.65rem;
-  --pca-view-width: calc(var(--pca-heart-size) * 2.5 * 1.1);
-  --pca-view-height: calc(var(--pca-heart-size) * 1.1);
   display: flex;
   flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.3rem;
+  align-items: stretch;
+  margin-top: 0.35rem;
   padding-top: 0.1rem;
   flex-shrink: 0;
+  width: 100%;
 }
 .product-card-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e0d4c8;
+  border: none;
   padding: 0;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
   text-decoration: none;
+  font-family: inherit;
 }
 .product-card-action--wishlist {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 3;
   width: auto;
   height: auto;
-  min-width: var(--pca-heart-size);
-  min-height: var(--pca-heart-size);
+  min-width: 0;
+  min-height: 0;
   border: none;
   border-radius: 0;
   background: transparent;
   color: #131313;
-  padding: 0;
+  padding: 0.15rem;
+  filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.85));
 }
 .product-card-heart-icon {
+  --pca-heart-size: 1.4rem;
   width: var(--pca-heart-size);
   height: var(--pca-heart-size);
   display: block;
@@ -432,19 +440,25 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   opacity: 0.72;
 }
 .product-card-action--view {
-  width: var(--pca-view-width);
-  min-width: var(--pca-view-width);
-  height: var(--pca-view-height);
-  padding: 0;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 1.85rem;
+  padding: 0.42rem 0.75rem;
   border-radius: 999px;
-  background: var(--beige);
-  border-color: #d4c4ad;
-  color: #6b4f38;
+  background: var(--category-strip-fill);
+  border: none;
+  color: var(--product-card-body-bg);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: lowercase;
+  white-space: nowrap;
 }
 .product-card-action--view:hover {
-  background: #dfd0bc;
-  border-color: #c4ad94;
-  color: #8b6b47;
+  background: #7a5f3f;
+  color: var(--product-card-body-bg);
 }
 .product-card-action--wishlist.is-active {
   background: transparent;
@@ -1424,29 +1438,23 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
     padding-top: 0.05rem;
   }
   .product-card-actions {
-    --pca-heart-size: 1.05rem;
-    --pca-view-width: auto;
     width: 100%;
     min-width: 0;
-    gap: 0.28rem;
-    margin-top: 0.12rem;
+    margin-top: 0.2rem;
     padding-top: 0;
   }
+  .product-card-heart-icon {
+    --pca-heart-size: 0.9rem;
+  }
   .product-card-action--wishlist {
-    min-width: var(--pca-heart-size);
-    min-height: var(--pca-heart-size);
-    flex: 0 0 var(--pca-heart-size);
+    top: 0.3rem;
+    right: 0.3rem;
+    padding: 0.1rem;
   }
   .product-card-action--view {
-    flex: 1 1 0;
-    width: auto;
-    min-width: 0;
-    max-width: calc(100% - var(--pca-heart-size) - 0.28rem);
-    height: calc(var(--pca-heart-size) * 1.05);
-  }
-  .product-card-action--view svg {
-    width: 14px;
-    height: 10px;
+    min-height: 1.55rem;
+    padding: 0.32rem 0.55rem;
+    font-size: 0.62rem;
   }
 }
 
