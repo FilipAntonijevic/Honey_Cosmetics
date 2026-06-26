@@ -930,9 +930,11 @@ export default function Home() {
                 <h2 className="pop-title">Popularni proizvodi</h2>
                 <span className="pop-head-line" aria-hidden="true" />
               </div>
-              <Link to="/shop?bestsellers=1" className="pop-head-link">Vidi sve →</Link>
             </div>
             <ProductCarousel products={bestsellers} />
+            <div className="pop-foot">
+              <Link to="/shop?bestsellers=1" className="pop-head-link">Vidi sve →</Link>
+            </div>
           </div>
         </section>
       )}
