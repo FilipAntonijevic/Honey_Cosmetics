@@ -13,6 +13,7 @@ import FitOneLineTitle from '../components/FitOneLineTitle'
 import { groupProductsForDisplay } from '../lib/productVariants'
 
 const POP_VISIBLE_MAX = 5
+const DESKTOP_CARD_SCALE = 0.9
 
 // Izmeri tačnu širinu shop kartice rekonstruišući shop kontekst (.shell > .product-grid),
 // jer --shop-card-width koristi 100% koji zavisi od kontejnera.
@@ -516,6 +517,7 @@ function ProductCarousel({ products }) {
     if (vw <= 768) {
       // Telefon: jedna kartica, centrirana
       visible = 1
+      track.style.gap = ''
       cardWidth = measureShopCardWidthPx()
       if (cardWidth <= 0) return
       const outer = viewport.getBoundingClientRect().width
@@ -544,11 +546,17 @@ function ProductCarousel({ products }) {
       }
       if (availableWidth <= 0) return
 
-      cardWidth = Math.floor((availableWidth - Math.max(0, visible - 1) * gap) / visible)
+      const baseCardWidth = (availableWidth - Math.max(0, visible - 1) * gap) / visible
+      cardWidth = Math.floor(baseCardWidth * DESKTOP_CARD_SCALE)
       if (cardWidth <= 0) return
 
-      const stripWidth = visible * cardWidth + Math.max(0, visible - 1) * gap
-      viewport.style.width = `${stripWidth}px`
+      const spreadGap =
+        visible > 1
+          ? (availableWidth - visible * cardWidth) / (visible - 1)
+          : gap
+      track.style.gap = `${spreadGap}px`
+
+      viewport.style.width = `${availableWidth}px`
       viewport.style.maxWidth = '100%'
       viewport.style.marginLeft = 'auto'
       viewport.style.marginRight = 'auto'

@@ -105,6 +105,33 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   main {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+
+  /* Popup header (reveal) — kompaktniji od flow headera na vrhu stranice */
+  .site-header-panel--reveal .main-header .logo-img {
+    height: calc(114px * 0.95 * 0.8);
+  }
+
+  .site-header-panel--reveal .search {
+    padding-top: calc(0.65rem * 0.56 * 0.9);
+    padding-bottom: calc(0.65rem * 0.56 * 0.9);
+  }
+}
+
+@media (max-width: 720px) {
+  .site-header-panel--reveal .main-header .logo-img {
+    height: calc(94px * 0.95 * 0.8);
+  }
+}
+
+@media (min-width: 769px) {
+  .site-header-panel--reveal .logo-img {
+    height: calc(114px * 0.8);
+  }
+
+  .site-header-panel--reveal .search {
+    padding-top: calc(0.65rem * 0.9);
+    padding-bottom: calc(0.65rem * 0.9);
+  }
 }
 /* header classes defined in HEADER section below */
 
@@ -200,11 +227,65 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   margin-top: 1rem;
 }
 @media (min-width: 769px) {
+  :root {
+    --shop-card-desktop-scale: 0.9;
+    --shop-grid-gap-base: 0.6rem;
+    --shop-card-width: min(
+      calc(var(--shop-card-base) * 1.15 * var(--shop-card-desktop-scale)),
+      calc((100% - var(--shop-grid-gap)) / 2 * 0.9 * var(--shop-card-desktop-scale))
+    );
+  }
+
   .shop-page .product-grid,
   .shop-page .skeleton-grid,
   .wishlist-grid.product-grid,
   .pd-related-grid.product-grid {
-    --shop-card-width: calc((100% - 3 * var(--shop-grid-gap)) / 4);
+    --shop-card-width: calc((100% - 3 * var(--shop-grid-gap-base)) / 4 * var(--shop-card-desktop-scale));
+    --shop-grid-gap: calc((100% - 4 * var(--shop-card-width)) / 3);
+    justify-content: flex-start;
+  }
+
+  .shop-page .skeleton-grid {
+    gap: var(--shop-grid-gap);
+  }
+
+  .product-card {
+    font-size: calc(0.733rem * var(--shop-card-desktop-scale));
+    border-radius: calc(14px * var(--shop-card-desktop-scale));
+  }
+
+  .product-card-body {
+    padding: calc(0.32rem * var(--shop-card-desktop-scale)) calc(0.4rem * var(--shop-card-desktop-scale)) calc(0.6rem * var(--shop-card-desktop-scale));
+  }
+
+  .product-card-body h3 {
+    font-size: calc(0.86rem * var(--shop-card-desktop-scale));
+  }
+
+  .product-card-body p {
+    font-size: calc(0.62rem * var(--shop-card-desktop-scale));
+  }
+
+  .product-card-body strong {
+    font-size: calc(0.82rem * var(--shop-card-desktop-scale));
+    margin-top: calc(0.14rem * var(--shop-card-desktop-scale));
+  }
+
+  .product-card-actions {
+    margin-top: calc(0.34rem * var(--shop-card-desktop-scale));
+  }
+
+  .product-card-action--view {
+    min-height: calc(1.55rem * var(--shop-card-desktop-scale));
+    padding: calc(0.38rem * var(--shop-card-desktop-scale)) calc(0.45rem * var(--shop-card-desktop-scale));
+  }
+
+  .product-card-heart-icon {
+    --pca-heart-size: calc(0.9rem * var(--shop-card-desktop-scale));
+  }
+
+  .skeleton {
+    height: calc(260px * var(--shop-card-desktop-scale));
   }
 }
 .shop-empty {
@@ -491,7 +572,7 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   background: var(--category-strip-fill);
   border: none;
   color: var(--product-card-body-bg);
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -1449,8 +1530,9 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 }
 
 @media (min-width: 769px) {
-  :root {
-    --shop-card-width: min(calc(var(--shop-card-base) * 1.15), calc((100% - var(--shop-grid-gap)) / 2 * 0.9));
+  .site-header-panel--reveal .search {
+    padding-top: calc(0.65rem * 0.9);
+    padding-bottom: calc(0.65rem * 0.9);
   }
 }
 
