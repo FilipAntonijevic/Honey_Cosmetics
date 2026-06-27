@@ -71,7 +71,7 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 /* Glavni header — u toku stranice, skroluje se prirodno */
 .site-header-panel--flow {
   position: relative;
-  z-index: 1;
+  z-index: var(--z-sticky-header);
   background: #fff;
   box-shadow: 0 1px 0 #e8dcd0;
 }
@@ -578,9 +578,9 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   min-height: 1.55rem;
   padding: 0.38rem 0.45rem;
   border-radius: 999px;
-  background: var(--category-strip-fill);
-  border: none;
-  color: var(--product-card-body-bg);
+  background: #fdf9f5;
+  border: 1px solid var(--category-strip-fill);
+  color: var(--category-strip-fill);
   font-weight: 400;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -609,8 +609,9 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   text-transform: inherit;
 }
 .product-card-action--view:hover {
-  background: #7a5f3f;
-  color: var(--product-card-body-bg);
+  background: #f6efe7;
+  border-color: #7a5f3f;
+  color: #7a5f3f;
 }
 .product-card-action--wishlist.is-active {
   background: transparent;
