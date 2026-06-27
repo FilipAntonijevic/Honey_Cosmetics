@@ -13,7 +13,9 @@ import FitOneLineTitle from '../components/FitOneLineTitle'
 import { groupProductsForDisplay } from '../lib/productVariants'
 
 const POP_VISIBLE_MAX = 5
-const DESKTOP_CARD_SCALE = 0.9
+const DESKTOP_CARD_SCALE = 0.945
+const POP_DESKTOP_GAP_PX = 10
+const POP_MIN_VIEWPORT_PX = 320
 
 // Izmeri tačnu širinu shop kartice rekonstruišući shop kontekst (.shell > .product-grid),
 // jer --shop-card-width koristi 100% koji zavisi od kontejnera.
@@ -509,15 +511,18 @@ function ProductCarousel({ products }) {
     const viewport = viewportRef.current
     const track = trackRef.current
     if (!viewport || !track || N === 0) return
-    const gap = parseFloat(getComputedStyle(track).gap || '16')
+
     const vw = viewport.clientWidth
     let visible
     let cardWidth
+    let stepGap
 
     if (vw <= 768) {
       // Telefon: jedna kartica, centrirana
       visible = 1
       track.style.gap = ''
+      const gap = parseFloat(getComputedStyle(track).gap || '16') || 16
+      stepGap = gap
       cardWidth = measureShopCardWidthPx()
       if (cardWidth <= 0) return
       const outer = viewport.getBoundingClientRect().width
@@ -533,6 +538,8 @@ function ProductCarousel({ products }) {
       viewport.style.paddingRight = ''
       visible = Math.min(N, POP_VISIBLE_MAX)
 
+      // Uvek računaj iz baznog razmaka — ne čitaj prethodni spreadGap sa trake.
+      track.style.gap = ''
       viewport.style.width = '100%'
       viewport.style.maxWidth = '100%'
       viewport.style.marginLeft = ''
@@ -541,20 +548,25 @@ function ProductCarousel({ products }) {
 
       const wrap = viewport.parentElement
       let availableWidth = Math.round(viewport.getBoundingClientRect().width)
-      if (availableWidth <= 0 && wrap) {
-        availableWidth = wrap.clientWidth
+      if (availableWidth < POP_MIN_VIEWPORT_PX && wrap) {
+        availableWidth = Math.round(wrap.getBoundingClientRect().width)
       }
-      if (availableWidth <= 0) return
+      if (availableWidth < POP_MIN_VIEWPORT_PX) {
+        requestAnimationFrame(measureStep)
+        return
+      }
 
-      const baseCardWidth = (availableWidth - Math.max(0, visible - 1) * gap) / visible
+      const layoutGap = POP_DESKTOP_GAP_PX
+      const baseCardWidth =
+        (availableWidth - Math.max(0, visible - 1) * layoutGap) / visible
       cardWidth = Math.floor(baseCardWidth * DESKTOP_CARD_SCALE)
       if (cardWidth <= 0) return
 
-      const spreadGap =
+      stepGap =
         visible > 1
           ? (availableWidth - visible * cardWidth) / (visible - 1)
-          : gap
-      track.style.gap = `${spreadGap}px`
+          : layoutGap
+      track.style.gap = `${stepGap}px`
 
       viewport.style.width = `${availableWidth}px`
       viewport.style.maxWidth = '100%'
@@ -565,7 +577,7 @@ function ProductCarousel({ products }) {
     setVisibleSlots(visible)
     viewport.style.setProperty('--pop-card-width', `${cardWidth}px`)
     viewport.style.setProperty('--pop-visible', String(visible))
-    const step = cardWidth + gap
+    const step = cardWidth + stepGap
     stepRef.current = step
     setStepPx(step)
     setReady(true)

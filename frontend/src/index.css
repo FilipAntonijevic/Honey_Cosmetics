@@ -18,7 +18,8 @@
   /* Jedna kartica svuda: mobilna širina + isti odnos slike (151×196) */
   --shop-card-base: 6.35rem;
   --shop-grid-gap: 0.6rem;
-  --shop-card-width: min(var(--shop-card-base), calc((100% - var(--shop-grid-gap)) / 2 * 0.9));
+  --shop-grid-row-gap: 1.25rem;
+  --shop-card-width: min(var(--shop-card-base), calc((100% - var(--shop-grid-gap)) / 2 * 0.945));
   --product-card-media-aspect: 151 / 196;
 }
 
@@ -106,29 +107,29 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  /* Popup header (reveal) — kompaktniji od flow headera na vrhu stranice */
-  .site-header-panel--reveal .main-header .logo-img {
+  /* Gornji header (flow + reveal popup) — logo −20%, search bar −10% visine */
+  .site-header-panel .main-header .logo-img {
     height: calc(114px * 0.95 * 0.8);
   }
 
-  .site-header-panel--reveal .search {
+  .site-header-panel .search {
     padding-top: calc(0.65rem * 0.56 * 0.9);
     padding-bottom: calc(0.65rem * 0.56 * 0.9);
   }
 }
 
 @media (max-width: 720px) {
-  .site-header-panel--reveal .main-header .logo-img {
+  .site-header-panel .main-header .logo-img {
     height: calc(94px * 0.95 * 0.8);
   }
 }
 
 @media (min-width: 769px) {
-  .site-header-panel--reveal .logo-img {
+  .site-header-panel .logo-img {
     height: calc(114px * 0.8);
   }
 
-  .site-header-panel--reveal .search {
+  .site-header-panel .search {
     padding-top: calc(0.65rem * 0.9);
     padding-bottom: calc(0.65rem * 0.9);
   }
@@ -226,13 +227,19 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 .shop-load-more__skeleton {
   margin-top: 1rem;
 }
+.shop-page .product-grid,
+.shop-page .skeleton-grid {
+  column-gap: var(--shop-grid-gap);
+  row-gap: var(--shop-grid-row-gap);
+}
 @media (min-width: 769px) {
   :root {
-    --shop-card-desktop-scale: 0.9;
+    --shop-card-desktop-scale: 0.945;
     --shop-grid-gap-base: 0.6rem;
+    --shop-grid-row-gap: 2rem;
     --shop-card-width: min(
       calc(var(--shop-card-base) * 1.15 * var(--shop-card-desktop-scale)),
-      calc((100% - var(--shop-grid-gap)) / 2 * 0.9 * var(--shop-card-desktop-scale))
+      calc((100% - var(--shop-grid-gap)) / 2 * 0.945 * var(--shop-card-desktop-scale))
     );
   }
 
@@ -245,8 +252,10 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
     justify-content: flex-start;
   }
 
+  .shop-page .product-grid,
   .shop-page .skeleton-grid {
-    gap: var(--shop-grid-gap);
+    column-gap: var(--shop-grid-gap);
+    row-gap: var(--shop-grid-row-gap);
   }
 
   .product-card {
@@ -1527,13 +1536,6 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   color: #7a5c3a;
   cursor: default;
   font-weight: 500;
-}
-
-@media (min-width: 769px) {
-  .site-header-panel--reveal .search {
-    padding-top: calc(0.65rem * 0.9);
-    padding-bottom: calc(0.65rem * 0.9);
-  }
 }
 
 @media (max-width: 980px) {
@@ -3812,7 +3814,7 @@ body.is-adm-modal-open {
   }
 
   .main-header .logo-img {
-    height: calc(114px * 0.95);
+    height: calc(114px * 0.95 * 0.8);
   }
 
   .search-wrap {
@@ -3824,8 +3826,8 @@ body.is-adm-modal-open {
   }
 
   .search {
-    padding-top: calc(0.65rem * 0.56);
-    padding-bottom: calc(0.65rem * 0.56);
+    padding-top: calc(0.65rem * 0.56 * 0.9);
+    padding-bottom: calc(0.65rem * 0.56 * 0.9);
     font-size: 0.76rem;
   }
 
@@ -3875,7 +3877,7 @@ body.is-adm-modal-open {
 
 @media (max-width: 720px) {
   .main-header .logo-img {
-    height: calc(94px * 0.95);
+    height: calc(94px * 0.95 * 0.8);
   }
 }
 
@@ -3996,16 +3998,25 @@ body.is-adm-modal-open {
   min-width: 0;
   height: auto;
 }
-.pop-strip .product-card > img,
-.pop-strip .product-card-media img,
+.pop-strip .product-card-media {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: var(--product-card-media-aspect);
+  overflow: hidden;
+}
 .pop-strip .product-card-media .api-image {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  min-height: 0;
   margin: 0;
-  object-fit: fill;
 }
 .pop-strip .product-card-media .api-image__placeholder,
 .pop-strip .product-card-media .api-image__full {
+  width: 100%;
+  height: 100%;
   object-fit: fill;
 }
 
