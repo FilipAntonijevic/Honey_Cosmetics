@@ -98,7 +98,21 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   position: relative;
   z-index: var(--z-sticky-header);
   background: var(--page-bg);
+  box-shadow: none;
+}
+/* Separator ispod loga/pretrage — ne ispod braon category trake niti iznad shop gradijenta */
+.main-header-band {
   box-shadow: 0 1px 0 #e8dcd0;
+}
+@media (min-width: 769px) {
+  .main-header-band:has(+ .category-nav) {
+    box-shadow: none;
+  }
+}
+@media (max-width: 768px) {
+  .site-header-panel--flow:has(+ .site-main .shop-page) .main-header-band {
+    box-shadow: none;
+  }
 }
 /* Ceo gornji header — fiksiran; pojava animirana, nestajanje odmah */
 .site-header-panel--reveal {
@@ -250,6 +264,7 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   background: linear-gradient(180deg, var(--category-strip-fill) 0%, var(--page-bg) 100%);
   padding: 2rem 0 2.4rem;
   margin-bottom: 0.7rem;
+  margin-top: -1px;
 }
 .shop-title-inner {
   margin: 0 auto;
