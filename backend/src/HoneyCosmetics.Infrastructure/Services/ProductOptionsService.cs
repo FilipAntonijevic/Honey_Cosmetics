@@ -16,7 +16,7 @@ public static class ProductOptionsService
     private sealed class Opt
     {
         public int? Id;
-        public string Label = string.Empty;
+        public string? Label;
         public decimal Price;
         public bool IsDefault;
         public int SortOrder;
@@ -32,15 +32,25 @@ public static class ProductOptionsService
         if (request.Options is null || request.Options.Count == 0)
             return ("Proizvod mora imati bar jednu opciju.", null);
 
+        var isManicureTools = await IsManicureToolsAsync(db, anchor.ProductTypeId, ct);
+
         var opts = new List<Opt>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var o in request.Options)
         {
             var label = ProductVariantService.NormalizeVariantLabel(o.Label);
             if (string.IsNullOrWhiteSpace(label))
-                return ("Svaka opcija mora imati gramazu (npr. 15ml).", null);
-            if (!seen.Add(label))
+            {
+                if (!isManicureTools)
+                    return ("Svaka opcija mora imati gramazu (npr. 15ml).", null);
+                if (!seen.Add("__empty__"))
+                    return ("Samo jedna opcija može biti bez gramaze.", null);
+            }
+            else if (!seen.Add(label))
+            {
                 return ($"Gramaza \"{label}\" je navedena više puta.", null);
+            }
+
             if (o.Price <= 0)
                 return ("Cena svake opcije mora biti veća od 0.", null);
             opts.Add(new Opt { Id = o.Id, Label = label, Price = o.Price, IsDefault = o.IsDefault, SortOrder = o.SortOrder });

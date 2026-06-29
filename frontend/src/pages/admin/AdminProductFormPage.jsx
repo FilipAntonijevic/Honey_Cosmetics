@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import api from '../../api'
+import { apiImageUrl } from '../../lib/assets'
+import { isManicureToolsProductType } from '../../lib/productTypes'
 import { extractVariantLabelFromName } from '../../utils/productLineName'
 
 const EMPTY_FORM = {
@@ -140,6 +142,9 @@ export default function AdminProductFormPage() {
     })
   }
 
+  const selectedProductType = productTypes.find((t) => String(t.id) === form.productTypeId)
+  const isManicureTools = isManicureToolsProductType(selectedProductType?.name)
+
   const save = async (e) => {
     e.preventDefault()
     setError('')
@@ -155,8 +160,17 @@ export default function AdminProductFormPage() {
       isDefault: !!o.isDefault,
       sortOrder: (i + 1) * 10,
     }))
-    if (options.length === 0 || options.some((o) => !o.label || !Number.isFinite(o.price) || o.price <= 0)) {
-      setError('Svaka opcija mora imati gramazu i cenu veću od 0.')
+    const optionInvalid = options.some((o) => {
+      if (!Number.isFinite(o.price) || o.price <= 0) return true
+      if (!isManicureTools && !o.label) return true
+      return false
+    })
+    if (options.length === 0 || optionInvalid) {
+      setError(
+        isManicureTools
+          ? 'Svaka opcija mora imati cenu veću od 0. Gramaža je opciona za alate za manikir.'
+          : 'Svaka opcija mora imati gramazu i cenu veću od 0.',
+      )
       return
     }
     if (!options.some((o) => o.isDefault)) options[0].isDefault = true
@@ -230,11 +244,13 @@ export default function AdminProductFormPage() {
         </div>
 
         <div className="adm-form-row">
-          <label>Opcije (gramaže) i cene *</label>
+          <label>{isManicureTools ? 'Opcije i cene *' : 'Opcije (gramaže) i cene *'}</label>
           <div className="adm-options">
             <div className="adm-options-head">
               <span className="adm-options-col adm-options-col--def">Default</span>
-              <span className="adm-options-col adm-options-col--label">Gramaza</span>
+              <span className="adm-options-col adm-options-col--label">
+                {isManicureTools ? 'Gramaza (opciono)' : 'Gramaza'}
+              </span>
               <span className="adm-options-col adm-options-col--price">Cena (RSD)</span>
               <span className="adm-options-col adm-options-col--act" />
             </div>
@@ -253,7 +269,7 @@ export default function AdminProductFormPage() {
                   className="adm-input adm-options-col--label"
                   value={opt.label}
                   onChange={(e) => setOptionField(index, 'label', e.target.value)}
-                  placeholder="npr. 15ml"
+                  placeholder={isManicureTools ? 'opciono' : 'npr. 15ml'}
                 />
                 <input
                   className="adm-input adm-options-col--price"
@@ -280,7 +296,9 @@ export default function AdminProductFormPage() {
             <button type="button" className="adm-btn" onClick={addOption}>+ Dodaj opciju</button>
           </div>
           <p className="adm-form-hint">
-            Ako proizvod ima jednu gramažu — ostavite jednu opciju. Lager za svaku opciju se vodi na njenoj stranici (nabavka).
+            {isManicureTools
+              ? 'Za alate za manikir gramaža nije obavezna — dovoljna je cena. Lager za svaku opciju se vodi na njenoj stranici (nabavka).'
+              : 'Ako proizvod ima jednu gramažu — ostavite jednu opciju. Lager za svaku opciju se vodi na njenoj stranici (nabavka).'}
           </p>
         </div>
 

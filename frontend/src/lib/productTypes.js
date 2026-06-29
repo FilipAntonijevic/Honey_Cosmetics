@@ -22,3 +22,8 @@ export function resolveProductTypeApi(name) {
   if (!name) return null
   return PRODUCT_TYPE_API_NAMES[name] ?? name
 }
+
+export function isManicureToolsProductType(name) {
+  if (!name) return false
+  return name === 'Alati za manikir' || name === 'Ostali Proizvodi'
+}

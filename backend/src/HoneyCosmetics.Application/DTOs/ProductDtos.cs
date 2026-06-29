@@ -22,7 +22,7 @@ public record ProductRequest(
 /// <summary>Jedna opcija (gramaza) proizvoda koju admin unosi u editoru opcija.</summary>
 public record ProductOptionInput(
     int? Id,
-    [Required] string Label,
+    string? Label,
     [Range(0.01, 9999999)] decimal Price,
     bool IsDefault = false,
     int SortOrder = 0);
