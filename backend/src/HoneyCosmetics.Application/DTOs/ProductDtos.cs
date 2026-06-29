@@ -72,6 +72,22 @@ public record PagedProductResponse(
     int PageSize,
     bool HasMore);
 
+public record AdminProductListItemResponse(
+    int Id,
+    string Name,
+    string ImageUrl,
+    string ProductType,
+    string? Category,
+    int TotalStock,
+    int VariantCount);
+
+public record PagedAdminProductsResponse(
+    IReadOnlyList<AdminProductListItemResponse> Items,
+    int TotalCount,
+    int Page,
+    int PageSize,
+    bool HasMore);
+
 public record AdminCategoryResponse(int Id, string Name, string ImageUrl, int ProductTypeId, string ProductTypeName);
 
 public record PublicCategoryResponse(int Id, string Name, string ImageUrl, int ProductTypeId, int ProductCount);

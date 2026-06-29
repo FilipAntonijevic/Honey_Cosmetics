@@ -115,7 +115,10 @@ public class AdminController(
 
     // ── Products ─────────────────────────────────────────────────────────────
     [HttpGet("products")]
-    public async Task<ActionResult<IReadOnlyCollection<ProductResponse>>> GetProducts()
+    public async Task<IActionResult> GetProducts(
+        [FromQuery] int? page,
+        [FromQuery] int pageSize = 12,
+        [FromQuery] string? search = null)
     {
         var products = await db.Products
             .ActiveProducts()
@@ -123,8 +126,56 @@ public class AdminController(
             .Include(x => x.ProductType)
             .Include(x => x.AdditionalImages)
             .ToListAsync();
-        products.Sort((a, b) => ProductNaturalNameComparer.Instance.Compare(a.Name, b.Name));
-        return Ok(products.Select(p => MapProduct(p)));
+
+        if (page is null or <= 0)
+        {
+            products.Sort((a, b) => ProductNaturalNameComparer.Instance.Compare(a.Name, b.Name));
+            return Ok(products.Select(p => MapProduct(p)));
+        }
+
+        var filtered = ApplyAdminProductSearch(products, search);
+        var groups = filtered
+            .GroupBy(p => p.VariantGroupId ?? p.Id)
+            .Select(g =>
+            {
+                var siblings = g.ToList();
+                var rep = ProductVariantService.PickDefaultVariant(siblings);
+                var mapped = MapProduct(rep);
+                return new AdminProductListItemResponse(
+                    mapped.Id,
+                    mapped.Name,
+                    mapped.ImageUrl,
+                    mapped.ProductType,
+                    string.IsNullOrWhiteSpace(mapped.Category) ? null : mapped.Category,
+                    siblings.Sum(x => x.StockQuantity),
+                    siblings.Count);
+            })
+            .OrderBy(x => x.TotalStock)
+            .ThenBy(x => x.Name, ProductNaturalNameComparer.Instance)
+            .ToList();
+
+        pageSize = Math.Clamp(pageSize, 1, 48);
+        var totalCount = groups.Count;
+        var pageItems = groups
+            .Skip((page.Value - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+        var hasMore = page.Value * pageSize < totalCount;
+
+        return Ok(new PagedAdminProductsResponse(pageItems, totalCount, page.Value, pageSize, hasMore));
+    }
+
+    private static List<Product> ApplyAdminProductSearch(IReadOnlyList<Product> products, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            return products.ToList();
+
+        return products
+            .Where(p =>
+                ProductSearch.MatchesName(p.Name, search)
+                || ProductSearch.MatchesName(p.ProductType?.Name, search)
+                || ProductSearch.MatchesName(p.Category?.Name, search))
+            .ToList();
     }
 
     [HttpPost("products")]
