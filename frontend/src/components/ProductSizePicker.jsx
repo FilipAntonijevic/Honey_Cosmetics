@@ -7,7 +7,6 @@ export default function ProductSizePicker({ variants, selectedId, onSelect }) {
 
   return (
     <div className="pd-variant-picker" role="group" aria-label="Izaberite gramazu">
-      <span className="pd-variant-picker__label">Gramaza</span>
       <div className="pd-variant-picker__options">
         {options.map((variant) => {
           const active = variant.id === selectedId

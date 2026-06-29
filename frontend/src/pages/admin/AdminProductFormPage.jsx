@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import api from '../../api'
-import { apiImageUrl } from '../../lib/assets'
+import { extractVariantLabelFromName } from '../../utils/productLineName'
 
 const EMPTY_FORM = {
   name: '',
@@ -36,7 +36,12 @@ function productToOptions(product) {
     if (!opts.some((o) => o.isDefault) && opts.length) opts[0].isDefault = true
     return opts
   }
-  return [{ id: product.id, label: product.variantLabel ?? '', price: String(product.price ?? ''), isDefault: true }]
+  return [{
+    id: product.id,
+    label: product.variantLabel?.trim() || extractVariantLabelFromName(product.name),
+    price: String(product.price ?? ''),
+    isDefault: true,
+  }]
 }
 
 export default function AdminProductFormPage() {

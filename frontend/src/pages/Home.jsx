@@ -13,12 +13,10 @@ import FitOneLineTitle from '../components/FitOneLineTitle'
 import { groupProductsForDisplay } from '../lib/productVariants'
 
 const POP_VISIBLE_MAX = 5
-const DESKTOP_CARD_SCALE = 0.945
-const POP_DESKTOP_GAP_PX = 10
+const POP_DESKTOP_GAP_PX = Math.round(17 * 1.1)
 const POP_MIN_VIEWPORT_PX = 320
 
-// Izmeri tačnu širinu shop kartice rekonstruišući shop kontekst (.shell > .product-grid),
-// jer --shop-card-width koristi 100% koji zavisi od kontejnera.
+// Izmeri tačnu širinu shop kartice iz CSS (--shop-card-width), ista svuda.
 function measureShopCardWidthPx() {
   if (typeof document === 'undefined') return 0
   const shell = document.createElement('div')
@@ -396,6 +394,17 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
 
   return (
     <div className="hero-carousel-wrap">
+      <button
+        type="button"
+        className="hero-arrow left"
+        onClick={onArrowPrev}
+        aria-label="Prethodna slika"
+      >
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+
       <div
         className="hero-carousel"
         role="region"
@@ -443,16 +452,6 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
         </div>
       </div>
 
-      <button
-        type="button"
-        className="hero-arrow left"
-        onClick={onArrowPrev}
-        aria-label="Prethodna slika"
-      >
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-      </button>
       <button
         type="button"
         className="hero-arrow right"
@@ -518,7 +517,7 @@ function ProductCarousel({ products }) {
     let stepGap
 
     if (vw <= 768) {
-      // Telefon: jedna kartica, centrirana
+      // Telefon: jedna kartica, centrirana — ista širina kao u shop gridu
       visible = 1
       track.style.gap = ''
       const gap = parseFloat(getComputedStyle(track).gap || '16') || 16
@@ -533,45 +532,31 @@ function ProductCarousel({ products }) {
       viewport.style.marginLeft = ''
       viewport.style.marginRight = ''
     } else {
-      // Desktop: tačno 5 kartica u vidljivom prostoru (dinamička širina)
+      // Desktop: 5 kartica — puna shop širina, bez smanjivanja
       viewport.style.paddingLeft = ''
       viewport.style.paddingRight = ''
-      visible = Math.min(N, POP_VISIBLE_MAX)
-
-      // Uvek računaj iz baznog razmaka — ne čitaj prethodni spreadGap sa trake.
       track.style.gap = ''
-      viewport.style.width = '100%'
-      viewport.style.maxWidth = '100%'
-      viewport.style.marginLeft = ''
-      viewport.style.marginRight = ''
-      void viewport.offsetWidth
-
-      const wrap = viewport.parentElement
-      let availableWidth = Math.round(viewport.getBoundingClientRect().width)
-      if (availableWidth < POP_MIN_VIEWPORT_PX && wrap) {
-        availableWidth = Math.round(wrap.getBoundingClientRect().width)
-      }
-      if (availableWidth < POP_MIN_VIEWPORT_PX) {
-        requestAnimationFrame(measureStep)
-        return
-      }
-
-      const layoutGap = POP_DESKTOP_GAP_PX
-      const baseCardWidth =
-        (availableWidth - Math.max(0, visible - 1) * layoutGap) / visible
-      cardWidth = Math.floor(baseCardWidth * DESKTOP_CARD_SCALE)
-      if (cardWidth <= 0) return
-
-      stepGap =
-        visible > 1
-          ? (availableWidth - visible * cardWidth) / (visible - 1)
-          : layoutGap
-      track.style.gap = `${stepGap}px`
-
-      viewport.style.width = `${availableWidth}px`
       viewport.style.maxWidth = '100%'
       viewport.style.marginLeft = 'auto'
       viewport.style.marginRight = 'auto'
+      viewport.style.flexShrink = '0'
+      void viewport.offsetWidth
+
+      const shopCard = measureShopCardWidthPx()
+      if (shopCard <= 0) return
+
+      visible = Math.min(N, POP_VISIBLE_MAX)
+      const layoutGap = POP_DESKTOP_GAP_PX
+      stepGap = layoutGap
+      track.style.gap = `${layoutGap}px`
+
+      cardWidth = shopCard
+
+      const rowWidth = visible * cardWidth + Math.max(0, visible - 1) * layoutGap
+      viewport.style.width = `${rowWidth}px`
+
+      const section = viewport.closest('.pop-section')
+      if (section) section.style.setProperty('--pop-card-gap', `${layoutGap}px`)
     }
 
     setVisibleSlots(visible)
@@ -594,6 +579,8 @@ function ProductCarousel({ products }) {
     ro.observe(viewport)
     const wrap = viewport.parentElement
     if (wrap) ro.observe(wrap)
+    const block = wrap?.parentElement
+    if (block) ro.observe(block)
     window.addEventListener('resize', measureStep)
     return () => {
       cancelAnimationFrame(id)
@@ -990,8 +977,9 @@ export default function Home() {
                 <FitOneLineTitle
                   as="span"
                   className="pop-title"
-                  maxRem={1.35}
-                  minRem={0.45}
+                  maxRem={1.555}
+                  minRem={0.36}
+                  fillWidth={false}
                 >
                   Popularni proizvodi
                 </FitOneLineTitle>
@@ -1000,9 +988,11 @@ export default function Home() {
             </div>
           </div>
           <div className="shell">
-            <ProductCarousel products={bestsellers} />
-            <div className="pop-foot">
-              <Link to="/shop?bestsellers=1" className="pop-head-link">Vidi sve →</Link>
+            <div className="pop-carousel-block">
+              <ProductCarousel products={bestsellers} />
+              <div className="pop-foot">
+                <Link to="/shop?bestsellers=1" className="pop-head-link">Vidi sve →</Link>
+              </div>
             </div>
           </div>
         </section>

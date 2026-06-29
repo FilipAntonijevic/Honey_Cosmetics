@@ -1,15 +1,33 @@
 import { forwardRef, useLayoutEffect, useRef } from 'react'
 
 const TITLE_ROW_SELECTOR = '.pop-head-row, .community-banner__title-row'
-const MOBILE_FILL_MQ = '(max-width: 768px)'
-const MOBILE_FILL_RATIO = 0.9
+const MOBILE_MQ = '(max-width: 768px)'
 
-function isMobileEdgeFill() {
-  return typeof window !== 'undefined' && window.matchMedia(MOBILE_FILL_MQ).matches
+function isMobile() {
+  return typeof window !== 'undefined' && window.matchMedia(MOBILE_MQ).matches
 }
 
-function viewportWidth() {
-  return Math.max(window.visualViewport?.width ?? document.documentElement.clientWidth, 60)
+function titleFitWidth(box) {
+  const row = box.closest(TITLE_ROW_SELECTOR)
+  if (!row) return Math.max(box.clientWidth, 60)
+
+  const rowStyle = getComputedStyle(row)
+  const gap = parseFloat(rowStyle.columnGap || rowStyle.gap) || 0
+  const pad =
+    parseFloat(rowStyle.paddingLeft) + parseFloat(rowStyle.paddingRight)
+  const lineEls = row.querySelectorAll('.pop-head-line, .community-banner__title-line')
+  let lineUsed = 0
+  lineEls.forEach((line) => {
+    lineUsed += line.offsetWidth
+  })
+  const gaps = gap * Math.max(0, row.children.length - 1)
+  const fromLines = row.clientWidth - pad - lineUsed - gaps
+  if (fromLines > 60 && lineUsed > 0) return fromLines
+
+  const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+  const lineMin = parseFloat(rowStyle.getPropertyValue('--title-line-min')) || 1.25
+  const sideReserve = lineMin * rootSize * 2 + gaps
+  return Math.max(row.clientWidth - pad - sideReserve, 60)
 }
 
 function measureTextWidth(el) {
@@ -19,27 +37,48 @@ function measureTextWidth(el) {
   return el.scrollWidth
 }
 
-function restoreButtonLabelLayout(el) {
-  if (!el.classList.contains('product-card-action__label')) return
-  el.style.display = 'inline-flex'
-  el.style.alignItems = 'center'
-  el.style.justifyContent = 'center'
-  el.style.lineHeight = '1'
-  el.style.width = '100%'
-  el.style.transform = ''
+function restoreCardTextLayout(el) {
+  if (el.classList.contains('product-card-action__label')) {
+    el.style.display = 'inline-flex'
+    el.style.alignItems = 'center'
+    el.style.justifyContent = 'center'
+    el.style.lineHeight = '1'
+    el.style.width = '100%'
+    el.style.transform = ''
+    return
+  }
+
+  if (el.classList.contains('product-card-title')) {
+    el.style.display = 'block'
+    el.style.textAlign = 'left'
+    el.style.lineHeight = '1.25'
+    el.style.width = '100%'
+    el.style.transform = ''
+    return
+  }
+
+  if (
+    el.classList.contains('pop-title') ||
+    el.classList.contains('community-banner__title')
+  ) {
+    el.style.display = 'block'
+    el.style.textAlign = 'center'
+    el.style.lineHeight = '1'
+    el.style.width = '100%'
+    el.style.transform = ''
+  }
 }
 
-function fitTextToWidth(el, width, maxRem, minRem) {
-  const fillEdge = isMobileEdgeFill() && Boolean(el.closest(TITLE_ROW_SELECTOR))
-  const sizeCap = fillEdge ? 10 : maxRem
+function fitTextToWidth(el, width, maxRem, minRem, { fillWidth = true, allowScaleX = true } = {}) {
+  const isProductTitle = el.classList.contains('product-card-title')
 
   el.style.whiteSpace = 'nowrap'
   el.style.overflow = 'visible'
   el.style.transform = ''
-  el.style.textAlign = 'center'
+  el.style.textAlign = isProductTitle ? 'left' : 'center'
   el.style.boxSizing = 'border-box'
 
-  let letterSpacing = fillEdge ? 0.08 : 0.04
+  let letterSpacing = isProductTitle ? 0 : 0.04
   let size = minRem
 
   const apply = () => {
@@ -50,51 +89,47 @@ function fitTextToWidth(el, width, maxRem, minRem) {
 
   apply()
 
-  if (fillEdge) {
-    while (size < sizeCap && apply() < width - 1) {
-      size += 0.025
-    }
-    while (letterSpacing <= 0.32 && apply() < width - 1) {
-      letterSpacing += 0.01
-    }
-    while (size > minRem && apply() > width + 1) {
-      size -= 0.025
-    }
-    while (letterSpacing > 0.04 && apply() > width + 1) {
-      letterSpacing -= 0.01
-    }
-  } else {
-    while (size < sizeCap && apply() < width - 1) {
-      size += 0.02
-    }
-    while (size > minRem && apply() > width + 1) {
-      size -= 0.02
-    }
+  while (size < maxRem && apply() < width - 1) {
+    size += 0.02
+  }
+  while (size > minRem && apply() > width + 1) {
+    size -= 0.02
+  }
+  if (fillWidth) {
     while (letterSpacing <= 0.18 && apply() < width - 1) {
       letterSpacing += 0.005
     }
-    while (letterSpacing > 0.03 && apply() > width + 1) {
-      letterSpacing -= 0.005
-    }
-    if (apply() > width + 1) {
-      const scale = Math.max(0.84, width / apply())
-      el.style.transform = `scaleX(${scale})`
-      el.style.transformOrigin = 'center center'
-    }
+  }
+  while (letterSpacing > 0.03 && apply() > width + 1) {
+    letterSpacing -= 0.005
+  }
+  if (allowScaleX && apply() > width + 1) {
+    const scale = Math.max(0.84, width / apply())
+    el.style.transform = `scaleX(${scale})`
+    el.style.transformOrigin = 'center center'
   }
 
   const box = el.parentElement
   if (box) {
-    box.style.textAlign = 'center'
-    box.style.width = fillEdge ? `${width}px` : ''
-    box.style.maxWidth = fillEdge ? `${width}px` : ''
+    box.style.textAlign = isProductTitle ? 'left' : 'center'
+    box.style.width = ''
+    box.style.maxWidth = ''
   }
 
-  restoreButtonLabelLayout(el)
+  restoreCardTextLayout(el)
 }
 
 const FitOneLineTitle = forwardRef(function FitOneLineTitle(
-  { as: Component = 'span', maxRem = 0.95, minRem = 0.55, children, style, ...props },
+  {
+    as: Component = 'span',
+    maxRem = 0.95,
+    minRem = 0.55,
+    fillWidth = true,
+    allowScaleX = true,
+    children,
+    style,
+    ...props
+  },
   forwardedRef,
 ) {
   const innerRef = useRef(null)
@@ -114,16 +149,35 @@ const FitOneLineTitle = forwardRef(function FitOneLineTitle(
       if (!box) return
 
       const row = box.closest(TITLE_ROW_SELECTOR)
-      const fillEdge = isMobileEdgeFill() && row
-      const viewport = fillEdge ? viewportWidth() : Math.max(box.clientWidth, 60)
-      const width = fillEdge ? viewport * MOBILE_FILL_RATIO : viewport
+      const mobile = isMobile()
+      const isSectionTitle =
+        el.classList.contains('pop-title') ||
+        el.classList.contains('community-banner__title')
+      const effectiveMaxRem = mobile
+        ? Math.min(maxRem, 0.81)
+        : maxRem
+      const effectiveMinRem = mobile
+        ? Math.min(minRem, 0.36)
+        : isSectionTitle
+          ? minRem * 1.44
+          : minRem
+      const isButtonLabel = el.classList.contains('product-card-action__label')
+      const isProductTitle = el.classList.contains('product-card-title')
+      const width = isButtonLabel
+        ? Math.max(box.clientWidth - 6, 40)
+        : isProductTitle
+          ? Math.max(box.clientWidth - 2, 40)
+          : titleFitWidth(box)
 
-      if (fillEdge && row) {
-        row.style.width = `${viewport}px`
-        row.style.maxWidth = `${viewport}px`
+      if (row) {
+        row.style.width = ''
+        row.style.maxWidth = ''
       }
 
-      fitTextToWidth(el, width, maxRem, minRem)
+      fitTextToWidth(el, width, effectiveMaxRem, effectiveMinRem, {
+        fillWidth: isButtonLabel || isProductTitle || isSectionTitle ? false : fillWidth,
+        allowScaleX: isButtonLabel || isProductTitle ? false : allowScaleX,
+      })
     }
 
     fit()
@@ -133,7 +187,7 @@ const FitOneLineTitle = forwardRef(function FitOneLineTitle(
     const row = el.parentElement?.closest(TITLE_ROW_SELECTOR)
     if (row) ro.observe(row)
 
-    const mq = window.matchMedia(MOBILE_FILL_MQ)
+    const mq = window.matchMedia(MOBILE_MQ)
     mq.addEventListener('change', fit)
     window.addEventListener('resize', fit)
     window.visualViewport?.addEventListener('resize', fit)
@@ -144,7 +198,7 @@ const FitOneLineTitle = forwardRef(function FitOneLineTitle(
       window.removeEventListener('resize', fit)
       window.visualViewport?.removeEventListener('resize', fit)
     }
-  }, [children, maxRem, minRem])
+  }, [children, maxRem, minRem, fillWidth, allowScaleX])
 
   return (
     <Component ref={setRef} style={style} {...props}>

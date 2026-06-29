@@ -13,8 +13,10 @@ export default function ProductCardActions({ product }) {
           <FitOneLineTitle
             as="span"
             className="product-card-action__label"
-            maxRem={0.68}
-            minRem={0.38}
+            maxRem={0.56}
+            minRem={0.32}
+            fillWidth={false}
+            allowScaleX={false}
           >
             više o proizvodu →
           </FitOneLineTitle>

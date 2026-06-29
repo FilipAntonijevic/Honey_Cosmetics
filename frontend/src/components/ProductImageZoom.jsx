@@ -31,7 +31,8 @@ export default function ProductImageZoom({ src, alt }) {
   const isTouch = useCoarsePointer()
 
   const [hoverZoomed, setHoverZoomed] = useState(false)
-  const [origin, setOrigin] = useState('50% 50%')
+  const [originX, setOriginX] = useState(50)
+  const [originY, setOriginY] = useState(50)
 
   const [pinchScale, setPinchScale] = useState(1)
   const [pinchTranslate, setPinchTranslate] = useState({ x: 0, y: 0 })
@@ -81,7 +82,8 @@ export default function ProductImageZoom({ src, alt }) {
     const rect = el.getBoundingClientRect()
     const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100))
     const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100))
-    setOrigin(`${x}% ${y}%`)
+    setOriginX(x)
+    setOriginY(y)
   }
 
   useEffect(() => {
@@ -165,9 +167,14 @@ export default function ProductImageZoom({ src, alt }) {
         transform: `translate(${pinchTranslate.x}px, ${pinchTranslate.y}px) scale(${pinchScale})`,
         transformOrigin: 'center center',
       }
-    : hoverZoomed
-      ? { transformOrigin: origin }
-      : undefined
+    : undefined
+
+  const wrapStyle = !isTouch
+    ? {
+        '--zoom-x': `${originX}%`,
+        '--zoom-y': `${originY}%`,
+      }
+    : undefined
 
   const imgClassName = [
     'pd-zoom__img',
@@ -179,6 +186,7 @@ export default function ProductImageZoom({ src, alt }) {
     <div
       ref={wrapRef}
       className={`pd-zoom${isTouch ? ' pd-zoom--pinch' : ''}`}
+      style={wrapStyle}
       onMouseEnter={isTouch ? undefined : () => setHoverZoomed(true)}
       onMouseLeave={isTouch ? undefined : () => setHoverZoomed(false)}
       onMouseMove={isTouch ? undefined : onDesktopMove}

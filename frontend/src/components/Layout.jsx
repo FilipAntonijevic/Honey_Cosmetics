@@ -140,12 +140,33 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
   const isHome = location.pathname === '/'
   const [searchInput, setSearchInput] = useState('')
+  const SEARCH_DEBOUNCE_MS = 350
 
   useEffect(() => {
     if (location.pathname === '/shop') {
       setSearchInput(new URLSearchParams(location.search).get('search') ?? '')
     }
   }, [location.pathname, location.search])
+
+  useEffect(() => {
+    const q = searchInput.trim()
+    const urlQ = (new URLSearchParams(location.search).get('search') ?? '').trim()
+
+    const timer = window.setTimeout(() => {
+      if (!q) {
+        if (location.pathname === '/shop' && urlQ) {
+          navigate('/shop', { replace: true })
+        }
+        return
+      }
+
+      if (location.pathname === '/shop' && q === urlQ) return
+
+      navigate(`/shop?search=${encodeURIComponent(q)}`, { replace: true })
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [searchInput, location.pathname, location.search, navigate])
 
   const handleLogoClick = (e) => {
     if (location.pathname !== '/') return
@@ -280,6 +301,11 @@ export default function Layout({ children }) {
   }
 
   const openMiniCart = () => {
+    if (miniCartClosing) return
+    if (miniCartOpen) {
+      closeMiniCart()
+      return
+    }
     setMiniCartClosing(false)
     setMiniCartOpen(true)
   }
@@ -736,7 +762,7 @@ export default function Layout({ children }) {
         </>
       )}
 
-      <main>{children}</main>
+      <main className="site-main">{children}</main>
 
       {/* Community sekcija iznad footera — samo početna */}
       {isHome && <CommunityBanner />}

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import ApiImage from './ApiImage'
+import FitOneLineTitle from './FitOneLineTitle'
 import ProductCardActions from './ProductCardActions'
 import { useStore } from '../context/StoreContext'
 import { formatProductPrice } from '../utils/price'
@@ -53,7 +54,18 @@ export default function ProductCard({ product, onToggleWishlist, eager = false }
       </div>
       <div className="product-card-body">
         <h3>
-          <Link to={`/products/${product.id}`}>{product.name}</Link>
+          <Link to={`/products/${product.id}`}>
+            <FitOneLineTitle
+              as="span"
+              className="product-card-title"
+              maxRem={0.72}
+              minRem={0.46}
+              fillWidth={false}
+              allowScaleX={false}
+            >
+              {product.name}
+            </FitOneLineTitle>
+          </Link>
         </h3>
         <strong>{formatProductPrice(product.price)}</strong>
         <ProductCardActions product={product} />

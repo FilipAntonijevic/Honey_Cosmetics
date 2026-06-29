@@ -38,7 +38,7 @@ export default function Wishlist() {
   const showEmpty = catalogById ? items.length === 0 : wishlist.length === 0
 
   return (
-    <section className="page shell">
+    <section className="page shell wishlist-page">
       <h1>Wishlist</h1>
       {showEmpty ? (
         <div className="wishlist-row">

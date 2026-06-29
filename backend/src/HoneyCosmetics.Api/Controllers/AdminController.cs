@@ -130,6 +130,9 @@ public class AdminController(
     [HttpPost("products")]
     public async Task<ActionResult<ProductResponse>> CreateProduct([FromBody] ProductRequest request)
     {
+        if (request.Options is null || request.Options.Count == 0)
+            return BadRequest("Proizvod mora imati bar jednu opciju (gramazu i cenu).");
+
         if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
             return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
 
@@ -144,55 +147,30 @@ public class AdminController(
             return BadRequest(ex.Message);
         }
 
-        if (request.Options is { Count: > 0 })
-        {
-            ProductVariantService.NormalizeProductNaming(product);
-            product.VariantLabel = null;
-            product.VariantGroupId = null;
-            await db.SaveChangesAsync();
-
-            var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
-                db, product, request, allowReuseAnchor: true);
-            if (optError is not null)
-                return BadRequest(optError);
-
-            var result = defaultRow ?? product;
-            await db.Entry(result).Reference(p => p.Category).LoadAsync();
-            await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
-            await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
-            var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
-            return Ok(new { product = MapProduct(result, optSiblings), restored });
-        }
-
-        try
-        {
-            await ProductVariantService.EnsureVariantGroupAsync(
-                db, product, request.VariantGroupId, request.VariantLabel, request.VariantSortOrder);
-            ProductVariantService.NormalizeProductNaming(product);
-            var variantError = await ProductVariantService.ValidateVariantAsync(db, product);
-            if (variantError is not null)
-                return BadRequest(variantError);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-
+        ProductVariantService.NormalizeProductNaming(product);
+        product.VariantLabel = null;
+        product.VariantGroupId = null;
         await db.SaveChangesAsync();
-        await ProductVariantService.FinalizeNewProductVariantGroupAsync(db, product);
-        await db.SaveChangesAsync();
-        await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
-        await db.SaveChangesAsync();
-        await db.Entry(product).Reference(p => p.Category).LoadAsync();
-        await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
-        await db.Entry(product).Collection(p => p.AdditionalImages).LoadAsync();
-        var siblings = await ProductVariantService.LoadSiblingsAsync(db, product);
-        return Ok(new { product = MapProduct(product, siblings), restored });
+
+        var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
+            db, product, request, allowReuseAnchor: true);
+        if (optError is not null)
+            return BadRequest(optError);
+
+        var result = defaultRow ?? product;
+        await db.Entry(result).Reference(p => p.Category).LoadAsync();
+        await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
+        await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
+        var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
+        return Ok(new { product = MapProduct(result, optSiblings), restored });
     }
 
     [HttpPut("products/{id:int}")]
     public async Task<ActionResult<ProductResponse>> UpdateProduct(int id, [FromBody] ProductRequest request)
     {
+        if (request.Options is null || request.Options.Count == 0)
+            return BadRequest("Proizvod mora imati bar jednu opciju (gramazu i cenu).");
+
         var product = await db.Products
             .ActiveProducts()
             .Include(x => x.Category)
@@ -224,50 +202,24 @@ public class AdminController(
         var stockBefore = product.StockQuantity;
         ProductCatalogService.ApplyRequest(product, request);
 
-        if (request.Options is { Count: > 0 })
-        {
-            product.Name = ProductVariantService.StripVariantFromName(product.Name);
-            await db.SaveChangesAsync();
-
-            var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
-                db, product, request, allowReuseAnchor: false);
-            if (optError is not null)
-                return BadRequest(optError);
-
-            var result = defaultRow ?? product;
-            await db.Entry(result).Reference(p => p.Category).LoadAsync();
-            await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
-            await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
-            var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
-            return Ok(MapProduct(result, optSiblings));
-        }
-
-        try
-        {
-            await ProductVariantService.EnsureVariantGroupAsync(
-                db, product, request.VariantGroupId, request.VariantLabel, request.VariantSortOrder);
-            ProductVariantService.NormalizeProductNaming(product);
-            var variantError = await ProductVariantService.ValidateVariantAsync(db, product);
-            if (variantError is not null)
-                return BadRequest(variantError);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-
+        product.Name = ProductVariantService.StripVariantFromName(product.Name);
         await db.SaveChangesAsync();
-        await db.SyncAdditionalImagesAsync(product.Id, request.AdditionalImageUrls);
-        await db.SaveChangesAsync();
-        await db.Entry(product).Reference(p => p.Category).LoadAsync();
-        await db.Entry(product).Reference(p => p.ProductType).LoadAsync();
-        await db.Entry(product).Collection(p => p.AdditionalImages).LoadAsync();
+
+        var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
+            db, product, request, allowReuseAnchor: false);
+        if (optError is not null)
+            return BadRequest(optError);
+
+        var result = defaultRow ?? product;
+        await db.Entry(result).Reference(p => p.Category).LoadAsync();
+        await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
+        await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
+        var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
 
         await WishlistStockNotificationService.TryNotifyBackInStockAsync(
-            db, emailService, configuration, sendGridOptions, product, stockBefore, logger);
+            db, emailService, configuration, sendGridOptions, result, stockBefore, logger);
 
-        var siblings = await ProductVariantService.LoadSiblingsAsync(db, product);
-        return Ok(MapProduct(product, siblings));
+        return Ok(MapProduct(result, optSiblings));
     }
 
     [HttpGet("products/{id:int}")]

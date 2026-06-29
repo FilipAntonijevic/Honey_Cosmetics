@@ -8,6 +8,14 @@ export function stripVariantFromName(name) {
   return trimmed.slice(0, match.index).trimEnd()
 }
 
+export function extractVariantLabelFromName(name) {
+  if (!name) return ''
+  const trimmed = String(name).trim()
+  const base = stripVariantFromName(trimmed)
+  if (base === trimmed) return ''
+  return trimmed.slice(base.length).trim().replace(/^[\(-–]+|[\)-]+$/g, '').trim()
+}
+
 export function getProductDisplayName(item) {
   const raw = String(item?.productName ?? item?.name ?? '').trim()
   const label = getVariantLabel(item)

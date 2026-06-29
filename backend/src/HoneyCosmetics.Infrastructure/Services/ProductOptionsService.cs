@@ -1,3 +1,4 @@
+using HoneyCosmetics.Application;
 using HoneyCosmetics.Application.DTOs;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Infrastructure.Data;
@@ -29,7 +30,7 @@ public static class ProductOptionsService
         CancellationToken ct = default)
     {
         if (request.Options is null || request.Options.Count == 0)
-            return (null, null);
+            return ("Proizvod mora imati bar jednu opciju.", null);
 
         var opts = new List<Opt>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -59,6 +60,7 @@ public static class ProductOptionsService
         var existingById = existing.ToDictionary(p => p.Id);
 
         var single = opts.Count == 1;
+        var mergeSingleIntoName = single && !await IsManicureToolsAsync(db, anchor.ProductTypeId, ct);
 
         // Na kreiranju ponovo iskoristi tek napravljeni anchor red za prvu opciju.
         Product? reusableAnchor = null;
@@ -107,13 +109,23 @@ public static class ProductOptionsService
 
             // Polja specifična za opciju.
             row.Price = o.Price;
-            if (single)
+            if (mergeSingleIntoName)
             {
                 row.Name = $"{baseName} {o.Label}".Trim();
                 row.VariantLabel = null;
                 row.VariantGroupId = null;
                 row.IsDefaultVariant = false;
                 row.VariantSortOrder = 0;
+            }
+            else if (single)
+            {
+                row.Name = baseName;
+                row.VariantLabel = o.Label;
+                row.VariantGroupId = null;
+                row.IsDefaultVariant = true;
+                row.VariantSortOrder = o.SortOrder > 0
+                    ? o.SortOrder
+                    : ProductVariantService.VariantSortKey(o.Label);
             }
             else
             {
@@ -151,5 +163,19 @@ public static class ProductOptionsService
         await db.SaveChangesAsync(ct);
 
         return (null, defaultRow ?? resultRows.FirstOrDefault());
+    }
+
+    private static async Task<bool> IsManicureToolsAsync(
+        AppDbContext db,
+        int productTypeId,
+        CancellationToken ct)
+    {
+        var typeName = await db.ProductTypes
+            .AsNoTracking()
+            .Where(t => t.Id == productTypeId)
+            .Select(t => t.Name)
+            .FirstOrDefaultAsync(ct);
+
+        return ProductTypeNames.IsManicureTools(typeName);
     }
 }

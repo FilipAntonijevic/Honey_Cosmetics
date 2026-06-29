@@ -314,7 +314,7 @@ export default function Shop() {
     if (!displayProducts.length) {
       const isTypePage = !isSearchMode && !bestsellersMode && Boolean(displayVrstaName)
       const emptyMessage = isSearchMode
-        ? `Nema proizvoda čiji naziv sadrži „${searchTerm}".`
+        ? `Nema proizvoda koji odgovaraju pretrazi „${searchTerm}".`
         : bestsellersMode
           ? 'Trenutno nema proizvoda u sekciji Bestsellers.'
           : isTypePage

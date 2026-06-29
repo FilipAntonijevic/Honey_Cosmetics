@@ -33,8 +33,9 @@ export default function CommunityBanner() {
           <FitOneLineTitle
             as="span"
             className="community-banner__title"
-            maxRem={1.35}
-            minRem={0.4}
+            maxRem={1.555}
+            minRem={0.32}
+            fillWidth={false}
           >
             Pridružite se našoj zajednici
           </FitOneLineTitle>

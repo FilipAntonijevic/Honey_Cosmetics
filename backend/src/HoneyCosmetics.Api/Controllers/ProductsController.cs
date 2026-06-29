@@ -103,19 +103,26 @@ public class ProductsController(AppDbContext db) : ControllerBase
             .Include(x => x.AdditionalImages)
             .ToListAsync();
 
+        result = ApplySearch(result, query.Search);
         result = ApplySort(result, query.Sort);
         return Ok(await MapManyWithVariantsAsync(result));
+    }
+
+    private static List<Domain.Entities.Product> ApplySearch(
+        List<Domain.Entities.Product> products,
+        string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            return products;
+
+        return ProductSearch
+            .FilterByName(products, search, p => p.Name)
+            .ToList();
     }
 
     private IQueryable<Domain.Entities.Product> BuildProductQuery(ProductQuery query)
     {
         var products = db.Products.ActiveProducts().Include(x => x.Category).Include(x => x.ProductType).AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            var term = query.Search.Trim().ToLowerInvariant();
-            products = products.Where(x => x.Name.ToLower().Contains(term));
-        }
 
         if (query.CategoryId.HasValue)
             products = products.Where(x => x.CategoryId == query.CategoryId.Value);
@@ -157,7 +164,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
         int page,
         int pageSize)
     {
-        var allProducts = await products.ToListAsync();
+        var allProducts = ApplySearch(await products.ToListAsync(), query.Search);
         var representatives = ApplySort(PickDisplayRepresentatives(allProducts), query.Sort);
 
         var totalCount = representatives.Count;
