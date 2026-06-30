@@ -21,7 +21,7 @@ public static class ProductCatalogSortOrder
 
     public static (string Group, int Order)? TryGet(string? name)
     {
-        var baseName = ProductDisplayNaming.StripVariantFromName(name).Trim();
+        var baseName = (name ?? string.Empty).Trim();
         if (baseName.Length == 0)
             return null;
 
@@ -41,7 +41,7 @@ public static class ProductCatalogSortOrder
 
     public static bool IsTopCoatFamily(string? name)
     {
-        var baseName = ProductDisplayNaming.StripVariantFromName(name).Trim();
+        var baseName = (name ?? string.Empty).Trim();
         return baseName.Length > 0 && TopCoatFamilyRegex.IsMatch(baseName);
     }
 

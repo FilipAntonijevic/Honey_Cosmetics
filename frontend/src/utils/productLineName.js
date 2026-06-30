@@ -1,4 +1,4 @@
-const TRAILING_VARIANT_RE = /\s*[\(-–]?\s*\d+\s*(ml|gr)\s*\)?\s*$/i
+const TRAILING_VARIANT_RE = /\s*[\(\-–]?\s*\d+\s*(ml|gr)\s*\)?\s*$/i
 
 export function stripVariantFromName(name) {
   if (!name) return ''

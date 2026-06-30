@@ -1,13 +1,15 @@
-import { stripVariantFromName } from '../utils/productLineName'
-
 const BIAB_CODE_RE = /biab\s+b0([1-5])\b/i
 const TOP_COAT_BRILLIANT_RE = /^top coat brilliant\b/i
 const TOP_COAT_PLAIN_RE = /^top coat\b/i
 const TOP_COAT_FAMILY_RE = /\btop coat\b/i
 
-/** @returns {{ group: string, order: number } | null} */
+/**
+ * Hardcoded display order for specific product families.
+ * Runs on the raw (trimmed) name so it is independent of variant-stripping quirks.
+ * @returns {{ group: string, order: number } | null}
+ */
 export function getHardcodedProductSortOrder(name) {
-  const base = stripVariantFromName(name).trim()
+  const base = String(name ?? '').trim()
   if (!base) return null
 
   const biabMatch = base.match(BIAB_CODE_RE)
@@ -27,8 +29,8 @@ export function getHardcodedProductSortOrder(name) {
 }
 
 export function isTopCoatFamily(name) {
-  const base = stripVariantFromName(name).trim()
-  return TOP_COAT_FAMILY_RE.test(base)
+  const base = String(name ?? '').trim()
+  return base.length > 0 && TOP_COAT_FAMILY_RE.test(base)
 }
 
 export function compareHardcodedProductNames(nameA, nameB) {
