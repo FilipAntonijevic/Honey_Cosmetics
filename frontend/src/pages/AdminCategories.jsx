@@ -32,6 +32,9 @@ export default function AdminCategories() {
   const [assignLoading, setAssignLoading] = useState(false)
   const [assignSaving, setAssignSaving] = useState(false)
   const [assignError, setAssignError] = useState('')
+  const [dragIndex, setDragIndex] = useState(null)
+  const [dropIndex, setDropIndex] = useState(null)
+  const [orderSaving, setOrderSaving] = useState(false)
 
   const loadTypes = async () => {
     setLoading(true)
@@ -283,6 +286,59 @@ export default function AdminCategories() {
     }
   }
 
+  const saveCategoryOrder = async (nextCategories) => {
+    if (!selectedTypeId) return
+    setOrderSaving(true)
+    setError('')
+    try {
+      await api.put('/admin/categories/order', {
+        productTypeId: parseInt(selectedTypeId, 10),
+        categoryIds: nextCategories.map((c) => c.id),
+      })
+    } catch (err) {
+      const msg = err.response?.data
+      setError(typeof msg === 'string' ? msg : msg?.title ?? 'Čuvanje redosleda nije uspelo.')
+      await loadCategories(selectedTypeId)
+    } finally {
+      setOrderSaving(false)
+    }
+  }
+
+  const reorderCategories = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return
+    const next = categories.slice()
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    setCategories(next)
+    saveCategoryOrder(next)
+  }
+
+  const onCategoryDragStart = (e, index) => {
+    setDragIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(index))
+  }
+
+  const onCategoryDragOver = (e, index) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (dragIndex !== null && dragIndex !== index) setDropIndex(index)
+  }
+
+  const onCategoryDrop = (e, index) => {
+    e.preventDefault()
+    const from = dragIndex
+    setDragIndex(null)
+    setDropIndex(null)
+    if (from == null || from === index) return
+    reorderCategories(from, index)
+  }
+
+  const onCategoryDragEnd = () => {
+    setDragIndex(null)
+    setDropIndex(null)
+  }
+
   const selectedTypeLabel = productTypes.find((t) => String(t.id) === String(selectedTypeId))?.name ?? ''
 
   return (
@@ -292,6 +348,7 @@ export default function AdminCategories() {
           <h1 className="adm-page-title">Kategorije</h1>
           <p className="adm-page-sub">
             Kategorije unutar vrste (npr. Gel lak → podkategorije). Izaberite vrstu proizvoda da biste upravljali njenim kategorijama.
+            Prevucite kategorije da promenite redosled prikaza na sajtu.
           </p>
         </div>
       </div>
@@ -327,42 +384,54 @@ export default function AdminCategories() {
           Nema kategorija za „{selectedTypeLabel}". Kliknite „Nova kategorija" da dodate prvu.
         </div>
       ) : (
-        <div className="adm-table-wrap">
-          <table className="adm-table">
-            <thead>
-              <tr>
-                <th>Slika</th>
-                <th>Naziv</th>
-                <th>Artikala</th>
-                <th className="adm-th-actions">Akcije</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categories.map((row) => (
-                <tr key={row.id} className="adm-table-row">
-                  <td>
-                    {row.imageUrl ? (
-                      <ApiImage src={row.imageUrl} alt="" style={{ width: 56, height: 56, objectFit: 'fill', borderRadius: 8 }} />
-                    ) : (
-                      <span style={{ color: '#9ca3af' }}>—</span>
-                    )}
-                  </td>
-                  <td className="adm-customer-name">{row.name}</td>
-                  <td>{productCountByCategory.get(row.id) ?? 0}</td>
-                  <td className="adm-td-actions">
-                    <div className="adm-table-actions">
-                      <button type="button" className="adm-btn adm-btn-sm adm-btn-primary" onClick={() => openAssign(row)}>
-                        Ubaci artikle
-                      </button>
-                      <button type="button" className="adm-btn adm-btn-sm" onClick={() => openEdit(row)}>Izmeni</button>
-                      <button type="button" className="adm-btn adm-btn-sm adm-btn-danger" onClick={() => deleteRow(row.id, row.name)}>Obriši</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {error && <div className="adm-form-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+          {orderSaving && (
+            <p className="adm-page-sub" style={{ marginBottom: '0.75rem' }}>Čuvanje redosleda…</p>
+          )}
+          <ul className="adm-cat-sort-list">
+            {categories.map((row, index) => (
+              <li
+                key={row.id}
+                className={[
+                  'adm-cat-sort-item',
+                  dragIndex === index ? 'is-dragging' : '',
+                  dropIndex === index ? 'is-drop-target' : '',
+                ].filter(Boolean).join(' ')}
+                onDragOver={(e) => onCategoryDragOver(e, index)}
+                onDrop={(e) => onCategoryDrop(e, index)}
+              >
+                <span
+                  className="adm-cat-sort-handle"
+                  draggable={!orderSaving}
+                  aria-label={`Prevuci kategoriju ${row.name}`}
+                  title="Prevuci za promenu redosleda"
+                  onDragStart={(e) => onCategoryDragStart(e, index)}
+                  onDragEnd={onCategoryDragEnd}
+                >
+                  ⋮⋮
+                </span>
+                <span className="adm-cat-sort-pos">{index + 1}.</span>
+                {row.imageUrl ? (
+                  <ApiImage src={row.imageUrl} alt="" className="adm-best-thumb" />
+                ) : (
+                  <div className="adm-best-thumb adm-best-thumb-empty" />
+                )}
+                <div className="adm-best-meta">
+                  <div className="adm-best-name">{row.name}</div>
+                  <div className="adm-best-sub">{productCountByCategory.get(row.id) ?? 0} artikala</div>
+                </div>
+                <div className="adm-table-actions adm-cat-sort-actions">
+                  <button type="button" className="adm-btn adm-btn-sm adm-btn-primary" onClick={() => openAssign(row)}>
+                    Ubaci artikle
+                  </button>
+                  <button type="button" className="adm-btn adm-btn-sm" onClick={() => openEdit(row)}>Izmeni</button>
+                  <button type="button" className="adm-btn adm-btn-sm adm-btn-danger" onClick={() => deleteRow(row.id, row.name)}>Obriši</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <AdminModal open={showForm} onClose={closeForm}>

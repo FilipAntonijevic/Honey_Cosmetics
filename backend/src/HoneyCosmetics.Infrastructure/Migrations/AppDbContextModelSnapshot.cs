@@ -109,6 +109,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<int>("ProductTypeId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductTypeId");

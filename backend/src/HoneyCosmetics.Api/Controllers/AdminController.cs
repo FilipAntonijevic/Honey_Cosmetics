@@ -545,13 +545,37 @@ public class AdminController(
         if (productTypeId.HasValue)
             query = query.Where(c => c.ProductTypeId == productTypeId.Value);
 
-        var cats = await query.OrderBy(x => x.Name).ToListAsync();
-        return Ok(cats.Select(c => new AdminCategoryResponse(
-            c.Id,
-            c.Name,
-            c.ImageUrl,
-            c.ProductTypeId,
-            c.ProductType != null ? c.ProductType.Name : string.Empty)));
+        var cats = await query.OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        return Ok(cats.Select(MapCategory));
+    }
+
+    [HttpPut("categories/order")]
+    public async Task<IActionResult> ReorderCategories([FromBody] CategoryReorderRequest request)
+    {
+        if (!await db.ProductTypes.AnyAsync(x => x.Id == request.ProductTypeId))
+            return BadRequest("Nepoznata vrsta proizvoda.");
+
+        var ids = request.CategoryIds?.ToList() ?? [];
+        if (ids.Count == 0)
+            return NoContent();
+
+        var categories = await db.Categories
+            .Where(c => c.ProductTypeId == request.ProductTypeId)
+            .ToListAsync();
+
+        var categoryMap = categories.ToDictionary(c => c.Id);
+        var missing = ids.Where(id => !categoryMap.ContainsKey(id)).ToList();
+        if (missing.Count > 0)
+            return BadRequest($"Kategorije sa Id-jevima [{string.Join(", ", missing)}] ne postoje za ovu vrstu.");
+
+        if (ids.Count != categories.Count)
+            return BadRequest("Lista mora sadržati sve kategorije izabrane vrste.");
+
+        for (var i = 0; i < ids.Count; i++)
+            categoryMap[ids[i]].SortOrder = (i + 1) * 10;
+
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpPost("categories")]
@@ -563,21 +587,21 @@ public class AdminController(
         var name = request.Name.Trim();
         if (string.IsNullOrEmpty(name)) return BadRequest("Naziv je obavezan.");
 
+        var maxOrder = await db.Categories
+            .Where(c => c.ProductTypeId == request.ProductTypeId)
+            .MaxAsync(c => (int?)c.SortOrder) ?? 0;
+
         var entity = new Category
         {
             Name = name,
             ImageUrl = request.ImageUrl.Trim(),
-            ProductTypeId = request.ProductTypeId
+            ProductTypeId = request.ProductTypeId,
+            SortOrder = maxOrder + 10,
         };
         db.Categories.Add(entity);
         await db.SaveChangesAsync();
         await db.Entry(entity).Reference(x => x.ProductType).LoadAsync();
-        return Ok(new AdminCategoryResponse(
-            entity.Id,
-            entity.Name,
-            entity.ImageUrl,
-            entity.ProductTypeId,
-            entity.ProductType?.Name ?? string.Empty));
+        return Ok(MapCategory(entity));
     }
 
     [HttpPut("categories/{id:int}")]
@@ -593,12 +617,7 @@ public class AdminController(
         entity.ImageUrl = request.ImageUrl.Trim();
         await db.SaveChangesAsync();
         await db.Entry(entity).Reference(x => x.ProductType).LoadAsync();
-        return Ok(new AdminCategoryResponse(
-            entity.Id,
-            entity.Name,
-            entity.ImageUrl,
-            entity.ProductTypeId,
-            entity.ProductType?.Name ?? string.Empty));
+        return Ok(MapCategory(entity));
     }
 
     [HttpDelete("categories/{id:int}")]
@@ -1021,6 +1040,15 @@ public class AdminController(
             mediumUrl = ImageThumbnailService.GetMediumUrl(url),
         });
     }
+
+    private static AdminCategoryResponse MapCategory(Category c) =>
+        new(
+            c.Id,
+            c.Name,
+            c.ImageUrl,
+            c.ProductTypeId,
+            c.ProductType?.Name ?? string.Empty,
+            c.SortOrder);
 
     private Task<bool> CategoryMatchesProductTypeAsync(int productTypeId, int? categoryId)
     {

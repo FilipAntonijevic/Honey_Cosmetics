@@ -70,7 +70,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
             query = query.Where(c => c.ProductTypeId == productTypeId.Value);
 
         var list = await query
-            .OrderBy(c => c.Id)
+            .OrderBy(c => c.SortOrder)
+            .ThenBy(c => c.Id)
             .Select(c => new PublicCategoryResponse(
                 c.Id,
                 c.Name,

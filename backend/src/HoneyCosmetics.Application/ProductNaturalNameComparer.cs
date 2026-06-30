@@ -17,6 +17,10 @@ public sealed class ProductNaturalNameComparer : IComparer<string?>
         x ??= string.Empty;
         y ??= string.Empty;
 
+        var hardcoded = CompareHardcodedOrder(x, y);
+        if (hardcoded != 0)
+            return hardcoded;
+
         var xTokens = TokenRegex.Matches(x);
         var yTokens = TokenRegex.Matches(y);
         var count = Math.Min(xTokens.Count, yTokens.Count);
@@ -34,5 +38,15 @@ public sealed class ProductNaturalNameComparer : IComparer<string?>
         }
 
         return xTokens.Count.CompareTo(yTokens.Count);
+    }
+
+    private static int CompareHardcodedOrder(string x, string y)
+    {
+        var orderX = ProductCatalogSortOrder.TryGet(x);
+        var orderY = ProductCatalogSortOrder.TryGet(y);
+        if (orderX is null || orderY is null || orderX.Value.Group != orderY.Value.Group)
+            return 0;
+
+        return orderX.Value.Order.CompareTo(orderY.Value.Order);
     }
 }

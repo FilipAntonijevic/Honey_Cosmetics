@@ -88,7 +88,9 @@ public record PagedAdminProductsResponse(
     int PageSize,
     bool HasMore);
 
-public record AdminCategoryResponse(int Id, string Name, string ImageUrl, int ProductTypeId, string ProductTypeName);
+public record AdminCategoryResponse(int Id, string Name, string ImageUrl, int ProductTypeId, string ProductTypeName, int SortOrder);
+
+public record CategoryReorderRequest(int ProductTypeId, IReadOnlyList<int> CategoryIds);
 
 public record PublicCategoryResponse(int Id, string Name, string ImageUrl, int ProductTypeId, int ProductCount);
 
