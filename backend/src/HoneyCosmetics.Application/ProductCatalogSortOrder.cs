@@ -16,6 +16,9 @@ public static class ProductCatalogSortOrder
     private static readonly Regex TopCoatPlainRegex =
         new(@"^top coat\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex TopCoatFamilyRegex =
+        new(@"\btop coat\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     public static (string Group, int Order)? TryGet(string? name)
     {
         var baseName = ProductDisplayNaming.StripVariantFromName(name).Trim();
@@ -34,5 +37,34 @@ public static class ProductCatalogSortOrder
             return ("topcoat", 1);
 
         return null;
+    }
+
+    public static bool IsTopCoatFamily(string? name)
+    {
+        var baseName = ProductDisplayNaming.StripVariantFromName(name).Trim();
+        return baseName.Length > 0 && TopCoatFamilyRegex.IsMatch(baseName);
+    }
+
+    public static int CompareNames(string? left, string? right)
+    {
+        left ??= string.Empty;
+        right ??= string.Empty;
+
+        var orderLeft = TryGet(left);
+        var orderRight = TryGet(right);
+
+        if (orderLeft is not null && orderRight is not null &&
+            orderLeft.Value.Group == orderRight.Value.Group)
+            return orderLeft.Value.Order.CompareTo(orderRight.Value.Order);
+
+        var leftPinnedTop = orderLeft?.Group == "topcoat";
+        var rightPinnedTop = orderRight?.Group == "topcoat";
+        var leftOtherTop = orderLeft is null && IsTopCoatFamily(left);
+        var rightOtherTop = orderRight is null && IsTopCoatFamily(right);
+
+        if (leftPinnedTop && rightOtherTop) return -1;
+        if (rightPinnedTop && leftOtherTop) return 1;
+
+        return 0;
     }
 }

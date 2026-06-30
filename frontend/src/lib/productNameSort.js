@@ -1,5 +1,5 @@
 import { getProductDisplayName } from '../utils/productLineName'
-import { getHardcodedProductSortOrder } from './productCatalogSort'
+import { compareHardcodedProductNames } from './productCatalogSort'
 
 const collator = new Intl.Collator('sr', { numeric: true, sensitivity: 'base' })
 
@@ -7,11 +7,8 @@ export function compareProductNames(a, b) {
   const nameA = getProductDisplayName(a)
   const nameB = getProductDisplayName(b)
 
-  const orderA = getHardcodedProductSortOrder(nameA)
-  const orderB = getHardcodedProductSortOrder(nameB)
-  if (orderA && orderB && orderA.group === orderB.group && orderA.order !== orderB.order) {
-    return orderA.order - orderB.order
-  }
+  const hardcoded = compareHardcodedProductNames(nameA, nameB)
+  if (hardcoded !== 0) return hardcoded
 
   return collator.compare(nameA, nameB)
 }

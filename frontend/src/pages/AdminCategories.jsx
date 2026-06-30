@@ -35,6 +35,7 @@ export default function AdminCategories() {
   const [dragIndex, setDragIndex] = useState(null)
   const [dropIndex, setDropIndex] = useState(null)
   const [orderSaving, setOrderSaving] = useState(false)
+  const dragFromRef = useRef(null)
 
   const loadTypes = async () => {
     setLoading(true)
@@ -305,7 +306,7 @@ export default function AdminCategories() {
   }
 
   const reorderCategories = (fromIndex, toIndex) => {
-    if (fromIndex === toIndex) return
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return
     const next = categories.slice()
     const [moved] = next.splice(fromIndex, 1)
     next.splice(toIndex, 0, moved)
@@ -313,21 +314,37 @@ export default function AdminCategories() {
     saveCategoryOrder(next)
   }
 
+  const moveCategory = (index, delta) => {
+    reorderCategories(index, index + delta)
+  }
+
   const onCategoryDragStart = (e, index) => {
+    if (orderSaving) {
+      e.preventDefault()
+      return
+    }
+    dragFromRef.current = index
     setDragIndex(index)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', String(index))
+    const row = e.currentTarget
+    if (row instanceof HTMLElement) {
+      e.dataTransfer.setDragImage(row, row.offsetWidth / 2, row.offsetHeight / 2)
+    }
   }
 
   const onCategoryDragOver = (e, index) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    if (dragIndex !== null && dragIndex !== index) setDropIndex(index)
+    const from = dragFromRef.current
+    if (from == null || from === index) return
+    setDropIndex(index)
   }
 
   const onCategoryDrop = (e, index) => {
     e.preventDefault()
-    const from = dragIndex
+    const from = dragFromRef.current
+    dragFromRef.current = null
     setDragIndex(null)
     setDropIndex(null)
     if (from == null || from === index) return
@@ -335,9 +352,13 @@ export default function AdminCategories() {
   }
 
   const onCategoryDragEnd = () => {
+    dragFromRef.current = null
     setDragIndex(null)
     setDropIndex(null)
   }
+
+  const isInteractiveDragTarget = (target) =>
+    target instanceof Element && Boolean(target.closest('button, input, a, label, select, textarea'))
 
   const selectedTypeLabel = productTypes.find((t) => String(t.id) === String(selectedTypeId))?.name ?? ''
 
@@ -396,20 +417,26 @@ export default function AdminCategories() {
                 className={[
                   'adm-cat-sort-item',
                   dragIndex === index ? 'is-dragging' : '',
-                  dropIndex === index ? 'is-drop-target' : '',
+                  dropIndex === index && dragIndex !== index ? 'is-drop-target' : '',
                 ].filter(Boolean).join(' ')}
+                draggable={!orderSaving}
+                onDragStart={(e) => {
+                  if (isInteractiveDragTarget(e.target)) {
+                    e.preventDefault()
+                    return
+                  }
+                  onCategoryDragStart(e, index)
+                }}
                 onDragOver={(e) => onCategoryDragOver(e, index)}
                 onDrop={(e) => onCategoryDrop(e, index)}
+                onDragEnd={onCategoryDragEnd}
               >
                 <span
                   className="adm-cat-sort-handle"
-                  draggable={!orderSaving}
-                  aria-label={`Prevuci kategoriju ${row.name}`}
-                  title="Prevuci za promenu redosleda"
-                  onDragStart={(e) => onCategoryDragStart(e, index)}
-                  onDragEnd={onCategoryDragEnd}
+                  aria-hidden="true"
+                  title="Prevuci red za promenu redosleda"
                 >
-                  ⋮⋮
+                  ⠿
                 </span>
                 <span className="adm-cat-sort-pos">{index + 1}.</span>
                 {row.imageUrl ? (
@@ -420,6 +447,28 @@ export default function AdminCategories() {
                 <div className="adm-best-meta">
                   <div className="adm-best-name">{row.name}</div>
                   <div className="adm-best-sub">{productCountByCategory.get(row.id) ?? 0} artikala</div>
+                </div>
+                <div className="adm-cat-sort-reorder">
+                  <button
+                    type="button"
+                    className="adm-btn adm-btn-sm"
+                    onClick={() => moveCategory(index, -1)}
+                    disabled={index === 0 || orderSaving}
+                    aria-label={`Pomeri ${row.name} gore`}
+                    title="Pomeri gore"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="adm-btn adm-btn-sm"
+                    onClick={() => moveCategory(index, 1)}
+                    disabled={index === categories.length - 1 || orderSaving}
+                    aria-label={`Pomeri ${row.name} dole`}
+                    title="Pomeri dole"
+                  >
+                    ↓
+                  </button>
                 </div>
                 <div className="adm-table-actions adm-cat-sort-actions">
                   <button type="button" className="adm-btn adm-btn-sm adm-btn-primary" onClick={() => openAssign(row)}>

@@ -40,13 +40,6 @@ public sealed class ProductNaturalNameComparer : IComparer<string?>
         return xTokens.Count.CompareTo(yTokens.Count);
     }
 
-    private static int CompareHardcodedOrder(string x, string y)
-    {
-        var orderX = ProductCatalogSortOrder.TryGet(x);
-        var orderY = ProductCatalogSortOrder.TryGet(y);
-        if (orderX is null || orderY is null || orderX.Value.Group != orderY.Value.Group)
-            return 0;
-
-        return orderX.Value.Order.CompareTo(orderY.Value.Order);
-    }
+    private static int CompareHardcodedOrder(string x, string y) =>
+        ProductCatalogSortOrder.CompareNames(x, y);
 }

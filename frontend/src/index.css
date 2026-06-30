@@ -4888,7 +4888,7 @@ body.is-adm-modal-open {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.5rem;
 }
 
 .adm-cat-sort-item {
@@ -4899,16 +4899,26 @@ body.is-adm-modal-open {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+  cursor: grab;
+  user-select: none;
+}
+
+.adm-cat-sort-item:active {
+  cursor: grabbing;
 }
 
 .adm-cat-sort-item.is-dragging {
-  opacity: 0.45;
+  opacity: 0.55;
+  transform: scale(0.985);
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.12);
+  border-color: #c9a227;
 }
 
 .adm-cat-sort-item.is-drop-target {
   border-color: #c9a227;
-  box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.2);
+  box-shadow: inset 0 0 0 2px rgba(201, 162, 39, 0.35);
+  background: #fffdf7;
 }
 
 .adm-cat-sort-handle {
@@ -4916,17 +4926,11 @@ body.is-adm-modal-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
+  width: 1.5rem;
   color: #9ca3af;
-  font-size: 0.95rem;
-  letter-spacing: -0.12em;
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-}
-
-.adm-cat-sort-handle:active {
-  cursor: grabbing;
+  font-size: 1.1rem;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .adm-cat-sort-pos {
@@ -4937,8 +4941,20 @@ body.is-adm-modal-open {
   font-variant-numeric: tabular-nums;
 }
 
-.adm-cat-sort-actions {
+.adm-cat-sort-reorder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
   margin-left: auto;
+}
+
+.adm-cat-sort-reorder .adm-btn {
+  min-width: 2rem;
+  padding: 0.15rem 0.35rem;
+  line-height: 1.1;
+}
+
+.adm-cat-sort-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -4949,10 +4965,19 @@ body.is-adm-modal-open {
     align-items: flex-start;
   }
 
+  .adm-cat-sort-reorder {
+    flex-direction: row;
+    margin-left: 0;
+    order: 4;
+    width: 100%;
+    padding-left: 3.25rem;
+  }
+
   .adm-cat-sort-actions {
     width: 100%;
     margin-left: 0;
     padding-left: 3.25rem;
+    order: 5;
   }
 }
 
