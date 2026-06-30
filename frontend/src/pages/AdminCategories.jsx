@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import api from '../api'
 import ApiImage from '../components/ApiImage'
 import AdminModal from '../components/admin/AdminModal'
+import SortableCategoryList from '../components/admin/SortableCategoryList'
 import {
   expandSelectionWithGroupMembers,
   groupProductsWithMembers,
@@ -32,10 +33,7 @@ export default function AdminCategories() {
   const [assignLoading, setAssignLoading] = useState(false)
   const [assignSaving, setAssignSaving] = useState(false)
   const [assignError, setAssignError] = useState('')
-  const [dragIndex, setDragIndex] = useState(null)
-  const [dropIndex, setDropIndex] = useState(null)
   const [orderSaving, setOrderSaving] = useState(false)
-  const dragFromRef = useRef(null)
 
   const loadTypes = async () => {
     setLoading(true)
@@ -305,60 +303,10 @@ export default function AdminCategories() {
     }
   }
 
-  const reorderCategories = (fromIndex, toIndex) => {
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return
-    const next = categories.slice()
-    const [moved] = next.splice(fromIndex, 1)
-    next.splice(toIndex, 0, moved)
+  const handleReorder = (next) => {
     setCategories(next)
     saveCategoryOrder(next)
   }
-
-  const moveCategory = (index, delta) => {
-    reorderCategories(index, index + delta)
-  }
-
-  const onCategoryDragStart = (e, index) => {
-    if (orderSaving) {
-      e.preventDefault()
-      return
-    }
-    dragFromRef.current = index
-    setDragIndex(index)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(index))
-    const row = e.currentTarget
-    if (row instanceof HTMLElement) {
-      e.dataTransfer.setDragImage(row, row.offsetWidth / 2, row.offsetHeight / 2)
-    }
-  }
-
-  const onCategoryDragOver = (e, index) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    const from = dragFromRef.current
-    if (from == null || from === index) return
-    setDropIndex(index)
-  }
-
-  const onCategoryDrop = (e, index) => {
-    e.preventDefault()
-    const from = dragFromRef.current
-    dragFromRef.current = null
-    setDragIndex(null)
-    setDropIndex(null)
-    if (from == null || from === index) return
-    reorderCategories(from, index)
-  }
-
-  const onCategoryDragEnd = () => {
-    dragFromRef.current = null
-    setDragIndex(null)
-    setDropIndex(null)
-  }
-
-  const isInteractiveDragTarget = (target) =>
-    target instanceof Element && Boolean(target.closest('button, input, a, label, select, textarea'))
 
   const selectedTypeLabel = productTypes.find((t) => String(t.id) === String(selectedTypeId))?.name ?? ''
 
@@ -410,76 +358,15 @@ export default function AdminCategories() {
           {orderSaving && (
             <p className="adm-page-sub" style={{ marginBottom: '0.75rem' }}>Čuvanje redosleda…</p>
           )}
-          <ul className="adm-cat-sort-list">
-            {categories.map((row, index) => (
-              <li
-                key={row.id}
-                className={[
-                  'adm-cat-sort-item',
-                  dragIndex === index ? 'is-dragging' : '',
-                  dropIndex === index && dragIndex !== index ? 'is-drop-target' : '',
-                ].filter(Boolean).join(' ')}
-                draggable={!orderSaving}
-                onDragStart={(e) => {
-                  if (isInteractiveDragTarget(e.target)) {
-                    e.preventDefault()
-                    return
-                  }
-                  onCategoryDragStart(e, index)
-                }}
-                onDragOver={(e) => onCategoryDragOver(e, index)}
-                onDrop={(e) => onCategoryDrop(e, index)}
-                onDragEnd={onCategoryDragEnd}
-              >
-                <span
-                  className="adm-cat-sort-handle"
-                  aria-hidden="true"
-                  title="Prevuci red za promenu redosleda"
-                >
-                  ⠿
-                </span>
-                <span className="adm-cat-sort-pos">{index + 1}.</span>
-                {row.imageUrl ? (
-                  <ApiImage src={row.imageUrl} alt="" className="adm-best-thumb" />
-                ) : (
-                  <div className="adm-best-thumb adm-best-thumb-empty" />
-                )}
-                <div className="adm-best-meta">
-                  <div className="adm-best-name">{row.name}</div>
-                  <div className="adm-best-sub">{productCountByCategory.get(row.id) ?? 0} artikala</div>
-                </div>
-                <div className="adm-cat-sort-reorder">
-                  <button
-                    type="button"
-                    className="adm-btn adm-btn-sm"
-                    onClick={() => moveCategory(index, -1)}
-                    disabled={index === 0 || orderSaving}
-                    aria-label={`Pomeri ${row.name} gore`}
-                    title="Pomeri gore"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="adm-btn adm-btn-sm"
-                    onClick={() => moveCategory(index, 1)}
-                    disabled={index === categories.length - 1 || orderSaving}
-                    aria-label={`Pomeri ${row.name} dole`}
-                    title="Pomeri dole"
-                  >
-                    ↓
-                  </button>
-                </div>
-                <div className="adm-table-actions adm-cat-sort-actions">
-                  <button type="button" className="adm-btn adm-btn-sm adm-btn-primary" onClick={() => openAssign(row)}>
-                    Ubaci artikle
-                  </button>
-                  <button type="button" className="adm-btn adm-btn-sm" onClick={() => openEdit(row)}>Izmeni</button>
-                  <button type="button" className="adm-btn adm-btn-sm adm-btn-danger" onClick={() => deleteRow(row.id, row.name)}>Obriši</button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <SortableCategoryList
+            items={categories}
+            disabled={orderSaving}
+            onReorder={handleReorder}
+            getCount={(row) => productCountByCategory.get(row.id) ?? 0}
+            onAssign={openAssign}
+            onEdit={openEdit}
+            onDelete={(row) => deleteRow(row.id, row.name)}
+          />
         </>
       )}
 
