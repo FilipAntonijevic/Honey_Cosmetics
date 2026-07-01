@@ -139,6 +139,19 @@ builder.Services
 //
 builder.Services.AddAuthorization();
 
+//
+// Upload size limits (dozvoli veće originalne slike, npr. PNG)
+//
+const long MaxUploadBytes = 50L * 1024 * 1024; // 50 MB
+builder.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(options =>
+{
+    options.Limits.MaxRequestBodySize = MaxUploadBytes;
+});
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = MaxUploadBytes;
+});
+
 var app = builder.Build();
 
 app.Logger.LogInformation(

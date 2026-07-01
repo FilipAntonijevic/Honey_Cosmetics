@@ -1014,7 +1014,7 @@ public class AdminController(
     public async Task<IActionResult> Upload(IFormFile file)
     {
         if (file is null || file.Length == 0) return BadRequest("No file.");
-        if (file.Length > 5 * 1024 * 1024) return BadRequest("File too large (max 5 MB).");
+        if (file.Length > 50L * 1024 * 1024) return BadRequest("File too large (max 50 MB).");
 
         var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
