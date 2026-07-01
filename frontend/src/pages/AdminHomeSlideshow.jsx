@@ -173,9 +173,10 @@ export default function AdminHomeSlideshow({ embedded = false }) {
   }
 
   const pickReplace = (slideId, target) => {
-    replaceFileRef.current?.click()
-    replaceFileRef.current?.setAttribute('data-slide-id', String(slideId))
-    replaceFileRef.current?.setAttribute('data-target', target)
+    if (!replaceFileRef.current) return
+    replaceFileRef.current.setAttribute('data-slide-id', String(slideId))
+    replaceFileRef.current.setAttribute('data-target', target)
+    replaceFileRef.current.click()
   }
 
   const headerActions = (
@@ -333,6 +334,22 @@ export default function AdminHomeSlideshow({ embedded = false }) {
                 <div className="adm-slideshow-preview">
                   <span className="adm-slideshow-preview-label">Mobilna</span>
                   <ApiImage src={slide.mobileImageUrl} alt="" className="adm-best-thumb adm-best-thumb--wide" />
+                  {slide.mobileImageUrl === slide.imageUrl && (
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        color: '#b45309',
+                        background: '#fffbeb',
+                        border: '1px solid #fde68a',
+                        borderRadius: 6,
+                        padding: '0.15rem 0.4rem',
+                        lineHeight: 1.25,
+                        textAlign: 'center',
+                      }}
+                    >
+                      Ista kao desktop — postavi zasebnu mobilnu sliku
+                    </span>
+                  )}
                   <button
                     type="button"
                     className="adm-btn adm-btn-sm"

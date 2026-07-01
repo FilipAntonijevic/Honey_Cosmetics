@@ -4534,7 +4534,7 @@ body.is-adm-modal-open {
   .hero-slide img,
   .hero-slide .api-image__placeholder,
   .hero-slide .api-image__full {
-    object-fit: fill;
+    object-fit: cover;
     object-position: center;
   }
   .hero-arrow {
