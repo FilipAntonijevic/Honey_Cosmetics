@@ -4370,7 +4370,7 @@ body.is-adm-modal-open {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    width: var(--content-width);
+    width: calc(var(--content-width) * 0.95);
     max-width: none;
     margin-inline: auto;
     padding: 0;
@@ -4456,6 +4456,39 @@ body.is-adm-modal-open {
   height: 100%;
   object-fit: cover;
   object-position: center;
+}
+/* Desktop: statička (fiksna) visina slideshow-a — 65% trenutne visine najviše
+   slike (odnos slika ~2.40:1, širina umanjena 5% → aspect-ratio 0.95*2.40/0.65
+   ≈ 3.508:1). Slike se sabijaju (fill) na tu visinu; ne zavisi od budućih
+   uploadovanih slika. Mobilni prikaz ostaje u prirodnoj razmeri. */
+@media (min-width: 769px) {
+  .hero-carousel {
+    aspect-ratio: 3.508 / 1;
+  }
+  .hero-track {
+    height: 100%;
+    align-items: stretch;
+  }
+  .hero-slide {
+    height: 100%;
+  }
+  .hero-slide > img,
+  .hero-slide .api-image,
+  .hero-slide .hero-slide-img {
+    height: 100%;
+  }
+  .hero-slide > img {
+    object-fit: fill;
+  }
+  .hero-slide .api-image__full {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    object-fit: fill;
+  }
+  .hero-slide .api-image__placeholder {
+    object-fit: fill;
+  }
 }
 .hero-arrow {
   position: absolute;
