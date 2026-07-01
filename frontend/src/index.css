@@ -4361,27 +4361,38 @@ body.is-adm-modal-open {
   margin-inline: auto;
   margin-top: 1cm;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hero-carousel-row {
+  position: relative;
+  width: 100%;
 }
 
 @media (min-width: 769px) {
   .hero-carousel-wrap {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
     width: calc(var(--content-width) * 0.95);
     max-width: none;
     margin-inline: auto;
     padding: 0;
   }
 
-  .hero-carousel-wrap .hero-carousel {
+  .hero-carousel-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .hero-carousel-row .hero-carousel {
     flex: 1 1 auto;
     min-width: 0;
   }
 
-  .hero-carousel-wrap .hero-arrow {
+  .hero-carousel-row .hero-arrow {
     position: static;
     top: auto;
     left: auto;
@@ -4532,12 +4543,10 @@ body.is-adm-modal-open {
 }
 
 .hero-dots {
-  position: absolute;
-  bottom: 0.9rem;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
+  justify-content: center;
   gap: 0.5rem;
+  margin-top: 0.7rem;
   z-index: 3;
 }
 .hero-dot {
@@ -4546,13 +4555,13 @@ body.is-adm-modal-open {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(139, 107, 71, 0.4);
   cursor: pointer;
   transition: background 0.2s, transform 0.2s;
 }
-.hero-dot:hover { background: rgba(255, 255, 255, 0.85); }
+.hero-dot:hover { background: rgba(139, 107, 71, 0.7); }
 .hero-dot.active {
-  background: #fff;
+  background: #8B6B47;
   transform: scale(1.25);
 }
 

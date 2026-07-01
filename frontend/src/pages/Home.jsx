@@ -394,74 +394,76 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
 
   return (
     <div className="hero-carousel-wrap">
-      <button
-        type="button"
-        className="hero-arrow left"
-        onClick={onArrowPrev}
-        aria-label="Prethodna slika"
-      >
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-      </button>
-
-      <div
-        className="hero-carousel"
-        role="region"
-        aria-roledescription="Karusel"
-        aria-label="Početna galerija"
-        tabIndex={0}
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
-        onFocus={() => setPaused(true)}
-        onBlur={() => setPaused(false)}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        onKeyDown={onKeyDown}
-      >
-        <div
-          ref={trackRef}
-          className="hero-track"
-          style={{
-            transform: `translate3d(-${index * 100}%, 0, 0)`,
-            transition: withTransition
-              ? `transform ${HERO_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`
-              : 'none',
-          }}
-          onTransitionEnd={onTransitionEnd}
+      <div className="hero-carousel-row">
+        <button
+          type="button"
+          className="hero-arrow left"
+          onClick={onArrowPrev}
+          aria-label="Prethodna slika"
         >
-          {trackSlides.map((src, i) => (
-            <div className="hero-slide" key={`${src}-${i}`} aria-hidden={i !== index}>
-              <HeroSlideImage src={src} loading={i === 1 ? 'eager' : 'lazy'} />
-            </div>
-          ))}
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+
+        <div
+          className="hero-carousel"
+          role="region"
+          aria-roledescription="Karusel"
+          aria-label="Početna galerija"
+          tabIndex={0}
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onKeyDown={onKeyDown}
+        >
+          <div
+            ref={trackRef}
+            className="hero-track"
+            style={{
+              transform: `translate3d(-${index * 100}%, 0, 0)`,
+              transition: withTransition
+                ? `transform ${HERO_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`
+                : 'none',
+            }}
+            onTransitionEnd={onTransitionEnd}
+          >
+            {trackSlides.map((src, i) => (
+              <div className="hero-slide" key={`${src}-${i}`} aria-hidden={i !== index}>
+                <HeroSlideImage src={src} loading={i === 1 ? 'eager' : 'lazy'} />
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="hero-dots" role="tablist">
-          {images.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              role="tab"
-              aria-selected={i === realIndex}
-              aria-label={`Slika ${i + 1}`}
-              className={`hero-dot${i === realIndex ? ' active' : ''}`}
-              onClick={() => navigateToReal(i)}
-            />
-          ))}
-        </div>
+        <button
+          type="button"
+          className="hero-arrow right"
+          onClick={onArrowNext}
+          aria-label="Sledeća slika"
+        >
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
       </div>
 
-      <button
-        type="button"
-        className="hero-arrow right"
-        onClick={onArrowNext}
-        aria-label="Sledeća slika"
-      >
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </button>
+      <div className="hero-dots" role="tablist">
+        {images.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            role="tab"
+            aria-selected={i === realIndex}
+            aria-label={`Slika ${i + 1}`}
+            className={`hero-dot${i === realIndex ? ' active' : ''}`}
+            onClick={() => navigateToReal(i)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
