@@ -4400,14 +4400,13 @@ body.is-adm-modal-open {
   background: #f4ebe0;
   outline: none;
   user-select: none;
-  aspect-ratio: 200 / 61.96;
   border-radius: 20px;
 }
 .hero-track {
   display: flex;
   width: 100%;
   max-width: 100%;
-  height: 100%;
+  align-items: flex-start;
   min-height: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
@@ -4419,31 +4418,43 @@ body.is-adm-modal-open {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  height: 100%;
   min-height: 0;
   display: block;
   position: relative;
   overflow: hidden;
   background: #f4ebe0;
 }
-.hero-slide img,
+/* Slike zadržavaju originalnu proporciju: skaliraju se na punu širinu,
+   a visina prati prirodni odnos (bez razvlačenja i bez isecanja). */
+.hero-slide > img,
 .hero-slide .api-image,
 .hero-slide .hero-slide-img {
   width: 100%;
-  height: 100%;
   display: block;
-  object-fit: fill;
-  object-position: center;
   -webkit-user-drag: none;
   pointer-events: none;
 }
+.hero-slide > img {
+  height: auto;
+}
 .hero-slide .api-image {
+  position: relative;
+  inset: auto;
+}
+.hero-slide .api-image__full {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  object-fit: unset;
+  object-position: center;
+}
+.hero-slide .api-image__placeholder {
   position: absolute;
   inset: 0;
-}
-.hero-slide .api-image__placeholder,
-.hero-slide .api-image__full {
-  object-fit: fill;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   object-position: center;
 }
 .hero-arrow {
@@ -4529,13 +4540,6 @@ body.is-adm-modal-open {
     width: 100%;
     margin-left: 0;
     margin-right: 0;
-    aspect-ratio: 3 / 2;
-  }
-  .hero-slide img,
-  .hero-slide .api-image__placeholder,
-  .hero-slide .api-image__full {
-    object-fit: cover;
-    object-position: center;
   }
   .hero-arrow {
     width: 2rem;
