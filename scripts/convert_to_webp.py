@@ -25,7 +25,7 @@ except ImportError:
     sys.exit(1)
 
 ROOT = Path(__file__).resolve().parents[1]
-API_IMAGES = ROOT / "backend/src/HoneyCosmetics.Api/images"
+DEFAULT_API_IMAGES = ROOT / "backend/src/HoneyCosmetics.Api/images"
 PUBLIC_DIR = ROOT / "frontend/public"
 
 RASTER_EXT = {".png", ".jpg", ".jpeg"}
@@ -143,7 +143,7 @@ def main():
         action="store_true",
         help="Delete thumbs/medium WebP so API regenerates them from new originals on restart",
     )
-    parser.add_argument("--print-sql", action="store_true", help="Print SQL to update DB image paths")
+    parser.add_argument("--images-dir", type=Path, help="Custom API images directory (e.g. /opt/honey-api/images on server)")
     args = parser.parse_args()
 
     if args.print_sql:
@@ -156,13 +156,14 @@ def main():
     delete = not args.no_delete
 
     if args.api_images:
-        print(f"\n=== API images: {API_IMAGES} ===")
-        files = list(iter_api_originals(API_IMAGES))
+        images_dir = args.images_dir or DEFAULT_API_IMAGES
+        print(f"\n=== API images: {images_dir} ===")
+        files = list(iter_api_originals(images_dir))
         print(f"Found {len(files)} PNG/JPEG originals")
         convert_batch(files, args.quality, args.dry_run, delete)
         if args.regenerate_variants:
             print("Regenerating variant cache:")
-            regenerate_variants(API_IMAGES, args.dry_run)
+            regenerate_variants(images_dir, args.dry_run)
 
     if args.public:
         print(f"\n=== Public assets: {PUBLIC_DIR} ===")
