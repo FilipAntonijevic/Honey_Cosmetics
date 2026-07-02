@@ -1,4 +1,5 @@
 using HoneyCosmetics.Application.Interfaces;
+using HoneyCosmetics.Infrastructure.Services;
 using HoneyCosmetics.Infrastructure.Configurations;
 using HoneyCosmetics.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -33,10 +34,10 @@ public class ContactController(
         // Collaboration submissions land in the configurable contact inbox
         // (SiteSettings.EmailAddress), falling back to appsettings AdminEmail.
         var settings = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
-        var contactEmail = (settings?.EmailAddress ?? string.Empty).Trim();
-        var adminEmail = string.IsNullOrEmpty(contactEmail)
-            ? sendGridOptions.Value.AdminEmail
-            : contactEmail;
+        var adminEmail = EmailRecipients.ResolveContactInbox(
+            settings?.InfoEmails,
+            settings?.EmailAddress,
+            sendGridOptions.Value.AdminEmail);
         var companyLine = string.IsNullOrWhiteSpace(request.Company)
             ? ""
             : $"<tr><td style='color:#6b6b6b;padding:4px 0;'>Firma</td><td style='padding:4px 0 4px 16px;'>{System.Net.WebUtility.HtmlEncode(request.Company)}</td></tr>";
@@ -64,7 +65,8 @@ public class ContactController(
             await emailService.SendAsync(
                 adminEmail,
                 $"Saradnja: {request.FullName}",
-                html);
+                html,
+                replyTo: request.Email.Trim());
         }
         catch (Exception ex)
         {
@@ -92,10 +94,10 @@ public class ContactController(
             return BadRequest("Obavezna polja nisu popunjena.");
 
         var settingsRow = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
-        var contactEmail = (settingsRow?.EmailAddress ?? string.Empty).Trim();
-        var inbox = string.IsNullOrEmpty(contactEmail)
-            ? sendGridOptions.Value.AdminEmail
-            : contactEmail;
+        var inbox = EmailRecipients.ResolveContactInbox(
+            settingsRow?.InfoEmails,
+            settingsRow?.EmailAddress,
+            sendGridOptions.Value.AdminEmail);
 
         var phone = (request.Phone ?? string.Empty).Trim();
         var phoneLine = string.IsNullOrEmpty(phone)
@@ -123,7 +125,8 @@ public class ContactController(
             await emailService.SendAsync(
                 inbox,
                 $"Kontakt sa sajta — {fullName}",
-                html);
+                html,
+                replyTo: request.Email.Trim());
         }
         catch (Exception ex)
         {

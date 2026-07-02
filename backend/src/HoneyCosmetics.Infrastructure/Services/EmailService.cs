@@ -33,6 +33,9 @@ public class EmailService : IEmailService
             throw new InvalidOperationException("SendGrid API ključ nije podešen.");
         }
 
+        if (string.IsNullOrWhiteSpace(_settings.FromEmail))
+            throw new InvalidOperationException("SendGrid FromEmail nije podešen.");
+
         var client = new SendGridClient(_settings.ApiKey);
         var from = new EmailAddress(_settings.FromEmail, _settings.FromName);
         var toEmail = new EmailAddress(to);
@@ -40,12 +43,25 @@ public class EmailService : IEmailService
 
         var msg = MailHelper.CreateSingleEmail(from, toEmail, subject, plainText, body);
 
+        // Transactional best practice: do not rewrite links or track opens/clicks.
         msg.SetClickTracking(false, false);
         msg.SetOpenTracking(false);
         msg.AddCategory("transactional");
 
-        if (!string.IsNullOrWhiteSpace(replyTo))
-            msg.ReplyTo = new EmailAddress(replyTo.Trim());
+        // Ensure transactional mail is not blocked by marketing list/unsubscribe rules.
+        msg.MailSettings = new MailSettings
+        {
+            BypassListManagement = new BypassListManagement { Enable = true },
+            BypassSpamManagement = new BypassSpamManagement { Enable = true },
+            BypassBounceManagement = new BypassBounceManagement { Enable = true },
+            BypassUnsubscribeManagement = new BypassUnsubscribeManagement { Enable = true },
+        };
+
+        var effectiveReplyTo = !string.IsNullOrWhiteSpace(replyTo)
+            ? replyTo.Trim()
+            : _settings.ReplyToEmail?.Trim();
+        if (!string.IsNullOrWhiteSpace(effectiveReplyTo))
+            msg.ReplyTo = new EmailAddress(effectiveReplyTo);
 
         var response = await client.SendEmailAsync(msg, cancellationToken);
         var responseBody = await response.Body.ReadAsStringAsync(cancellationToken);
@@ -61,5 +77,11 @@ public class EmailService : IEmailService
             throw new InvalidOperationException(
                 $"Slanje emaila nije uspelo (SendGrid HTTP {(int)response.StatusCode}).");
         }
+
+        _logger.LogInformation(
+            "SendGrid poslao email na {To} (subject: {Subject}, from: {From})",
+            to,
+            subject,
+            _settings.FromEmail);
     }
 }

@@ -732,6 +732,10 @@ public class AdminController(
             s?.InstagramUrl ?? string.Empty,
             s?.TikTokUrl ?? string.Empty,
             s?.EmailAddress ?? string.Empty,
+            s?.InfoEmails ?? string.Empty,
+            s?.ContactEmail ?? string.Empty,
+            s?.MarketingEmail ?? string.Empty,
+            s?.OfficeEmail ?? string.Empty,
             s?.PhoneNumber ?? string.Empty,
             s?.ComplaintsEmail ?? string.Empty,
             s?.WhatsAppNumber ?? string.Empty,
@@ -787,9 +791,12 @@ public class AdminController(
 
         s.InstagramUrl = (request.InstagramUrl ?? string.Empty).Trim();
         s.TikTokUrl = (request.TikTokUrl ?? string.Empty).Trim();
-        s.EmailAddress = (request.EmailAddress ?? string.Empty).Trim();
-        s.PhoneNumber = (request.PhoneNumber ?? string.Empty).Trim();
+        s.InfoEmails = EmailRecipients.Normalize(request.InfoEmails);
+        s.OfficeEmail = (request.OfficeEmail ?? string.Empty).Trim();
         s.ComplaintsEmail = (request.ComplaintsEmail ?? string.Empty).Trim();
+        // Legacy polje — prva info adresa (kontakt forma, footer).
+        s.EmailAddress = EmailRecipients.First(s.InfoEmails) ?? string.Empty;
+        s.PhoneNumber = (request.PhoneNumber ?? string.Empty).Trim();
         s.WhatsAppNumber = (request.WhatsAppNumber ?? string.Empty).Trim();
         s.ViberNumber = (request.ViberNumber ?? string.Empty).Trim();
         // Notifikacije mogu imati više adresa — normalizujemo u kanonski oblik (jedna po redu).
@@ -825,6 +832,10 @@ public class AdminController(
             s.InstagramUrl,
             s.TikTokUrl,
             s.EmailAddress,
+            s.InfoEmails,
+            s.ContactEmail,
+            s.MarketingEmail,
+            s.OfficeEmail,
             s.PhoneNumber,
             s.ComplaintsEmail,
             s.WhatsAppNumber,

@@ -1,4 +1,5 @@
 using System.Text;
+using HoneyCosmetics.Api.Extensions;
 using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Domain.Enums;
@@ -58,6 +59,8 @@ builder.Services.AddCors(options =>
         {
             "http://localhost:5173",
             "https://filipantonijevic.github.io",
+            "https://honey-cosmetic.com",
+            "https://www.honey-cosmetic.com",
         };
 
         var configured = builder.Configuration.GetSection("CorsOrigins").Get<string[]>();
@@ -177,6 +180,8 @@ app.Logger.LogInformation(
     string.IsNullOrWhiteSpace(configuredFrontendUrl)
         ? "(auto-detekcija iz domena zahteva)"
         : configuredFrontendUrl);
+
+app.LogSendGridProductionReadiness();
 
 //
 // Database Seed

@@ -7,7 +7,8 @@ import { hasBankTransferInfo } from '../components/BankTransferSlip'
 const EMPTY = {
   instagramUrl: '',
   tikTokUrl: '',
-  emailAddress: '',
+  infoEmails: [''],
+  officeEmail: '',
   phoneNumber: '',
   complaintsEmail: '',
   notificationEmails: [''],
@@ -56,7 +57,8 @@ export default function AdminLinks() {
         const next = {
           instagramUrl: data?.instagramUrl ?? '',
           tikTokUrl: data?.tikTokUrl ?? '',
-          emailAddress: data?.emailAddress ?? '',
+          infoEmails: splitEmails(data?.infoEmails),
+          officeEmail: data?.officeEmail ?? '',
           phoneNumber: data?.phoneNumber ?? '',
           complaintsEmail: data?.complaintsEmail ?? '',
           notificationEmails: splitEmails(data?.notificationsEmail),
@@ -111,10 +113,34 @@ export default function AdminLinks() {
     setMessage('')
   }
 
+  const setInfoEmail = (index) => (e) => {
+    const value = e.target.value
+    setForm((f) => {
+      const next = [...f.infoEmails]
+      next[index] = value
+      return { ...f, infoEmails: next }
+    })
+    setMessage('')
+  }
+
+  const addInfoEmail = () => {
+    setForm((f) => ({ ...f, infoEmails: [...f.infoEmails, ''] }))
+    setMessage('')
+  }
+
+  const removeInfoEmail = (index) => {
+    setForm((f) => {
+      const next = f.infoEmails.filter((_, i) => i !== index)
+      return { ...f, infoEmails: next.length ? next : [''] }
+    })
+    setMessage('')
+  }
+
   const dirty =
     form.instagramUrl !== initial.instagramUrl ||
     form.tikTokUrl !== initial.tikTokUrl ||
-    form.emailAddress !== initial.emailAddress ||
+    joinEmails(form.infoEmails) !== joinEmails(initial.infoEmails) ||
+    form.officeEmail !== initial.officeEmail ||
     form.phoneNumber !== initial.phoneNumber ||
     form.complaintsEmail !== initial.complaintsEmail ||
     joinEmails(form.notificationEmails) !== joinEmails(initial.notificationEmails) ||
@@ -134,7 +160,9 @@ export default function AdminLinks() {
 
     const ig = form.instagramUrl.trim()
     const tt = form.tikTokUrl.trim()
-    const em = form.emailAddress.trim()
+    const infoList = form.infoEmails.map((s) => s.trim()).filter(Boolean)
+    const ie = infoList.join('\n')
+    const office = form.officeEmail.trim()
     const ph = form.phoneNumber.trim()
     const ce = form.complaintsEmail.trim()
     const notifyList = form.notificationEmails.map((s) => s.trim()).filter(Boolean)
@@ -154,8 +182,12 @@ export default function AdminLinks() {
       setError('TikTok link mora počinjati sa http:// ili https://')
       return
     }
-    if (em && !isLikelyEmail(em) && !isLikelyUrl(em)) {
-      setError('Email mora sadržati @ (ili biti puna URL adresa).')
+    if (infoList.some((email) => !isLikelyEmail(email))) {
+      setError('Svaki info email mora sadržati @.')
+      return
+    }
+    if (office && !isLikelyEmail(office)) {
+      setError('Office email mora sadržati @.')
       return
     }
     if (ce && !isLikelyEmail(ce)) {
@@ -187,7 +219,8 @@ export default function AdminLinks() {
       const { data } = await api.put('/admin/site/links', {
         instagramUrl: ig,
         tikTokUrl: tt,
-        emailAddress: em,
+        infoEmails: ie,
+        officeEmail: office,
         phoneNumber: ph,
         complaintsEmail: ce,
         notificationsEmail: ne,
@@ -203,7 +236,8 @@ export default function AdminLinks() {
       const next = {
         instagramUrl: data?.instagramUrl ?? ig,
         tikTokUrl: data?.tikTokUrl ?? tt,
-        emailAddress: data?.emailAddress ?? em,
+        infoEmails: splitEmails(data?.infoEmails ?? ie),
+        officeEmail: data?.officeEmail ?? office,
         phoneNumber: data?.phoneNumber ?? ph,
         complaintsEmail: data?.complaintsEmail ?? ce,
         notificationEmails: splitEmails(data?.notificationsEmail ?? ne),
@@ -255,13 +289,15 @@ export default function AdminLinks() {
           onRemove={removeNotificationEmail}
         />
 
-        <LinkField
+        <MultiEmailField
           icon={<MailIcon />}
-          label="Info — kontakt za kupce na sajtu"
-          placeholder="info@honey-cosmetic.com"
-          value={form.emailAddress}
-          onChange={set('emailAddress')}
-          type="text"
+          label="Info"
+          hint="Adrese prikazane na sajtu (npr. info@honey-cosmetic.com)."
+          placeholder="npr. info@honey-cosmetic.com"
+          values={form.infoEmails}
+          onChange={setInfoEmail}
+          onAdd={addInfoEmail}
+          onRemove={removeInfoEmail}
         />
 
         <LinkField
@@ -270,6 +306,15 @@ export default function AdminLinks() {
           placeholder="reklamacije@honey-cosmetic.com"
           value={form.complaintsEmail}
           onChange={set('complaintsEmail')}
+          type="text"
+        />
+
+        <LinkField
+          icon={<MailIcon />}
+          label="Office"
+          placeholder="office@honey-cosmetic.com"
+          value={form.officeEmail}
+          onChange={set('officeEmail')}
           type="text"
         />
 

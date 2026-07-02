@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 import api from '../api'
 
+const parseEmailList = (raw) =>
+  String(raw || '')
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
 const EMPTY = {
   instagramUrl: '',
   tikTokUrl: '',
   emailAddress: '',
+  infoEmails: [],
+  officeEmail: '',
   phoneNumber: '',
   complaintsEmail: '',
   whatsAppNumber: '',
@@ -34,10 +42,14 @@ export default function useSiteLinks() {
       .get('/site/links')
       .then(({ data }) => {
         if (cancelled) return
+        const infoEmails = parseEmailList(data?.infoEmails)
+        const primaryEmail = infoEmails[0] || data?.emailAddress || ''
         setData({
           instagramUrl: data?.instagramUrl ?? '',
           tikTokUrl: data?.tikTokUrl ?? '',
-          emailAddress: data?.emailAddress ?? '',
+          emailAddress: primaryEmail,
+          infoEmails,
+          officeEmail: data?.officeEmail ?? '',
           phoneNumber: data?.phoneNumber ?? '',
           complaintsEmail: data?.complaintsEmail ?? '',
           whatsAppNumber: data?.whatsAppNumber ?? '',

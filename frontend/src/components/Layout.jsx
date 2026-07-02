@@ -18,6 +18,8 @@ const EMPTY_LINKS = {
   instagramUrl: '',
   tikTokUrl: '',
   emailAddress: '',
+  infoEmails: [],
+  officeEmail: '',
   phoneNumber: '',
   whatsAppNumber: '',
   viberNumber: '',
@@ -275,6 +277,11 @@ export default function Layout({ children }) {
         instagramUrl: data?.instagramUrl ?? '',
         tikTokUrl: data?.tikTokUrl ?? '',
         emailAddress: data?.emailAddress ?? '',
+        infoEmails: String(data?.infoEmails || '')
+          .split(/[\s,;]+/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+        officeEmail: data?.officeEmail ?? '',
         phoneNumber: data?.phoneNumber ?? '',
         whatsAppNumber: data?.whatsAppNumber ?? '',
         viberNumber: data?.viberNumber ?? '',
@@ -298,8 +305,12 @@ export default function Layout({ children }) {
       .catch(() => {})
   }, [])
 
-  const mailHref = siteLinks.emailAddress
-    ? (siteLinks.emailAddress.includes('@') ? `mailto:${siteLinks.emailAddress}` : siteLinks.emailAddress)
+  const footerEmail =
+    siteLinks.infoEmails?.[0] ||
+    siteLinks.emailAddress?.trim() ||
+    ''
+  const mailHref = footerEmail
+    ? (footerEmail.includes('@') ? `mailto:${footerEmail}` : footerEmail)
     : ''
   const phoneHref = siteLinks.phoneNumber ? `tel:${cleanDigits(siteLinks.phoneNumber)}` : ''
   const whatsAppHref = buildWhatsAppHref(siteLinks.whatsAppNumber)

@@ -11,6 +11,16 @@ public class SiteSettings
     public string InstagramUrl { get; set; } = string.Empty;
     public string TikTokUrl { get; set; } = string.Empty;
     public string EmailAddress { get; set; } = string.Empty;
+
+    /// <summary>General info addresses shown on the contact page (newline-separated).</summary>
+    public string InfoEmails { get; set; } = string.Empty;
+
+    /// <summary>Inbox for contact-form messages; falls back to <see cref="EmailAddress"/> when empty.</summary>
+    public string ContactEmail { get; set; } = string.Empty;
+
+    public string MarketingEmail { get; set; } = string.Empty;
+    public string OfficeEmail { get; set; } = string.Empty;
+
     public string PhoneNumber { get; set; } = string.Empty;
     public string ComplaintsEmail { get; set; } = string.Empty;
     public string WhatsAppNumber { get; set; } = string.Empty;

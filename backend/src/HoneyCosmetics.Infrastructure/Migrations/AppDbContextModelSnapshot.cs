@@ -678,7 +678,23 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("ContactEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("EmailAddress")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("InfoEmails")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("MarketingEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("OfficeEmail")
                         .IsRequired()
                         .HasColumnType("text");
 

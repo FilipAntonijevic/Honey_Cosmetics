@@ -16,14 +16,14 @@ const EMPTY_FORM = {
 
 export default function Contact() {
   const {
-    emailAddress,
+    infoEmails,
+    officeEmail,
     phoneNumber,
     instagramUrl,
     tikTokUrl,
     loading,
   } = useSiteLinks()
 
-  const email = emailAddress?.trim()
   const phone = phoneNumber?.trim()
   const ig = instagramUrl?.trim()
   const tt = tikTokUrl?.trim()
@@ -100,16 +100,8 @@ export default function Contact() {
             <p className="contact-muted">Učitavanje…</p>
           ) : (
             <>
-              <div className="contact-block">
-                <div className="contact-field-label">Email</div>
-                {email ? (
-                  <a href={`mailto:${email}`} className="contact-field-value contact-link">
-                    {email}
-                  </a>
-                ) : (
-                  <span className="contact-field-value contact-muted">—</span>
-                )}
-              </div>
+              <ContactEmailSection label="Info" emails={infoEmails} />
+              <ContactEmailSection label="Office" emails={officeEmail} />
 
               <div className="contact-block">
                 <div className="contact-field-label">Telefon</div>
@@ -223,6 +215,33 @@ export default function Contact() {
         </div>
       </div>
     </section>
+  )
+}
+
+function ContactEmailSection({ label, emails }) {
+  const list = Array.isArray(emails)
+    ? emails.map((s) => s.trim()).filter(Boolean)
+    : String(emails || '').trim()
+      ? [String(emails).trim()]
+      : []
+
+  return (
+    <div className="contact-block">
+      <div className="contact-field-label">{label}</div>
+      {list.length ? (
+        <ul className="contact-email-list">
+          {list.map((email) => (
+            <li key={email}>
+              <a href={`mailto:${email}`} className="contact-field-value contact-link">
+                {email}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <span className="contact-field-value contact-muted">—</span>
+      )}
+    </div>
   )
 }
 

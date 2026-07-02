@@ -7203,6 +7203,14 @@ body.is-adm-modal-open {
 .contact-block {
   margin-bottom: 1.35rem;
 }
+.contact-email-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.contact-email-list li + li {
+  margin-top: 0.35rem;
+}
 .contact-link {
   word-break: break-word;
 }

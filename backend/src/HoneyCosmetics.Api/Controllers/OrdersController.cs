@@ -451,8 +451,10 @@ public class OrdersController(
     private async Task<string> ResolveContactEmailAsync()
     {
         var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
-        var fromDb = (s?.EmailAddress ?? string.Empty).Trim();
-        return string.IsNullOrEmpty(fromDb) ? sendGridOptions.Value.AdminEmail : fromDb;
+        return EmailRecipients.ResolveContactInbox(
+            s?.InfoEmails,
+            s?.EmailAddress,
+            sendGridOptions.Value.AdminEmail);
     }
 
     private static string ItemsTableHtml(List<(string Name, string? VariantLabel, int Qty, decimal Price)> items)

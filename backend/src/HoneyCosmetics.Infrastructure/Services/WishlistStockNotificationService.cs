@@ -96,15 +96,10 @@ public static class WishlistStockNotificationService
 
     private static string ResolveInfoEmail(SiteSettings? settings, SendGridSettings sendGrid)
     {
-        var info = (settings?.EmailAddress ?? string.Empty).Trim();
-        if (!string.IsNullOrEmpty(info))
-            return info;
-
-        var notifications = (settings?.NotificationsEmail ?? string.Empty).Trim();
-        if (!string.IsNullOrEmpty(notifications))
-            return notifications;
-
-        return sendGrid.AdminEmail.Trim();
+        return EmailRecipients.ResolveInfoReplyTo(
+            settings?.InfoEmails,
+            settings?.EmailAddress,
+            sendGrid.AdminEmail.Trim());
     }
 
     private static string GetFrontendBaseUrl(IConfiguration configuration)
