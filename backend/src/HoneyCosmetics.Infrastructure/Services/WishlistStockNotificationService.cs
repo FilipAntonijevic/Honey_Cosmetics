@@ -20,7 +20,9 @@ public static class WishlistStockNotificationService
         Product product,
         int stockBefore,
         ILogger logger,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? frontendBaseUrl = null,
+        string? apiBaseUrl = null)
     {
         if (product.IsDeleted || stockBefore > 0 || product.StockQuantity <= 0)
             return;
@@ -48,8 +50,12 @@ public static class WishlistStockNotificationService
 
         var siteSettings = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync(ct);
         var replyTo = ResolveInfoEmail(siteSettings, sendGridOptions.Value);
-        var frontendBase = GetFrontendBaseUrl(configuration);
-        var apiBase = GetPublicApiBaseUrl(configuration);
+        var frontendBase = string.IsNullOrWhiteSpace(frontendBaseUrl)
+            ? GetFrontendBaseUrl(configuration)
+            : frontendBaseUrl.TrimEnd('/');
+        var apiBase = string.IsNullOrWhiteSpace(apiBaseUrl)
+            ? GetPublicApiBaseUrl(configuration)
+            : apiBaseUrl.TrimEnd('/');
         var productUrl = $"{frontendBase}/products/{product.Id}";
         var imageSrc = BuildAbsoluteImageUrl(apiBase, product.ImageUrl);
         var subject = $"Honey Cosmetics — {product.Name} je ponovo na stanju";

@@ -10,3 +10,6 @@ backend/**/bin/
 backend/**/obj/
 .env
 appsettings.Development.json
+
+# Lokalni izvorni dizajn-materijal (baneri, sirove slike) — ne ide u repo/deploy
+Images/

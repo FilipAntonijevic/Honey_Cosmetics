@@ -154,9 +154,29 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(optio
 
 var app = builder.Build();
 
+//
+// Forwarded headers (nginx reverse proxy)
+// Da bi request.Scheme/Host bili tačni iza nginx-a (za auto-detekciju domena u
+// linkovima mejlova). nginx mora slati: proxy_set_header Host $host; i
+// proxy_set_header X-Forwarded-Proto $scheme;
+//
+var forwardedOptions = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
+{
+    ForwardedHeaders =
+        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto,
+};
+// Verujemo lokalnom nginx-u na istom hostu.
+forwardedOptions.KnownNetworks.Clear();
+forwardedOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedOptions);
+
+var configuredFrontendUrl = app.Configuration["FrontendUrl"];
 app.Logger.LogInformation(
     "Linkovi u emailu (potvrda, reset lozinke): {FrontendUrl}",
-    app.Configuration["FrontendUrl"] ?? "https://filipantonijevic.github.io/Honey_Cosmetics");
+    string.IsNullOrWhiteSpace(configuredFrontendUrl)
+        ? "(auto-detekcija iz domena zahteva)"
+        : configuredFrontendUrl);
 
 //
 // Database Seed

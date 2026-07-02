@@ -26,6 +26,7 @@ export default function SiteHeaderPanel({
   searchInput,
   onSearchChange,
   onSearchSubmit,
+  onSearchKeyDown,
   onLogoClick,
   userMenuOpen,
   onUserMenuToggle,
@@ -97,11 +98,13 @@ export default function SiteHeaderPanel({
       <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input
         className="search"
-        type="search"
+        type="text"
         name={variant === 'flow' ? 'q' : 'q-reveal'}
         placeholder="Pretraži proizvode..."
         value={searchInput}
         onChange={onSearchChange}
+        onKeyDown={onSearchKeyDown}
+        role="searchbox"
         aria-label="Pretraži proizvode po nazivu"
         enterKeyHint="search"
         autoComplete="off"
@@ -349,7 +352,16 @@ export default function SiteHeaderPanel({
   const categoryNav = (
     <nav className="category-nav category-nav--desktop" aria-label="Vrste proizvoda">
       {vrste.map((cat) => (
-        <Link key={cat} to={`/shop?type=${encodeURIComponent(cat)}`} className="cat-link" tabIndex={tabOff}>
+        <Link
+          key={cat}
+          to={`/shop?type=${encodeURIComponent(cat)}`}
+          className="cat-link"
+          tabIndex={tabOff}
+          onClick={(e) => {
+            e.preventDefault()
+            onCategoriesMenuNavigate(`/shop?type=${encodeURIComponent(cat)}`)
+          }}
+        >
           {cat.toUpperCase()}
         </Link>
       ))}

@@ -6,6 +6,7 @@ import ProductCard from '../components/ProductCard'
 import { useStore } from '../context/StoreContext'
 import { formatProductTypeDisplay, resolveProductTypeApi } from '../lib/productTypes'
 import { groupProductsForDisplay, pickDefaultVariantProduct } from '../lib/productVariants'
+import { readShopListCache, writeShopListCache } from '../utils/shopListCache'
 
 const SHOP_PAGE_SIZE = 12
 
@@ -129,18 +130,19 @@ export default function Shop() {
   const [hasMore, setHasMore] = useState(false)
   const [page, setPage] = useState(1)
   const [searchParams, setSearchParams] = useSearchParams()
-  const { toggleWishlist } = useStore()
+  const { toggleWishlist, productSearch, productSearchRevision, suspendProductSearchFilter } = useStore()
   const loadMoreRef = useRef(null)
   const loadingMoreRef = useRef(false)
 
-  const searchTerm = (searchParams.get('search') ?? '').trim()
-  const isSearchMode = searchTerm.length > 0
-  const bestsellersMode = !isSearchMode && ['1', 'true'].includes(searchParams.get('bestsellers') ?? '')
-  const vrstaName = bestsellersMode || isSearchMode
+  const searchTerm = productSearch.trim()
+  const hasSearchFilter = searchTerm.length > 0
+  const isGlobalSearch = hasSearchFilter
+  const bestsellersMode = !isGlobalSearch && ['1', 'true'].includes(searchParams.get('bestsellers') ?? '')
+  const vrstaName = bestsellersMode
     ? null
     : (searchParams.get('type') ?? searchParams.get('vrsta') ?? searchParams.get('category'))
   const resolvedVrstaName = resolveProductTypeApi(vrstaName)
-  const categoryIdParam = bestsellersMode || isSearchMode ? null : searchParams.get('categoryId')
+  const categoryIdParam = bestsellersMode ? null : searchParams.get('categoryId')
 
   const usesPagination = !bestsellersMode
 
@@ -190,23 +192,36 @@ export default function Shop() {
   const buildListParams = useCallback(
     (pageNum) => {
       const params = {}
-      if (usesPagination) {
-        params.page = pageNum
-        params.pageSize = SHOP_PAGE_SIZE
-      }
-      if (isSearchMode) {
+      params.page = pageNum
+      params.pageSize = SHOP_PAGE_SIZE
+      if (isGlobalSearch) {
         params.search = searchTerm
-      } else if (categoryIdParam) {
+        return params
+      }
+      if (categoryIdParam) {
         params.categoryId = categoryIdParam
       } else if (selectedTypeId) {
         params.productTypeId = selectedTypeId
       }
       return params
     },
-    [usesPagination, isSearchMode, searchTerm, categoryIdParam, selectedTypeId],
+    [isGlobalSearch, searchTerm, categoryIdParam, selectedTypeId],
   )
 
+  const shopFetchKey = isGlobalSearch
+    ? `search|${searchTerm}`
+    : `${resolvedVrstaName}|${selectedTypeId}|${bestsellersMode}|${categoryIdParam}`
+
   useEffect(() => {
+    const cached = readShopListCache(shopFetchKey)
+    if (cached) {
+      setProducts(cached.products)
+      setHasMore(cached.hasMore)
+      setPage(cached.page)
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
     const load = async () => {
       setLoading(true)
@@ -216,7 +231,11 @@ export default function Shop() {
       try {
         if (bestsellersMode) {
           const { data } = await api.get('/products/bestsellers')
-          if (!cancelled) setProducts(Array.isArray(data) ? data : [])
+          if (!cancelled) {
+            const items = Array.isArray(data) ? data : []
+            setProducts(items)
+            writeShopListCache(shopFetchKey, { products: items, hasMore: false, page: 1 })
+          }
           return
         }
 
@@ -226,6 +245,11 @@ export default function Shop() {
         setProducts(parsed.items)
         setHasMore(parsed.hasMore)
         setPage(1)
+        writeShopListCache(shopFetchKey, {
+          products: parsed.items,
+          hasMore: parsed.hasMore,
+          page: 1,
+        })
       } catch {
         if (!cancelled) setProducts([])
       } finally {
@@ -236,7 +260,7 @@ export default function Shop() {
     return () => {
       cancelled = true
     }
-  }, [resolvedVrstaName, selectedTypeId, bestsellersMode, isSearchMode, searchTerm, categoryIdParam, buildListParams])
+  }, [shopFetchKey, bestsellersMode, buildListParams, productSearchRevision])
 
   const loadMore = useCallback(async () => {
     if (!usesPagination || loadingMoreRef.current || !hasMore) return
@@ -246,7 +270,15 @@ export default function Shop() {
     try {
       const { data } = await api.get('/products', { params: buildListParams(nextPage) })
       const parsed = parsePagedProducts(data)
-      setProducts((prev) => [...prev, ...parsed.items])
+      setProducts((prev) => {
+        const next = [...prev, ...parsed.items]
+        writeShopListCache(shopFetchKey, {
+          products: next,
+          hasMore: parsed.hasMore,
+          page: nextPage,
+        })
+        return next
+      })
       setHasMore(parsed.hasMore)
       setPage(nextPage)
     } catch {
@@ -255,7 +287,7 @@ export default function Shop() {
       loadingMoreRef.current = false
       setLoadingMore(false)
     }
-  }, [usesPagination, hasMore, page, buildListParams])
+  }, [usesPagination, hasMore, page, buildListParams, shopFetchKey])
 
   useEffect(() => {
     if (!usesPagination || loading || !hasMore) return
@@ -278,6 +310,7 @@ export default function Shop() {
   )
 
   const onSelectCategory = (id) => {
+    suspendProductSearchFilter()
     const next = new URLSearchParams(searchParams)
     if (id == null) {
       next.delete('categoryId')
@@ -290,7 +323,7 @@ export default function Shop() {
   const displayVrstaName = formatProductTypeDisplay(resolvedVrstaName) || vrstaName
 
   const headerTitle = useMemo(() => {
-    if (isSearchMode) return `Pretraga: „${searchTerm}"`
+    if (isGlobalSearch) return `Pretraga: \u201E${searchTerm}\u201C`
     if (bestsellersMode) return 'Bestsellers'
     if (!displayVrstaName) return 'Svi proizvodi'
     if (categoryIdParam) {
@@ -298,7 +331,7 @@ export default function Shop() {
       if (cat) return `${displayVrstaName} — ${cat.name}`
     }
     return displayVrstaName
-  }, [isSearchMode, searchTerm, bestsellersMode, displayVrstaName, categoryIdParam, categories])
+  }, [isGlobalSearch, searchTerm, bestsellersMode, displayVrstaName, categoryIdParam, categories])
 
   const content = useMemo(() => {
     if (loading) {
@@ -312,9 +345,9 @@ export default function Shop() {
     }
 
     if (!displayProducts.length) {
-      const isTypePage = !isSearchMode && !bestsellersMode && Boolean(displayVrstaName)
-      const emptyMessage = isSearchMode
-        ? `Nema proizvoda koji odgovaraju pretrazi „${searchTerm}".`
+      const isTypePage = !bestsellersMode && Boolean(displayVrstaName)
+      const emptyMessage = hasSearchFilter
+        ? `Nema proizvoda koji odgovaraju pretrazi \u201E${searchTerm}\u201C.`
         : bestsellersMode
           ? 'Trenutno nema proizvoda u sekciji Bestsellers.'
           : isTypePage
@@ -365,7 +398,7 @@ export default function Shop() {
     displayProducts,
     toggleWishlist,
     bestsellersMode,
-    isSearchMode,
+    hasSearchFilter,
     searchTerm,
     displayVrstaName,
     usesPagination,
@@ -382,7 +415,7 @@ export default function Shop() {
       </div>
 
       <div className="shop-page-content shell">
-        {!isSearchMode && !bestsellersMode && selectedType && categories.length > 0 && (
+        {!isGlobalSearch && !bestsellersMode && selectedType && categories.length > 0 && (
           <CategoryStrip
             categories={categories}
             selectedId={categoryIdParam}

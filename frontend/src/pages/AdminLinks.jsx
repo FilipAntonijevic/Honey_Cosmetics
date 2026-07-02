@@ -10,7 +10,7 @@ const EMPTY = {
   emailAddress: '',
   phoneNumber: '',
   complaintsEmail: '',
-  notificationsEmail: '',
+  notificationEmails: [''],
   whatsAppNumber: '',
   viberNumber: '',
   freeShippingThreshold: '10000',
@@ -23,6 +23,21 @@ const EMPTY = {
 
 const isLikelyUrl = (s) => /^https?:\/\//i.test(s.trim())
 const isLikelyEmail = (s) => s.trim().includes('@')
+
+// Backend čuva više adresa u jednom tekstu (razdvojene novim redom/zarezom).
+// U UI-ju ih držimo kao niz redova (bar jedan prazan red za unos).
+const splitEmails = (raw) => {
+  const arr = String(raw || '')
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return arr.length ? arr : ['']
+}
+const joinEmails = (arr) =>
+  (arr || [])
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join('\n')
 
 export default function AdminLinks() {
   const [form, setForm] = useState(EMPTY)
@@ -44,7 +59,7 @@ export default function AdminLinks() {
           emailAddress: data?.emailAddress ?? '',
           phoneNumber: data?.phoneNumber ?? '',
           complaintsEmail: data?.complaintsEmail ?? '',
-          notificationsEmail: data?.notificationsEmail ?? '',
+          notificationEmails: splitEmails(data?.notificationsEmail),
           whatsAppNumber: data?.whatsAppNumber ?? '',
           viberNumber: data?.viberNumber ?? '',
           freeShippingThreshold: String(data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000),
@@ -73,13 +88,36 @@ export default function AdminLinks() {
     setMessage('')
   }
 
+  const setNotificationEmail = (index) => (e) => {
+    const value = e.target.value
+    setForm((f) => {
+      const next = [...f.notificationEmails]
+      next[index] = value
+      return { ...f, notificationEmails: next }
+    })
+    setMessage('')
+  }
+
+  const addNotificationEmail = () => {
+    setForm((f) => ({ ...f, notificationEmails: [...f.notificationEmails, ''] }))
+    setMessage('')
+  }
+
+  const removeNotificationEmail = (index) => {
+    setForm((f) => {
+      const next = f.notificationEmails.filter((_, i) => i !== index)
+      return { ...f, notificationEmails: next.length ? next : [''] }
+    })
+    setMessage('')
+  }
+
   const dirty =
     form.instagramUrl !== initial.instagramUrl ||
     form.tikTokUrl !== initial.tikTokUrl ||
     form.emailAddress !== initial.emailAddress ||
     form.phoneNumber !== initial.phoneNumber ||
     form.complaintsEmail !== initial.complaintsEmail ||
-    form.notificationsEmail !== initial.notificationsEmail ||
+    joinEmails(form.notificationEmails) !== joinEmails(initial.notificationEmails) ||
     form.whatsAppNumber !== initial.whatsAppNumber ||
     form.viberNumber !== initial.viberNumber ||
     form.freeShippingThreshold !== initial.freeShippingThreshold ||
@@ -99,7 +137,8 @@ export default function AdminLinks() {
     const em = form.emailAddress.trim()
     const ph = form.phoneNumber.trim()
     const ce = form.complaintsEmail.trim()
-    const ne = form.notificationsEmail.trim()
+    const notifyList = form.notificationEmails.map((s) => s.trim()).filter(Boolean)
+    const ne = notifyList.join('\n')
     const wa = form.whatsAppNumber.trim()
     const vb = form.viberNumber.trim()
     const fstRaw = form.freeShippingThreshold.trim().replace(/\s/g, '').replace(',', '.')
@@ -123,8 +162,8 @@ export default function AdminLinks() {
       setError('Email za reklamacije mora sadržati @.')
       return
     }
-    if (ne && !isLikelyEmail(ne)) {
-      setError('Email za notifikacije mora sadržati @.')
+    if (notifyList.some((email) => !isLikelyEmail(email))) {
+      setError('Svaki email za notifikacije mora sadržati @.')
       return
     }
     if (!Number.isFinite(fst) || fst < 0) {
@@ -167,7 +206,7 @@ export default function AdminLinks() {
         emailAddress: data?.emailAddress ?? em,
         phoneNumber: data?.phoneNumber ?? ph,
         complaintsEmail: data?.complaintsEmail ?? ce,
-        notificationsEmail: data?.notificationsEmail ?? ne,
+        notificationEmails: splitEmails(data?.notificationsEmail ?? ne),
         whatsAppNumber: data?.whatsAppNumber ?? wa,
         viberNumber: data?.viberNumber ?? vb,
         freeShippingThreshold: String(data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : fst),
@@ -205,13 +244,15 @@ export default function AdminLinks() {
       <form className="adm-links-form" onSubmit={submit}>
         <p className="adm-links-section-heading">Email adrese</p>
 
-        <LinkField
+        <MultiEmailField
           icon={<OrdersInboxIcon />}
           label="Porudžbine i notifikacije (inbox)"
+          hint="Dodaj proizvoljan broj adresa — svaka dobija notifikaciju o novoj porudžbini."
           placeholder="npr. narudzbine@honey-cosmetic.com"
-          value={form.notificationsEmail}
-          onChange={set('notificationsEmail')}
-          type="text"
+          values={form.notificationEmails}
+          onChange={setNotificationEmail}
+          onAdd={addNotificationEmail}
+          onRemove={removeNotificationEmail}
         />
 
         <LinkField
@@ -390,6 +431,46 @@ function LinkField({ icon, label, placeholder, value, onChange, type, min, step 
         />
       </span>
     </label>
+  )
+}
+
+function MultiEmailField({ icon, label, hint, placeholder, values, onChange, onAdd, onRemove }) {
+  const rows = values.length ? values : ['']
+  return (
+    <div className="adm-links-row adm-links-row--multi">
+      <span className="adm-links-icon" aria-hidden="true">{icon}</span>
+      <span className="adm-links-text">
+        <span className="adm-links-label">{label}</span>
+        {hint && <span className="adm-field-hint">{hint}</span>}
+        <div className="adm-links-multi-list">
+          {rows.map((value, index) => (
+            <div className="adm-links-multi-item" key={index}>
+              <input
+                className="adm-links-input"
+                type="text"
+                value={value}
+                placeholder={placeholder}
+                onChange={onChange(index)}
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                className="adm-links-multi-remove"
+                onClick={() => onRemove(index)}
+                disabled={rows.length === 1 && !value.trim()}
+                aria-label="Ukloni adresu"
+                title="Ukloni adresu"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <button type="button" className="adm-links-multi-add" onClick={onAdd}>
+          + Dodaj još jednu adresu
+        </button>
+      </span>
+    </div>
   )
 }
 

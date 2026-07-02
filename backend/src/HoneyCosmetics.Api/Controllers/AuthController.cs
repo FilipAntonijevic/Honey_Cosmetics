@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using HoneyCosmetics.Api.Extensions;
+using HoneyCosmetics.Api.Services;
 using HoneyCosmetics.Application.DTOs;
 using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Domain.Entities;
@@ -376,13 +377,8 @@ public class AuthController(
         return false;
     }
 
-    private string GetFrontendBaseUrl()
-    {
-        var url = configuration["FrontendUrl"]?.Trim();
-        if (string.IsNullOrEmpty(url))
-            url = "https://filipantonijevic.github.io/Honey_Cosmetics";
-        return url.TrimEnd('/');
-    }
+    private string GetFrontendBaseUrl() =>
+        PublicUrlResolver.ResolveFrontend(configuration, Request);
 
     private string BuildConfirmationLink(string token) =>
         $"{GetFrontendBaseUrl()}/confirm-email?token={Uri.EscapeDataString(token)}";

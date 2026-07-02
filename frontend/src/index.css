@@ -374,6 +374,11 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 .section-gap.pop-section {
   padding-top: 2rem;
 }
+@media (min-width: 769px) {
+  .section-gap.pop-section {
+    padding-top: 1rem;
+  }
+}
 .grid-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 .grid-three article, .order-card { background: rgba(255, 255, 255, 0.75); border: 1px solid #f1e5d8; border-radius: 16px; padding: 1rem; }
 .product-grid,
@@ -4365,9 +4370,27 @@ body.is-adm-modal-open {
   flex-direction: column;
   align-items: center;
 }
+/* Strelice su statične, levo i desno od slike (na oba prikaza) */
 .hero-carousel-row {
   position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   width: 100%;
+}
+.hero-carousel-row .hero-carousel {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.hero-carousel-row .hero-arrow {
+  position: static;
+  top: auto;
+  left: auto;
+  right: auto;
+  flex-shrink: 0;
+  transform: none;
 }
 
 @media (min-width: 769px) {
@@ -4375,30 +4398,8 @@ body.is-adm-modal-open {
     width: calc(var(--content-width) * 0.95);
     max-width: none;
     margin-inline: auto;
+    margin-top: 0.5cm;
     padding: 0;
-  }
-
-  .hero-carousel-row {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    width: 100%;
-  }
-
-  .hero-carousel-row .hero-carousel {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .hero-carousel-row .hero-arrow {
-    position: static;
-    top: auto;
-    left: auto;
-    right: auto;
-    flex-shrink: 0;
-    transform: none;
   }
 }
 .hero-carousel {
@@ -4468,13 +4469,12 @@ body.is-adm-modal-open {
   object-fit: cover;
   object-position: center;
 }
-/* Desktop: statička (fiksna) visina slideshow-a — 65% trenutne visine najviše
-   slike (odnos slika ~2.40:1, širina umanjena 5% → aspect-ratio 0.95*2.40/0.65
-   ≈ 3.508:1). Slike se sabijaju (fill) na tu visinu; ne zavisi od budućih
-   uploadovanih slika. Mobilni prikaz ostaje u prirodnoj razmeri. */
+/* Desktop: statička (fiksna) visina slideshow-a. 3.508:1 → +30% (2.699:1)
+   → +20% (2.249:1) → -5% visine → aspect-ratio = 2.249 / 0.95 ≈ 2.367:1.
+   Slike se sabijaju (fill) na tu visinu; ne zavisi od budućih uploadova. */
 @media (min-width: 769px) {
   .hero-carousel {
-    aspect-ratio: 3.508 / 1;
+    aspect-ratio: 2.367 / 1;
   }
   .hero-track {
     height: 100%;
@@ -4499,6 +4499,37 @@ body.is-adm-modal-open {
   }
   .hero-slide .api-image__placeholder {
     object-fit: fill;
+  }
+}
+/* Mobilni: fiksni portret odnos (~0.769:1, kao mobilne slike). Sve slike
+   popunjavaju istu visinu (cover), bez praznog prostora ispod niže slike. */
+@media (max-width: 768px) {
+  .hero-carousel {
+    aspect-ratio: 0.769 / 1;
+  }
+  .hero-track {
+    height: 100%;
+    align-items: stretch;
+  }
+  .hero-slide {
+    height: 100%;
+  }
+  .hero-slide > img,
+  .hero-slide .api-image,
+  .hero-slide .hero-slide-img {
+    height: 100%;
+  }
+  .hero-slide > img {
+    object-fit: cover;
+  }
+  .hero-slide .api-image__full {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    object-fit: cover;
+  }
+  .hero-slide .api-image__placeholder {
+    object-fit: cover;
   }
 }
 .hero-arrow {
@@ -4583,25 +4614,17 @@ body.is-adm-modal-open {
     margin-left: 0;
     margin-right: 0;
   }
-  .hero-arrow {
-    width: 2rem;
-    height: 2rem;
+  /* Na telefonu nema strelica — slika zauzima skoro celu širinu */
+  .hero-carousel-row .hero-arrow {
+    display: none;
   }
-  .hero-arrow.left {
-    left: max(0.65rem, calc(0.75cm * 0.85));
-    transform: translateY(-50%);
-  }
-  .hero-arrow.right {
-    right: max(0.65rem, calc(0.75cm * 0.85));
-    transform: translateY(-50%);
-  }
-  .hero-arrow.left:hover,
-  .hero-arrow.left:focus-visible {
-    transform: translate(-2mm, -50%);
-  }
-  .hero-arrow.right:hover,
-  .hero-arrow.right:focus-visible {
-    transform: translate(2mm, -50%);
+  /* Tackice preko dna slike (ne ispod), centrirane, braon */
+  .hero-dots {
+    position: absolute;
+    left: 50%;
+    bottom: 0.6rem;
+    transform: translateX(-50%);
+    margin-top: 0;
   }
 
   .pop-head {
@@ -7849,6 +7872,70 @@ body.is-adm-modal-open {
   outline: none;
   border-color: #8B6B47;
   box-shadow: 0 0 0 3px rgba(139, 107, 71, 0.12);
+}
+.adm-links-row--multi {
+  align-items: start;
+}
+.adm-links-row--multi .adm-links-icon {
+  grid-row: 1;
+  align-self: start;
+}
+.adm-links-row--multi .adm-links-text {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.adm-links-multi-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.adm-links-multi-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.adm-links-multi-item .adm-links-input {
+  flex: 1 1 auto;
+}
+.adm-links-multi-remove {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #e2c4c0;
+  background: #fdf3f2;
+  color: #b03a2e;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+.adm-links-multi-remove:hover:not(:disabled) {
+  background: #f8e2e0;
+}
+.adm-links-multi-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.adm-links-multi-add {
+  align-self: flex-start;
+  background: none;
+  border: 1px dashed #c8b79f;
+  color: #8B6B47;
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.adm-links-multi-add:hover {
+  background: #faf5ee;
+  border-color: #8B6B47;
 }
 .adm-links-error {
   background: #fef0ef;

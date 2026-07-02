@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { formatProductTypeDisplay } from '../lib/productTypes'
@@ -116,7 +116,7 @@ function FooterSocials({ instagramUrl, tikTokUrl, mailHref }) {
 }
 
 export default function Layout({ children }) {
-  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock, unseenOrders } = useStore()
+  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock, unseenOrders, productSearch, setProductSearch, applyProductSearch, forceProductSearch, suspendProductSearchFilter, updateSearchDraft } = useStore()
   const [vrste, setVrste] = useState([])
   const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
   const { itemsTotal } = useCheckoutTotals(siteLinks)
@@ -139,34 +139,76 @@ export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
   const isHome = location.pathname === '/'
-  const [searchInput, setSearchInput] = useState('')
+  const [searchInput, setSearchInput] = useState(productSearch)
   const SEARCH_DEBOUNCE_MS = 350
+  const searchDebounceTimerRef = useRef(null)
+  const locationRef = useRef(location)
+  const navigateRef = useRef(navigate)
+  const prevShopBrowseKeyRef = useRef('')
+  locationRef.current = location
+  navigateRef.current = navigate
 
-  useEffect(() => {
-    if (location.pathname === '/shop') {
-      setSearchInput(new URLSearchParams(location.search).get('search') ?? '')
+  const clearSearchDebounceTimer = useCallback(() => {
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current)
+      searchDebounceTimerRef.current = null
     }
-  }, [location.pathname, location.search])
+  }, [])
+
+  const scheduleSearchDebounce = useCallback((q) => {
+    clearSearchDebounceTimer()
+    searchDebounceTimerRef.current = window.setTimeout(() => {
+      searchDebounceTimerRef.current = null
+      const changed = applyProductSearch(q)
+      if (changed && q && locationRef.current.pathname !== '/shop') {
+        navigateRef.current('/shop')
+      }
+    }, SEARCH_DEBOUNCE_MS)
+  }, [applyProductSearch, clearSearchDebounceTimer])
+
+  const handleSearchChange = useCallback((e) => {
+    const value = e.target.value
+    setSearchInput(value)
+    updateSearchDraft(value)
+    scheduleSearchDebounce(value.trim())
+  }, [updateSearchDraft, scheduleSearchDebounce])
 
   useEffect(() => {
-    const q = searchInput.trim()
-    const urlQ = (new URLSearchParams(location.search).get('search') ?? '').trim()
+    updateSearchDraft(searchInput)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- inicijalni draft pri mount-u
 
-    const timer = window.setTimeout(() => {
-      if (!q) {
-        if (location.pathname === '/shop' && urlQ) {
-          navigate('/shop', { replace: true })
-        }
-        return
-      }
+  // Stari linkovi sa ?search= — prebaci u kontekst, ukloni iz URL-a
+  useEffect(() => {
+    if (location.pathname !== '/shop') return
+    const legacy = (new URLSearchParams(location.search).get('search') ?? '').trim()
+    if (!legacy) return
+    forceProductSearch(legacy)
+    setSearchInput(legacy)
+    updateSearchDraft(legacy)
+    const next = new URLSearchParams(location.search)
+    next.delete('search')
+    const qs = next.toString()
+    navigate(qs ? `/shop?${qs}` : '/shop', { replace: true })
+  }, [location.pathname, location.search, navigate, setProductSearch, forceProductSearch, updateSearchDraft])
 
-      if (location.pathname === '/shop' && q === urlQ) return
+  // Promena kategorije na /shop — ugasi filter pretrage (tekst u baru ostaje)
+  useEffect(() => {
+    if (location.pathname !== '/shop') {
+      prevShopBrowseKeyRef.current = ''
+      return
+    }
+    const browseKey = location.search
+    if (prevShopBrowseKeyRef.current !== browseKey && productSearch) {
+      clearSearchDebounceTimer()
+      suspendProductSearchFilter()
+    }
+    prevShopBrowseKeyRef.current = browseKey
+  }, [location.pathname, location.search, productSearch, suspendProductSearchFilter, clearSearchDebounceTimer])
 
-      navigate(`/shop?search=${encodeURIComponent(q)}`, { replace: true })
-    }, SEARCH_DEBOUNCE_MS)
-
-    return () => window.clearTimeout(timer)
-  }, [searchInput, location.pathname, location.search, navigate])
+  // Otkaži pending debounce pri navigaciji (npr. klik na proizvod)
+  useEffect(() => {
+    clearSearchDebounceTimer()
+  }, [location.pathname, location.search, clearSearchDebounceTimer])
 
   const handleLogoClick = (e) => {
     if (location.pathname !== '/') return
@@ -175,13 +217,21 @@ export default function Layout({ children }) {
   }
 
   const submitProductSearch = (e) => {
-    e.preventDefault()
+    e?.preventDefault?.()
+    clearSearchDebounceTimer()
     const q = searchInput.trim()
-    if (!q) {
+    updateSearchDraft(q)
+    forceProductSearch(q)
+    // Već na /shop — ne menjaj URL (izbegava lažnu promenu kategorije → suspend filtera)
+    if (q && location.pathname !== '/shop') {
       navigate('/shop')
-      return
     }
-    navigate(`/shop?search=${encodeURIComponent(q)}`)
+  }
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    submitProductSearch(e)
   }
 
   useEffect(() => {
@@ -554,8 +604,9 @@ export default function Layout({ children }) {
     cartCount,
     orderNotifCount: unseenOrders.length,
     searchInput,
-    onSearchChange: (e) => setSearchInput(e.target.value),
+    onSearchChange: handleSearchChange,
     onSearchSubmit: submitProductSearch,
+    onSearchKeyDown: handleSearchKeyDown,
     onLogoClick: handleLogoClick,
     userMenuOpen,
     onUserMenuToggle: () => setUserMenuOpen((o) => !o),
@@ -586,6 +637,8 @@ export default function Layout({ children }) {
     onCategoriesMenuClose: () => setCategoriesMenuOpen(false),
     onCategoriesMenuNavigate: (path) => {
       setCategoriesMenuOpen(false)
+      clearSearchDebounceTimer()
+      suspendProductSearchFilter()
       const url = new URL(path, window.location.origin)
       url.searchParams.delete('categoryId')
       navigate(`${url.pathname}${url.search}`)

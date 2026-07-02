@@ -1,9 +1,14 @@
 import useSiteLinks from '../hooks/useSiteLinks'
 import { publicUrl } from '../lib/assets'
 
+const fmtAmount = (n) =>
+  Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+
 export default function Delivery() {
-  const { emailAddress } = useSiteLinks()
+  const { emailAddress, freeShippingThreshold, shippingCost } = useSiteLinks()
   const contactEmail = emailAddress?.trim()
+  const threshold = Number(freeShippingThreshold) || 10000
+  const deliveryCost = Number(shippingCost) || 430
 
   return (
     <section className="about-page">
@@ -34,15 +39,15 @@ export default function Delivery() {
 
         <h2 className="about-subtitle">3. Troškovi dostave</h2>
         <p className="about-text">
-          Troškovi dostave se određuju od strane kurirske službe (za porudžbine do
-          10.000 dinara).
+          Troškovi dostave su fiksno {fmtAmount(deliveryCost)} dinara (za porudžbine do{' '}
+          {fmtAmount(threshold)} dinara).
           <br />
-          Besplatna dostava za porudžbine preko 10.000 dinara.
+          Besplatna dostava za porudžbine preko {fmtAmount(threshold)} dinara.
         </p>
 
         <h2 className="about-subtitle">4. Kurirska služba</h2>
         <p className="about-text">
-          Dostavu vrši Pošta Srbije (Post Express).
+          Dostavu vrši kurirska služba Daily Express.
         </p>
 
         <h2 className="about-subtitle">5. Oštećenje prilikom isporuke</h2>

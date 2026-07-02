@@ -1002,8 +1002,7 @@ export default function Home() {
 
       <section className="feature-section feature-section--image-left">
         <div className="feature-section-img">
-          <img src={publicUrl('/sections/Hema.jpg')} alt="HEMA & TPO Free" loading="lazy" />
-          <span className="feature-section-img-badge">HEMA&amp;TPO FREE</span>
+          <img src={publicUrl('/sections/section1.png')} alt="HEMA & TPO Free" loading="lazy" />
         </div>
         <div className="feature-section-body">
           <h2 className="feature-section-title">POTPUNO BEZBEDNO</h2>
@@ -1028,13 +1027,13 @@ export default function Home() {
           <Link to="/shop?type=Baze" className="feature-section-btn">O proizvodu</Link>
         </div>
         <div className="feature-section-img">
-          <img src={publicUrl('/sections/Hard_gel.png')} alt="Honey Hard Gel" loading="lazy" />
+          <img src={publicUrl('/sections/section2.png')} alt="Honey Hard Gel" loading="lazy" />
         </div>
       </section>
 
       <section className="feature-section feature-section--image-left">
         <div className="feature-section-img">
-          <img src={publicUrl('/sections/Color_gel.jpg')} alt="Color Gel Polish" loading="lazy" />
+          <img src={publicUrl('/sections/section3.png')} alt="Color Gel Polish" loading="lazy" />
         </div>
         <div className="feature-section-body">
           <h2 className="feature-section-title">COLOR GEL POLISHES</h2>

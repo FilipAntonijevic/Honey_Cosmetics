@@ -268,7 +268,9 @@ public class AdminController(
         var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
 
         await WishlistStockNotificationService.TryNotifyBackInStockAsync(
-            db, emailService, configuration, sendGridOptions, result, stockBefore, logger);
+            db, emailService, configuration, sendGridOptions, result, stockBefore, logger,
+            frontendBaseUrl: PublicUrlResolver.ResolveFrontend(configuration, Request),
+            apiBaseUrl: PublicUrlResolver.ResolvePublicApi(configuration, Request));
 
         return Ok(MapProduct(result, optSiblings));
     }
@@ -487,7 +489,9 @@ public class AdminController(
             return BadRequest(error);
 
         await WishlistStockNotificationService.TryNotifyBackInStockAsync(
-            db, emailService, configuration, sendGridOptions, product, stockBefore, logger);
+            db, emailService, configuration, sendGridOptions, product, stockBefore, logger,
+            frontendBaseUrl: PublicUrlResolver.ResolveFrontend(configuration, Request),
+            apiBaseUrl: PublicUrlResolver.ResolvePublicApi(configuration, Request));
 
         return Ok(new
         {
@@ -788,7 +792,8 @@ public class AdminController(
         s.ComplaintsEmail = (request.ComplaintsEmail ?? string.Empty).Trim();
         s.WhatsAppNumber = (request.WhatsAppNumber ?? string.Empty).Trim();
         s.ViberNumber = (request.ViberNumber ?? string.Empty).Trim();
-        s.NotificationsEmail = (request.NotificationsEmail ?? string.Empty).Trim();
+        // Notifikacije mogu imati više adresa — normalizujemo u kanonski oblik (jedna po redu).
+        s.NotificationsEmail = EmailRecipients.Normalize(request.NotificationsEmail);
 
         if (request.FreeShippingThreshold is decimal threshold)
         {

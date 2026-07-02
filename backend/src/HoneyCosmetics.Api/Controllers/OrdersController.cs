@@ -180,19 +180,14 @@ public class OrdersController(
         }
         catch (Exception ex) { logger.LogError(ex, "[Order {OrderId}] User email FAILED: {Msg}", order.Id, ex.Message); }
 
-        var notificationsEmail = await ResolveNotificationsEmailAsync();
-        logger.LogInformation("[Order {OrderId}] Sending notification to admin {AdminEmail}", order.Id, notificationsEmail);
-        // Notification to admin
-        try
-        {
-            var body = BuildAdminNotificationEmail(
-                user.FullName, user.Email, order.Id, orderItems, order.Subtotal, order.Discount,
-                order.CouponCode, order.Total, order.ShippingCost, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
-                order.PaymentMethod.ToString(), order.CreatedAt);
-            await emailService.SendAsync(notificationsEmail, $"Nova porudžbina #{order.Id} — {user.FullName}", body);
-            logger.LogInformation("[Order {OrderId}] Admin email sent OK", order.Id);
-        }
-        catch (Exception ex) { logger.LogError(ex, "[Order {OrderId}] Admin email FAILED: {Msg}", order.Id, ex.Message); }
+        var notificationsEmails = await ResolveNotificationsEmailsAsync();
+        logger.LogInformation("[Order {OrderId}] Sending notification to {Count} admin inbox(es): {Admins}", order.Id, notificationsEmails.Count, string.Join(", ", notificationsEmails));
+        // Notification to admin(s)
+        var adminBody = BuildAdminNotificationEmail(
+            user.FullName, user.Email, order.Id, orderItems, order.Subtotal, order.Discount,
+            order.CouponCode, order.Total, order.ShippingCost, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
+            order.PaymentMethod.ToString(), order.CreatedAt);
+        await SendAdminNotificationAsync(order.Id, notificationsEmails, $"Nova porudžbina #{order.Id} — {user.FullName}", adminBody);
 
         return Ok(MapOrder(order));
     }
@@ -328,30 +323,24 @@ public class OrdersController(
             catch (Exception ex) { logger.LogError(ex, "Failed to send guest confirmation email for order {OrderId}", order.Id); }
         }
 
-        var notificationsEmailGuest = await ResolveNotificationsEmailAsync();
-        // Notification to admin
-        try
-        {
-            await emailService.SendAsync(
-                notificationsEmailGuest,
-                $"Nova gost porudžbina #{order.Id} — {guestName}",
-                BuildAdminNotificationEmail(
-                    guestName,
-                    order.GuestEmail ?? "—",
-                    order.Id,
-                    orderItemsGuest,
-                    order.Subtotal,
-                    order.Discount,
-                    order.CouponCode,
-                    order.Total,
-                    order.ShippingCost,
-                    order.FreeShippingApplied,
-                    order.DeliveryAddress,
-                    order.Phone,
-                    order.PaymentMethod.ToString(),
-                    order.CreatedAt));
-        }
-        catch (Exception ex) { logger.LogError(ex, "Failed to send admin notification email for guest order {OrderId}", order.Id); }
+        var notificationsEmailsGuest = await ResolveNotificationsEmailsAsync();
+        // Notification to admin(s)
+        var adminBodyGuest = BuildAdminNotificationEmail(
+            guestName,
+            order.GuestEmail ?? "—",
+            order.Id,
+            orderItemsGuest,
+            order.Subtotal,
+            order.Discount,
+            order.CouponCode,
+            order.Total,
+            order.ShippingCost,
+            order.FreeShippingApplied,
+            order.DeliveryAddress,
+            order.Phone,
+            order.PaymentMethod.ToString(),
+            order.CreatedAt);
+        await SendAdminNotificationAsync(order.Id, notificationsEmailsGuest, $"Nova gost porudžbina #{order.Id} — {guestName}", adminBodyGuest);
 
         return Ok(MapOrder(order));
     }
@@ -428,13 +417,35 @@ public class OrdersController(
                 ? $"""<tr><td style="padding:3px 0;">Poštarina</td><td style="text-align:right;">+{shippingCost:N0} RSD</td></tr>"""
                 : "";
 
-    // Resolves the inbox where order/shipment notifications should be delivered.
-    // Falls back to appsettings SendGrid:AdminEmail when SiteSettings has no value.
-    private async Task<string> ResolveNotificationsEmailAsync()
+    // Resolves the inbox(es) where order/shipment notifications should be delivered.
+    // Podržava više adresa (admin ih unosi u panelu). Ako nijedna nije uneta,
+    // vraća se rezervni SendGrid:AdminEmail iz appsettings.
+    private async Task<IReadOnlyList<string>> ResolveNotificationsEmailsAsync()
     {
         var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
-        var fromDb = (s?.NotificationsEmail ?? string.Empty).Trim();
-        return string.IsNullOrEmpty(fromDb) ? sendGridOptions.Value.AdminEmail : fromDb;
+        var list = EmailRecipients.Parse(s?.NotificationsEmail);
+        if (list.Count > 0)
+            return list;
+
+        var fallback = (sendGridOptions.Value.AdminEmail ?? string.Empty).Trim();
+        return string.IsNullOrEmpty(fallback) ? [] : [fallback];
+    }
+
+    // Šalje isti mejl na svaku admin adresu; greška na jednu adresu ne prekida ostale.
+    private async Task SendAdminNotificationAsync(int orderId, IReadOnlyList<string> recipients, string subject, string body)
+    {
+        foreach (var recipient in recipients)
+        {
+            try
+            {
+                await emailService.SendAsync(recipient, subject, body);
+                logger.LogInformation("[Order {OrderId}] Admin email sent OK to {Admin}", orderId, recipient);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[Order {OrderId}] Admin email FAILED for {Admin}: {Msg}", orderId, recipient, ex.Message);
+            }
+        }
     }
 
     private async Task<string> ResolveContactEmailAsync()

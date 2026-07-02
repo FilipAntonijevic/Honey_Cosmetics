@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import api, { refreshSession } from '../api'
+import { clearShopListCache } from '../utils/shopListCache'
 import {
   clearAuthSession,
   getAccessToken,
@@ -105,6 +106,37 @@ export function StoreProvider({ children }) {
   const [initializing, setInitializing] = useState(true)
   // ID-jevi porudžbina koje je korisnik napravio, a još nije pogledao detalje.
   const [unseenOrders, setUnseenOrders] = useState([])
+  const [productSearch, setProductSearch] = useState('')
+  const [productSearchRevision, setProductSearchRevision] = useState(0)
+  const appliedProductSearchRef = useRef('')
+  const searchDraftRef = useRef('')
+
+  const updateSearchDraft = useCallback((value) => {
+    searchDraftRef.current = value
+  }, [])
+
+  const applyProductSearch = useCallback((q) => {
+    if (appliedProductSearchRef.current === q) return false
+    appliedProductSearchRef.current = q
+    clearShopListCache()
+    setProductSearch(q)
+    return true
+  }, [])
+
+  const forceProductSearch = useCallback((q) => {
+    appliedProductSearchRef.current = q
+    searchDraftRef.current = q
+    clearShopListCache()
+    setProductSearch(q)
+    setProductSearchRevision((n) => n + 1)
+  }, [])
+
+  /** Isključi filter pretrage, zadrži tekst u search baru; ne ponovo primenjuj isti upit. */
+  const suspendProductSearchFilter = useCallback(() => {
+    appliedProductSearchRef.current = searchDraftRef.current.trim()
+    clearShopListCache()
+    setProductSearch('')
+  }, [])
 
   useEffect(() => localStorage.setItem('honey_cart', JSON.stringify(cart)), [cart])
   useEffect(() => localStorage.setItem('honey_wishlist', JSON.stringify(wishlist)), [wishlist])
@@ -435,8 +467,15 @@ export function StoreProvider({ children }) {
       checkoutGrandTotal,
       setToast,
       setCart,
+      productSearch,
+      setProductSearch,
+      productSearchRevision,
+      applyProductSearch,
+      forceProductSearch,
+      suspendProductSearchFilter,
+      updateSearchDraft,
     }),
-    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, unseenOrders, addOrderNotification, markOrderSeen, login, register, logout, clearCartAfterOrder, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser],
+    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, unseenOrders, addOrderNotification, markOrderSeen, login, register, logout, clearCartAfterOrder, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser, productSearch, applyProductSearch, forceProductSearch, suspendProductSearchFilter, updateSearchDraft, productSearchRevision],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
