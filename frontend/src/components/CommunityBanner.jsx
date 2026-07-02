@@ -3,22 +3,22 @@ import FitOneLineTitle from './FitOneLineTitle'
 
 const ITEMS = [
   {
-    icon: 'icon1.png',
+    icon: 'icon1.webp',
     title: 'Bestsellers',
     subtitle: 'Tvoji omiljeni proizvodi',
   },
   {
-    icon: 'icon2.png',
+    icon: 'icon2.webp',
     title: 'Novi proizvodi',
     subtitle: 'Saznaj prvi nove proizvode',
   },
   {
-    icon: 'icon3.png',
+    icon: 'icon3.webp',
     title: 'Popusti',
     subtitle: 'Budi obavešten o popustima',
   },
   {
-    icon: 'icon4.png',
+    icon: 'icon4.webp',
     title: 'Specijalne ponude',
     subtitle: 'Za registrovane korisnike',
   },

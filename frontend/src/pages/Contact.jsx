@@ -85,7 +85,7 @@ export default function Contact() {
     <section className="about-page">
       <div className="about-hero">
         <img
-          src={publicUrl('/sections/kontakt.jpg')}
+          src={publicUrl('/sections/kontakt.webp')}
           alt="Honey Cosmetics — kontakt"
           loading="lazy"
           className="about-hero-img"

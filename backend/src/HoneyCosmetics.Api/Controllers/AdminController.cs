@@ -1030,12 +1030,15 @@ public class AdminController(
 
         var fileName = $"{Guid.NewGuid()}{ext}";
         var filePath = Path.Combine(imagesDir, fileName);
+        var uploadedExt = ext;
         await using (var stream = System.IO.File.Create(filePath))
         {
             await file.CopyToAsync(stream);
         }
 
-        await thumbnails.GenerateAllVariantsAsync(fileName);
+        fileName = await thumbnails.NormalizeUploadToWebpAsync(fileName);
+        if (uploadedExt is ".webp")
+            await thumbnails.GenerateAllVariantsAsync(fileName);
 
         var url = $"/images/{fileName}";
         return Ok(new

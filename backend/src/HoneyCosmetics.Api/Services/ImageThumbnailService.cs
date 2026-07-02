@@ -9,6 +9,7 @@ public class ImageThumbnailService(IWebHostEnvironment env, ILogger<ImageThumbna
     private const int ThumbMaxWidth = 64;
     private const int MediumMaxWidth = 800;
     private static readonly string[] SkipExtensions = [".gif"];
+    private static readonly string[] RasterExtensions = [".png", ".jpg", ".jpeg"];
 
     public string ImagesDirectory => Path.Combine(env.ContentRootPath, "images");
     public string ThumbsDirectory => Path.Combine(ImagesDirectory, "thumbs");
@@ -61,6 +62,36 @@ public class ImageThumbnailService(IWebHostEnvironment env, ILogger<ImageThumbna
             cancellationToken);
     }
 
+    public async Task<string> NormalizeUploadToWebpAsync(
+        string savedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var ext = Path.GetExtension(savedFileName).ToLowerInvariant();
+        if (ext is ".webp" or ".gif" || !RasterExtensions.Contains(ext))
+            return savedFileName;
+
+        var webpName = VariantFileName(savedFileName);
+        var originalPath = Path.Combine(ImagesDirectory, savedFileName);
+        var webpPath = Path.Combine(ImagesDirectory, webpName);
+
+        try
+        {
+            using var image = await Image.LoadAsync(originalPath, cancellationToken);
+            await image.SaveAsWebpAsync(
+                webpPath,
+                new WebpEncoder { Quality = 92 },
+                cancellationToken);
+            File.Delete(originalPath);
+            await GenerateAllVariantsAsync(webpName, cancellationToken);
+            return webpName;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "WebP conversion failed for upload {File}", savedFileName);
+            return savedFileName;
+        }
+    }
+
     public async Task BackfillMissingThumbnailsAsync(CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(ImagesDirectory))
@@ -76,7 +107,7 @@ public class ImageThumbnailService(IWebHostEnvironment env, ILogger<ImageThumbna
                 continue;
 
             var ext = Path.GetExtension(name).ToLowerInvariant();
-            if (ext is ".webp" or "")
+            if (string.IsNullOrEmpty(ext) || SkipExtensions.Contains(ext))
                 continue;
 
             var thumbWebp = Path.Combine(ThumbsDirectory, VariantFileName(name));

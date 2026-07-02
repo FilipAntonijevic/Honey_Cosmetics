@@ -14,7 +14,7 @@ export default function Delivery() {
     <section className="about-page">
       <div className="about-hero">
         <img
-          src={publicUrl('/sections/dostava.jpg')}
+          src={publicUrl('/sections/dostava.webp')}
           alt="Honey Cosmetics — dostava"
           loading="lazy"
           className="about-hero-img"

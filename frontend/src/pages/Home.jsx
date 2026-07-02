@@ -55,11 +55,11 @@ function buildProductSlides(products, visible) {
 }
 
 const HERO_IMAGES = [
-  publicUrl('/hero/POCETNA.jpg'),
-  publicUrl('/hero/POCETNA2.png'),
-  publicUrl('/hero/POCETNA3.jpg'),
-  publicUrl('/hero/POCETNA-4.jpg'),
-  publicUrl('/hero/POCETNA5.png'),
+  publicUrl('/hero/POCETNA.webp'),
+  publicUrl('/hero/POCETNA2.webp'),
+  publicUrl('/hero/POCETNA3.webp'),
+  publicUrl('/hero/POCETNA-4.webp'),
+  publicUrl('/hero/POCETNA5.webp'),
 ].map((url) => ({ desktop: url, mobile: url }))
 
 const HERO_INTERVAL_MS = 6000
@@ -1002,7 +1002,7 @@ export default function Home() {
 
       <section className="feature-section feature-section--image-left">
         <div className="feature-section-img">
-          <img src={publicUrl('/sections/section1.png')} alt="HEMA & TPO Free" loading="lazy" />
+          <img src={publicUrl('/sections/section1.webp')} alt="HEMA & TPO Free" loading="lazy" />
         </div>
         <div className="feature-section-body">
           <h2 className="feature-section-title">POTPUNO BEZBEDNO</h2>
@@ -1027,13 +1027,13 @@ export default function Home() {
           <Link to="/shop?type=Baze" className="feature-section-btn">O proizvodu</Link>
         </div>
         <div className="feature-section-img">
-          <img src={publicUrl('/sections/section2.png')} alt="Honey Hard Gel" loading="lazy" />
+          <img src={publicUrl('/sections/section2.webp')} alt="Honey Hard Gel" loading="lazy" />
         </div>
       </section>
 
       <section className="feature-section feature-section--image-left">
         <div className="feature-section-img">
-          <img src={publicUrl('/sections/section3.png')} alt="Color Gel Polish" loading="lazy" />
+          <img src={publicUrl('/sections/section3.webp')} alt="Color Gel Polish" loading="lazy" />
         </div>
         <div className="feature-section-body">
           <h2 className="feature-section-title">COLOR GEL POLISHES</h2>

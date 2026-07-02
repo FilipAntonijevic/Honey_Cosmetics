@@ -38,7 +38,7 @@ export default function Collaboration() {
     <section className="about-page">
       <div className="about-hero">
         <img
-          src={publicUrl('/sections/saradnja.jpg')}
+          src={publicUrl('/sections/saradnja.webp')}
           alt="Saradnja — Honey Cosmetics"
           loading="lazy"
           className="about-hero-img"

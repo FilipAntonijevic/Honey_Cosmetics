@@ -5,7 +5,7 @@ export default function About() {
     <section className="about-page">
       <div className="about-hero">
         <img
-          src={publicUrl('/sections/o_nama.jpg')}
+          src={publicUrl('/sections/o_nama.webp')}
           alt="Honey Cosmetics — o nama"
           loading="lazy"
           className="about-hero-img"
