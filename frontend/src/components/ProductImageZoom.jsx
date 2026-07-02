@@ -169,12 +169,16 @@ export default function ProductImageZoom({ src, alt }) {
       }
     : undefined
 
-  const wrapStyle = !isTouch
+  const wrapStyle = isTouch
     ? {
+        // Dok slika nije uveličana, jedan prst sme da skroluje stranicu (pan-y);
+        // čim je uvećana, preuzimamo sve dodire da bi jedan prst pomerao sliku.
+        touchAction: pinchScale > 1 ? 'none' : 'pan-y',
+      }
+    : {
         '--zoom-x': `${originX}%`,
         '--zoom-y': `${originY}%`,
       }
-    : undefined
 
   const imgClassName = [
     'pd-zoom__img',

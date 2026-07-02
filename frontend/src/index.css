@@ -957,7 +957,7 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   cursor: crosshair;
 }
 .pd-zoom--pinch {
-  touch-action: none;
+  touch-action: pan-y;
   cursor: default;
   -webkit-user-select: none;
   user-select: none;

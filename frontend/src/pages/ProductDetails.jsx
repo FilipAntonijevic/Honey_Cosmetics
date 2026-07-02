@@ -5,7 +5,7 @@ import ProductCard from '../components/ProductCard'
 import ProductGallery from '../components/ProductGallery'
 import ProductSizePicker from '../components/ProductSizePicker'
 import { useStore } from '../context/StoreContext'
-import { getDefaultVariant, getVariantOptions } from '../lib/productVariants'
+import { getDefaultSelectedVariant, getVariantOptions, pickDefaultVariantProduct } from '../lib/productVariants'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 import { formatProductPrice } from '../utils/price'
 
@@ -92,8 +92,11 @@ export default function ProductDetails() {
       const found = options.find((o) => o.id === selectedOptionId)
       if (found) return found
     }
+    // Ako je link vodio na tačnu opciju koja je na stanju, poštuj je (deep-link).
+    // Inače: najskuplja opcija koja je na stanju (najskuplja nedostupna se prikaže siva).
     const landing = options.find((o) => o.id === product?.id)
-    return landing ?? getDefaultVariant(product)
+    if (landing?.inStock) return landing
+    return getDefaultSelectedVariant(product)
   }, [options, selectedOptionId, product])
 
   const effective = useMemo(() => {
@@ -253,9 +256,16 @@ export default function ProductDetails() {
               Možda Vam se svide i…
             </h2>
             <div className="pd-related-grid product-grid">
-              {related.map((p) => (
-                <ProductCard key={p.id} product={p} onToggleWishlist={toggleWishlist} />
-              ))}
+              {related.map((p) => {
+                const display = pickDefaultVariantProduct(p, p.variants)
+                return (
+                  <ProductCard
+                    key={display.variantGroupId ?? display.id}
+                    product={display}
+                    onToggleWishlist={toggleWishlist}
+                  />
+                )
+              })}
             </div>
           </section>
         ) : null}

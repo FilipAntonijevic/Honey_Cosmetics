@@ -103,6 +103,23 @@ public static partial class ProductVariantService
         return preferred ?? siblings[0];
     }
 
+    /// <summary>
+    /// Reprezentativna opcija za PRIKAZ na karticama (shop, bestselleri, preporuke):
+    /// uvek najskuplja (najveća gramaža), bez obzira na stanje. Izjednačena cena →
+    /// veća opcija (manji VariantSortOrder), pa manji Id.
+    /// </summary>
+    public static Product PickDisplayVariant(IReadOnlyList<Product> siblings)
+    {
+        if (siblings.Count == 0)
+            throw new ArgumentException("No variants.", nameof(siblings));
+
+        return siblings
+            .OrderByDescending(s => s.Price)
+            .ThenBy(s => s.VariantSortOrder)
+            .ThenBy(s => s.Id)
+            .First();
+    }
+
     public static int VariantSortKey(string? label)
     {
         if (string.IsNullOrWhiteSpace(label))

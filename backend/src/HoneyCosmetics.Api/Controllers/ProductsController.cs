@@ -155,7 +155,7 @@ public class ProductsController(AppDbContext db) : ControllerBase
     {
         return products
             .GroupBy(ProductVariantService.ResolveGroupId)
-            .Select(g => ProductVariantService.PickDefaultVariant(g.ToList()))
+            .Select(g => ProductVariantService.PickDisplayVariant(g.ToList()))
             .ToList();
     }
 
@@ -202,6 +202,14 @@ public class ProductsController(AppDbContext db) : ControllerBase
     {
         count = Math.Clamp(count, 1, 12);
 
+        var groupId = id;
+        var current = await db.Products.AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => new { x.VariantGroupId })
+            .FirstOrDefaultAsync();
+        if (current?.VariantGroupId is int gid)
+            groupId = gid;
+
         var pool = await db.Products
             .ActiveProducts()
             .Include(x => x.Category)
@@ -210,7 +218,11 @@ public class ProductsController(AppDbContext db) : ControllerBase
             .Where(x => x.Id != id)
             .ToListAsync();
 
+        // Jedna kartica po grupi varijanti (bez trenutnog proizvoda), uvek najskuplja opcija.
         var list = pool
+            .GroupBy(ProductVariantService.ResolveGroupId)
+            .Where(g => g.Key != groupId)
+            .Select(g => ProductVariantService.PickDisplayVariant(g.ToList()))
             .OrderBy(_ => Random.Shared.Next())
             .Take(count)
             .ToList();

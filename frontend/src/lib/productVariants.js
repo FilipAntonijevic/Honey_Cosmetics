@@ -14,11 +14,43 @@ export function productHasVariantPicker(product) {
   return (product?.variants?.length ?? 0) > 1
 }
 
-/** Podrazumevana opcija — bira je admin (isDefault), pa prva po redosledu. */
+/**
+ * Najskuplja opcija (najveća gramaža). Izjednačena cena → veća opcija (manji sortOrder), pa manji id.
+ * @param {object} [opts]
+ * @param {boolean} [opts.inStockOnly] Uzmi u obzir samo opcije koje su na stanju.
+ */
+export function getMaxPriceVariant(options, { inStockOnly = false } = {}) {
+  const pool = inStockOnly ? options.filter((o) => o.inStock) : options
+  if (!pool.length) return null
+  return pool.reduce((best, o) => {
+    const bp = best.price ?? 0
+    const op = o.price ?? 0
+    if (op > bp) return o
+    if (op === bp) {
+      const bs = best.sortOrder ?? 0
+      const os = o.sortOrder ?? 0
+      if (os < bs) return o
+      if (os === bs && (o.id ?? 0) < (best.id ?? 0)) return o
+    }
+    return best
+  }, pool[0])
+}
+
+/** Opcija koja se prikazuje na karticama — uvek najskuplja (najveća gramaža), bez obzira na stanje. */
 export function getDefaultVariant(product) {
   const options = getVariantOptions(product)
   if (!options.length) return null
-  return options.find((v) => v.isDefault) ?? options[0]
+  return getMaxPriceVariant(options) ?? options[0]
+}
+
+/**
+ * Opcija koja se PODRAZUMEVANO selektuje na stranici proizvoda:
+ * najskuplja koja je na stanju; ako nijedna nije na stanju — najskuplja (biće prikazana kao nedostupna).
+ */
+export function getDefaultSelectedVariant(product) {
+  const options = getVariantOptions(product)
+  if (!options.length) return null
+  return getMaxPriceVariant(options, { inStockOnly: true }) ?? getMaxPriceVariant(options) ?? options[0]
 }
 
 export function getDefaultVariantLabel(product) {
@@ -33,7 +65,7 @@ export function pickDefaultVariantProduct(product, variants = product?.variants,
     return productsById?.get(only.id) ?? { ...product, ...only, variants: product.variants ?? variants }
   }
 
-  const chosen = variants.find((v) => v.isDefault) ?? variants.find((v) => v.inStock) ?? variants[0]
+  const chosen = getMaxPriceVariant(variants) ?? variants[0]
   if (chosen.id === product.id) return product
   const full = productsById?.get(chosen.id)
   return full
