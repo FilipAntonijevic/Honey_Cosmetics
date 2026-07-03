@@ -155,19 +155,34 @@ function HeroSlideImage({ src, loading }) {
       />
     )
   }
-  return <img src={src} alt="" loading={loading} draggable="false" />
+  return <img src={src} alt="" loading={loading} draggable="false" className="hero-slide-img" />
+}
+
+function HeroSlideContent({ src, linkUrl, loading }) {
+  const image = <HeroSlideImage src={src} loading={loading} />
+  const href = linkUrl?.trim()
+  if (!href) return image
+  return (
+    <a href={href} className="hero-slide-link" draggable="false">
+      {image}
+    </a>
+  )
 }
 
 function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
   const isMobile = useHeroMobile()
-  const images = useMemo(
-    () => slides.map((s) => (isMobile ? (s.mobile || s.desktop) : s.desktop)),
+  const slideItems = useMemo(
+    () =>
+      slides.map((s) => ({
+        src: isMobile ? (s.mobile || s.desktop) : s.desktop,
+        linkUrl: (s.linkUrl || '').trim(),
+      })),
     [slides, isMobile],
   )
-  const N = images.length
+  const N = slideItems.length
   const trackSlides = useMemo(
-    () => (N > 0 ? [images[N - 1], ...images, images[0]] : []),
-    [images, N],
+    () => (N > 0 ? [slideItems[N - 1], ...slideItems, slideItems[0]] : []),
+    [slideItems, N],
   )
   const lastIndex = trackSlides.length - 1
 
@@ -431,9 +446,9 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
             }}
             onTransitionEnd={onTransitionEnd}
           >
-            {trackSlides.map((src, i) => (
-              <div className="hero-slide" key={`${src}-${i}`} aria-hidden={i !== index}>
-                <HeroSlideImage src={src} loading={i === 1 ? 'eager' : 'lazy'} />
+            {trackSlides.map((slide, i) => (
+              <div className="hero-slide" key={`${slide.src}-${slide.linkUrl}-${i}`} aria-hidden={i !== index}>
+                <HeroSlideContent src={slide.src} linkUrl={slide.linkUrl} loading={i === 1 ? 'eager' : 'lazy'} />
               </div>
             ))}
           </div>
@@ -452,7 +467,7 @@ function HeroCarousel({ slides, interval = HERO_INTERVAL_MS }) {
       </div>
 
       <div className="hero-dots" role="tablist">
-        {images.map((_, i) => (
+        {slideItems.map((_, i) => (
           <button
             key={i}
             type="button"
@@ -915,6 +930,7 @@ export default function Home() {
           .map((s) => ({
             desktop: s.imageUrl,
             mobile: s.mobileImageUrl || s.imageUrl,
+            linkUrl: s.linkUrl ?? '',
           }))
           .filter((s) => s.desktop)
         if (mapped.length > 0) setHeroSlides(mapped)

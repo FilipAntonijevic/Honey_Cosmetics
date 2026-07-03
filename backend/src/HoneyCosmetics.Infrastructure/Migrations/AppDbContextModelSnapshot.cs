@@ -248,6 +248,10 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("LinkUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("MobileImageUrl")
                         .IsRequired()
                         .HasColumnType("text");

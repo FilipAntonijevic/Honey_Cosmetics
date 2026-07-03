@@ -859,7 +859,7 @@ public class AdminController(
         var slides = await db.HomeSlideshowSlides
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Id)
-            .Select(x => new HomeSlideshowSlideResponse(x.Id, x.ImageUrl, x.MobileImageUrl, x.SortOrder))
+            .Select(x => new HomeSlideshowSlideResponse(x.Id, x.ImageUrl, x.MobileImageUrl, x.LinkUrl, x.SortOrder))
             .ToListAsync();
         return Ok(slides);
     }
@@ -873,16 +873,21 @@ public class AdminController(
         if (string.IsNullOrWhiteSpace(request.MobileImageUrl))
             return BadRequest("Mobilna slika je obavezna.");
 
+        var linkUrl = NormalizeSlideLinkUrl(request.LinkUrl);
+        if (linkUrl is null)
+            return BadRequest("Link mora biti prazan, počinjati sa / ili biti puna http(s) adresa.");
+
         var maxOrder = await db.HomeSlideshowSlides.MaxAsync(x => (int?)x.SortOrder) ?? -1;
         var slide = new HomeSlideshowSlide
         {
             ImageUrl = request.ImageUrl.Trim(),
             MobileImageUrl = request.MobileImageUrl.Trim(),
+            LinkUrl = linkUrl,
             SortOrder = maxOrder + 1,
         };
         db.HomeSlideshowSlides.Add(slide);
         await db.SaveChangesAsync();
-        return Ok(new HomeSlideshowSlideResponse(slide.Id, slide.ImageUrl, slide.MobileImageUrl, slide.SortOrder));
+        return Ok(new HomeSlideshowSlideResponse(slide.Id, slide.ImageUrl, slide.MobileImageUrl, slide.LinkUrl, slide.SortOrder));
     }
 
     [HttpPut("home-slideshow/{id:int}")]
@@ -898,10 +903,15 @@ public class AdminController(
         if (string.IsNullOrWhiteSpace(request.MobileImageUrl))
             return BadRequest("Mobilna slika je obavezna.");
 
+        var linkUrl = NormalizeSlideLinkUrl(request.LinkUrl);
+        if (linkUrl is null)
+            return BadRequest("Link mora biti prazan, počinjati sa / ili biti puna http(s) adresa.");
+
         slide.ImageUrl = request.ImageUrl.Trim();
         slide.MobileImageUrl = request.MobileImageUrl.Trim();
+        slide.LinkUrl = linkUrl;
         await db.SaveChangesAsync();
-        return Ok(new HomeSlideshowSlideResponse(slide.Id, slide.ImageUrl, slide.MobileImageUrl, slide.SortOrder));
+        return Ok(new HomeSlideshowSlideResponse(slide.Id, slide.ImageUrl, slide.MobileImageUrl, slide.LinkUrl, slide.SortOrder));
     }
 
     [HttpPut("home-slideshow/order")]
@@ -1058,6 +1068,22 @@ public class AdminController(
             thumbnailUrl = ImageThumbnailService.GetThumbnailUrl(url),
             mediumUrl = ImageThumbnailService.GetMediumUrl(url),
         });
+    }
+
+    private static string? NormalizeSlideLinkUrl(string? raw)
+    {
+        var url = (raw ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(url))
+            return string.Empty;
+
+        if (url.StartsWith('/') && !url.StartsWith("//"))
+            return url;
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var absolute)
+            && (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
+            return url;
+
+        return null;
     }
 
     private static AdminCategoryResponse MapCategory(Category c) =>

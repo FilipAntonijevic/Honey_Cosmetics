@@ -17,7 +17,7 @@ public class HomeSlideshowController(AppDbContext db) : ControllerBase
         var slides = await db.HomeSlideshowSlides
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Id)
-            .Select(x => new HomeSlideshowSlideResponse(x.Id, x.ImageUrl, x.MobileImageUrl, x.SortOrder))
+            .Select(x => new HomeSlideshowSlideResponse(x.Id, x.ImageUrl, x.MobileImageUrl, x.LinkUrl, x.SortOrder))
             .ToListAsync();
         return Ok(slides);
     }

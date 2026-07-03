@@ -4741,6 +4741,28 @@ body.is-adm-modal-open {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.adm-slideshow-link-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  width: 100%;
+}
+.adm-slideshow-link-field--inline {
+  margin-top: 0.65rem;
+  max-width: 36rem;
+}
+.hero-slide-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+.hero-slide-link:focus-visible {
+  outline: 2px solid var(--gold, #c9a86c);
+  outline-offset: -2px;
+}
 @media (max-width: 768px) {
   .adm-slideshow-upload-grid {
     grid-template-columns: 1fr;

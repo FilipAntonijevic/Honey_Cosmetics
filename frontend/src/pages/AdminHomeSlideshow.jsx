@@ -8,6 +8,13 @@ function apiError(err, fallback) {
   return fallback
 }
 
+const isLikelySlideLink = (s) => {
+  const v = s.trim()
+  if (!v) return true
+  if (v.startsWith('/') && !v.startsWith('//')) return true
+  return /^https?:\/\//i.test(v)
+}
+
 export default function AdminHomeSlideshow({ embedded = false }) {
   const [slides, setSlides] = useState([])
   const [initialIds, setInitialIds] = useState([])
@@ -17,10 +24,12 @@ export default function AdminHomeSlideshow({ embedded = false }) {
   const [success, setSuccess] = useState('')
   const [draftDesktop, setDraftDesktop] = useState('')
   const [draftMobile, setDraftMobile] = useState('')
+  const [draftLinkUrl, setDraftLinkUrl] = useState('')
   const [uploadingDesktop, setUploadingDesktop] = useState(false)
   const [uploadingMobile, setUploadingMobile] = useState(false)
   const [adding, setAdding] = useState(false)
   const [replacing, setReplacing] = useState(null)
+  const [savingLinkId, setSavingLinkId] = useState(null)
   const desktopFileRef = useRef(null)
   const mobileFileRef = useRef(null)
   const replaceFileRef = useRef(null)
@@ -88,16 +97,23 @@ export default function AdminHomeSlideshow({ embedded = false }) {
       setError('Uploadujte mobilnu sliku.')
       return
     }
+    const linkUrl = draftLinkUrl.trim()
+    if (!isLikelySlideLink(linkUrl)) {
+      setError('Link mora biti prazan, počinjati sa / ili biti puna http(s) adresa.')
+      return
+    }
     setAdding(true)
     setError('')
     try {
       const { data: created } = await api.post('/admin/home-slideshow', {
         imageUrl: draftDesktop.trim(),
         mobileImageUrl: draftMobile.trim(),
+        linkUrl,
       })
       setSlides((prev) => [...prev, created])
       setDraftDesktop('')
       setDraftMobile('')
+      setDraftLinkUrl('')
       setSuccess('Slajd je dodat. Sačuvaj redosled ako si menjao raspored.')
     } catch (err) {
       setError(apiError(err, 'Dodavanje nije uspelo.'))
@@ -116,6 +132,7 @@ export default function AdminHomeSlideshow({ embedded = false }) {
       const next = {
         imageUrl: target === 'desktop' ? url : slide.imageUrl,
         mobileImageUrl: target === 'mobile' ? url : slide.mobileImageUrl,
+        linkUrl: slide.linkUrl ?? '',
       }
       const { data: updated } = await api.put(`/admin/home-slideshow/${slideId}`, next)
       setSlides((prev) => prev.map((s) => (s.id === slideId ? updated : s)))
@@ -125,6 +142,33 @@ export default function AdminHomeSlideshow({ embedded = false }) {
     } finally {
       setReplacing(null)
       if (replaceFileRef.current) replaceFileRef.current.value = ''
+    }
+  }
+
+  const saveSlideLink = async (slideId, linkUrl) => {
+    const slide = slides.find((s) => s.id === slideId)
+    if (!slide) return
+    const trimmed = linkUrl.trim()
+    if (!isLikelySlideLink(trimmed)) {
+      setError('Link mora biti prazan, počinjati sa / ili biti puna http(s) adresa.')
+      return
+    }
+    if ((slide.linkUrl ?? '').trim() === trimmed) return
+
+    setSavingLinkId(slideId)
+    setError('')
+    try {
+      const { data: updated } = await api.put(`/admin/home-slideshow/${slideId}`, {
+        imageUrl: slide.imageUrl,
+        mobileImageUrl: slide.mobileImageUrl,
+        linkUrl: trimmed,
+      })
+      setSlides((prev) => prev.map((s) => (s.id === slideId ? updated : s)))
+      setSuccess('Link je sačuvan.')
+    } catch (err) {
+      setError(apiError(err, 'Čuvanje linka nije uspelo.'))
+    } finally {
+      setSavingLinkId(null)
     }
   }
 
@@ -283,6 +327,18 @@ export default function AdminHomeSlideshow({ embedded = false }) {
             )}
           </div>
         </div>
+        <label className="adm-slideshow-link-field">
+          <span className="adm-slideshow-upload-label">Link (opciono)</span>
+          <input
+            className="adm-links-input"
+            type="url"
+            value={draftLinkUrl}
+            onChange={(e) => setDraftLinkUrl(e.target.value)}
+            placeholder="npr. https://honey-cosmetic.com/shop?type=Gel+Lak"
+            autoComplete="off"
+          />
+          <span className="adm-field-hint">Puna http(s) adresa ili putanja od / — prazno = slika nije klikabilna.</span>
+        </label>
         <button
           type="button"
           className="adm-btn adm-btn-primary"
@@ -362,6 +418,23 @@ export default function AdminHomeSlideshow({ embedded = false }) {
               </div>
               <div className="adm-best-meta">
                 <div className="adm-best-name">Slajd #{i + 1}</div>
+                <label className="adm-slideshow-link-field adm-slideshow-link-field--inline">
+                  <span className="adm-slideshow-upload-label">Link (opciono)</span>
+                  <input
+                    className="adm-links-input"
+                    type="url"
+                    defaultValue={slide.linkUrl ?? ''}
+                    key={`link-${slide.id}-${slide.linkUrl ?? ''}`}
+                    placeholder="npr. https://honey-cosmetic.com/shop?type=Gel+Lak"
+                    autoComplete="off"
+                    onBlur={(e) => saveSlideLink(slide.id, e.target.value)}
+                  />
+                  {savingLinkId === slide.id ? (
+                    <span className="adm-field-hint">Čuvam link…</span>
+                  ) : (
+                    <span className="adm-field-hint">Klik na sliku vodi na ovaj URL. Prazno = bez linka.</span>
+                  )}
+                </label>
               </div>
               <div className="adm-best-actions">
                 <button

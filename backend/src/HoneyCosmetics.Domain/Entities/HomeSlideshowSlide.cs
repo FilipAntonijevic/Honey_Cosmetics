@@ -7,5 +7,7 @@ public class HomeSlideshowSlide
     public string ImageUrl { get; set; } = string.Empty;
     /// <summary>Mobilna verzija slike (prikaz ≤768px).</summary>
     public string MobileImageUrl { get; set; } = string.Empty;
+    /// <summary>Opcioni URL na koji vodi klik na slajd (puna http(s) adresa ili putanja od /).</summary>
+    public string LinkUrl { get; set; } = string.Empty;
     public int SortOrder { get; set; }
 }
