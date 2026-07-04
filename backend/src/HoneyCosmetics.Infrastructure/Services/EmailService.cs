@@ -48,13 +48,12 @@ public class EmailService : IEmailService
         msg.SetOpenTracking(false);
         msg.AddCategory("transactional");
 
-        // Ensure transactional mail is not blocked by marketing list/unsubscribe rules.
+        // Transactional mail: bypass list/unsubscribe/bounce/spam suppression.
+        // SendGrid treats bypass_list_management as mutually exclusive with the
+        // individual bypass_* flags — use only BypassListManagement.
         msg.MailSettings = new MailSettings
         {
             BypassListManagement = new BypassListManagement { Enable = true },
-            BypassSpamManagement = new BypassSpamManagement { Enable = true },
-            BypassBounceManagement = new BypassBounceManagement { Enable = true },
-            BypassUnsubscribeManagement = new BypassUnsubscribeManagement { Enable = true },
         };
 
         var effectiveReplyTo = !string.IsNullOrWhiteSpace(replyTo)
