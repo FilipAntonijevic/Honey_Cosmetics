@@ -14,7 +14,7 @@ Full-stack premium beauty e-commerce starter for **Honey Cosmetics**.
 - Orders: checkout (cash on delivery / bank transfer), order statuses workflow
 - Coupons: welcome coupon, promo coupons, one usage per user via `CouponUsage`
 - Admin endpoints: product CRUD, dashboard, order status updates
-- Email notifications via SendGrid
+- Email notifications via SendGrid — see [docs/SENDGRID_PRODUCTION.md](docs/SENDGRID_PRODUCTION.md) for domain authentication on `honey-cosmetic.com`
 
 ## Project Structure
 - `backend/src/HoneyCosmetics.Api` - API entry point and controllers
