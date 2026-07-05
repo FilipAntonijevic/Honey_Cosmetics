@@ -4,6 +4,7 @@ const CONTEXT_LABELS = {
   forgotPassword: 'slanja linka za reset lozinke',
   contact: 'slanja poruke',
   collaboration: 'slanja poruke o saradnji',
+  complaint: 'slanja reklamacije',
 }
 
 function extractApiMessage(err) {

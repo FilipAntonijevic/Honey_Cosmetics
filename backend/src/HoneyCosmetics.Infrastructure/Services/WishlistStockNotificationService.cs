@@ -77,7 +77,7 @@ public static class WishlistStockNotificationService
 
             try
             {
-                await emailService.SendAsync(user.Email, subject, body, replyTo, ct);
+                await emailService.SendAsync(user.Email, subject, body, replyTo, cancellationToken: ct);
                 logger.LogInformation(
                     "Wishlist back-in-stock email sent to {Email} for product {ProductId}",
                     user.Email,

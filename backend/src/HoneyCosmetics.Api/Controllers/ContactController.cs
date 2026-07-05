@@ -66,7 +66,8 @@ public class ContactController(
                 adminEmail,
                 $"Saradnja: {request.FullName}",
                 html,
-                replyTo: request.Email.Trim());
+                replyTo: request.Email.Trim(),
+                fromEmail: sendGridOptions.Value.CollaborationFromEmail);
         }
         catch (Exception ex)
         {
@@ -132,6 +133,83 @@ public class ContactController(
         {
             logger.LogError(ex, "Contact message email failed for {Email}", request.Email);
             return StatusCode(503, "Došlo je do greške prilikom slanja poruke. Pokušajte ponovo kasnije.");
+        }
+
+        return Ok();
+    }
+
+    public record ComplaintRequest(
+        string FirstName,
+        string LastName,
+        string Email,
+        string? Phone,
+        string? OrderNumber,
+        string Message);
+
+    [HttpPost("complaint")]
+    public async Task<IActionResult> SendComplaint([FromBody] ComplaintRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.FirstName) ||
+            string.IsNullOrWhiteSpace(request.LastName) ||
+            string.IsNullOrWhiteSpace(request.Email) ||
+            string.IsNullOrWhiteSpace(request.Message))
+            return BadRequest("Obavezna polja nisu popunjena.");
+
+        var settingsRow = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+
+        // Complaints go to the dedicated complaints inbox(es); fall back to the
+        // general contact inbox when none is configured.
+        var recipients = EmailRecipients.Parse(settingsRow?.ComplaintsEmail);
+        if (recipients.Count == 0)
+        {
+            recipients.Add(EmailRecipients.ResolveContactInbox(
+                settingsRow?.InfoEmails,
+                settingsRow?.EmailAddress,
+                sendGridOptions.Value.AdminEmail));
+        }
+
+        var phone = (request.Phone ?? string.Empty).Trim();
+        var phoneLine = string.IsNullOrEmpty(phone)
+            ? ""
+            : $"<tr><td style='color:#6b6b6b;padding:4px 0;'>Telefon</td><td style='padding:4px 0 4px 16px;'>{System.Net.WebUtility.HtmlEncode(phone)}</td></tr>";
+        var orderNumber = (request.OrderNumber ?? string.Empty).Trim();
+        var orderLine = string.IsNullOrEmpty(orderNumber)
+            ? ""
+            : $"<tr><td style='color:#6b6b6b;padding:4px 0;'>Broj porudžbine</td><td style='padding:4px 0 4px 16px;'>{System.Net.WebUtility.HtmlEncode(orderNumber)}</td></tr>";
+
+        var html = $"""
+            <div style="font-family:'Source Sans Pro',Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1a1a1a;">
+              <h2 style="margin:0 0 1rem;font-size:1.3rem;color:#1a1a2e;">Nova reklamacija — Honey Cosmetics</h2>
+              <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                <tr><td style="color:#6b6b6b;padding:4px 0;">Ime</td><td style="padding:4px 0 4px 16px;">{System.Net.WebUtility.HtmlEncode(request.FirstName.Trim())}</td></tr>
+                <tr><td style="color:#6b6b6b;padding:4px 0;">Prezime</td><td style="padding:4px 0 4px 16px;">{System.Net.WebUtility.HtmlEncode(request.LastName.Trim())}</td></tr>
+                <tr><td style="color:#6b6b6b;padding:4px 0;">Email</td><td style="padding:4px 0 4px 16px;"><a href="mailto:{request.Email}">{System.Net.WebUtility.HtmlEncode(request.Email.Trim())}</a></td></tr>
+                {phoneLine}
+                {orderLine}
+              </table>
+              <hr style="border:none;border-top:1px solid #e8dcd0;margin:1.2rem 0;" />
+              <p style="font-weight:600;margin:0 0 0.4rem;">Opis reklamacije:</p>
+              <p style="margin:0;line-height:1.7;white-space:pre-wrap;">{System.Net.WebUtility.HtmlEncode(request.Message)}</p>
+            </div>
+            """;
+
+        var fullName = $"{request.FirstName.Trim()} {request.LastName.Trim()}".Trim();
+        try
+        {
+            foreach (var recipient in recipients)
+            {
+                await emailService.SendAsync(
+                    recipient,
+                    $"Reklamacija — {fullName}",
+                    html,
+                    replyTo: request.Email.Trim(),
+                    fromEmail: sendGridOptions.Value.ComplaintsFromEmail);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Complaint email failed for {Email}", request.Email);
+            return StatusCode(503, "Došlo je do greške prilikom slanja reklamacije. Pokušajte ponovo kasnije.");
         }
 
         return Ok();

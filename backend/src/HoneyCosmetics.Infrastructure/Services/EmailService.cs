@@ -25,6 +25,8 @@ public class EmailService : IEmailService
         string subject,
         string body,
         string? replyTo = null,
+        string? fromEmail = null,
+        string? fromName = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_settings.ApiKey)
@@ -33,11 +35,18 @@ public class EmailService : IEmailService
             throw new InvalidOperationException("SendGrid API ključ nije podešen.");
         }
 
-        if (string.IsNullOrWhiteSpace(_settings.FromEmail))
+        var effectiveFromEmail = !string.IsNullOrWhiteSpace(fromEmail)
+            ? fromEmail.Trim()
+            : _settings.FromEmail;
+        if (string.IsNullOrWhiteSpace(effectiveFromEmail))
             throw new InvalidOperationException("SendGrid FromEmail nije podešen.");
 
+        var effectiveFromName = !string.IsNullOrWhiteSpace(fromName)
+            ? fromName.Trim()
+            : _settings.FromName;
+
         var client = new SendGridClient(_settings.ApiKey);
-        var from = new EmailAddress(_settings.FromEmail, _settings.FromName);
+        var from = new EmailAddress(effectiveFromEmail, effectiveFromName);
         var toEmail = new EmailAddress(to);
         var plainText = EmailContentHelper.ToPlainText(body);
 
@@ -70,7 +79,7 @@ public class EmailService : IEmailService
             _logger.LogError(
                 "SendGrid odbio slanje na {To} sa {From}: HTTP {Status} — {Body}",
                 to,
-                _settings.FromEmail,
+                effectiveFromEmail,
                 (int)response.StatusCode,
                 string.IsNullOrWhiteSpace(responseBody) ? "(prazan odgovor)" : responseBody);
             throw new InvalidOperationException(
@@ -81,6 +90,6 @@ public class EmailService : IEmailService
             "SendGrid poslao email na {To} (subject: {Subject}, from: {From})",
             to,
             subject,
-            _settings.FromEmail);
+            effectiveFromEmail);
     }
 }

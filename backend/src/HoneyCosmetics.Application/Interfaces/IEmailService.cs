@@ -7,5 +7,7 @@ public interface IEmailService
         string subject,
         string body,
         string? replyTo = null,
+        string? fromEmail = null,
+        string? fromName = null,
         CancellationToken cancellationToken = default);
 }
