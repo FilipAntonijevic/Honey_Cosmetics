@@ -67,10 +67,18 @@ const mapServerWishlistRows = (rows) =>
     inStock: item.inStock ?? (item.stockQuantity ?? 0) > 0,
   }))
 
-async function mergeLocalWishlistToServer() {
+async function fetchValidProductIds() {
+  const { data } = await api.get('/products')
+  return new Set((data ?? []).map((p) => p.id))
+}
+
+async function mergeLocalWishlistToServer(validIds) {
   const local = fromStorage('honey_wishlist', [])
+  const toMerge = validIds
+    ? local.filter((item) => validIds.has(item.id))
+    : local
   await Promise.all(
-    local.map((item) => api.post(`/wishlist/${item.id}`).catch(() => {})),
+    toMerge.map((item) => api.post(`/wishlist/${item.id}`).catch(() => {})),
   )
 }
 
@@ -169,6 +177,19 @@ export function StoreProvider({ children }) {
     setUnseenOrders((prev) => (prev.includes(orderId) ? prev.filter((id) => id !== orderId) : prev))
   }, [])
 
+  const syncWishlist = useCallback(async () => {
+    try {
+      if (getAccessToken()) {
+        setWishlist(await fetchServerWishlist())
+        return
+      }
+      const validIds = await fetchValidProductIds()
+      setWishlist((prev) => prev.filter((item) => validIds.has(item.id)))
+    } catch {
+      /* keep current state on network error */
+    }
+  }, [])
+
   // Auto-dismiss toast
   useEffect(() => {
     if (!toast) return
@@ -197,7 +218,8 @@ export function StoreProvider({ children }) {
             }
           } catch {}
           try {
-            await mergeLocalWishlistToServer()
+            const validIds = await fetchValidProductIds()
+            await mergeLocalWishlistToServer(validIds)
             setWishlist(await fetchServerWishlist())
           } catch {}
         } catch {
@@ -219,6 +241,12 @@ export function StoreProvider({ children }) {
     }
     restore()
   }, [])
+
+  // Keep wishlist in sync with server/catalog (drops deleted or invalid products).
+  useEffect(() => {
+    if (initializing) return
+    syncWishlist()
+  }, [initializing, user?.id, syncWishlist])
 
   // Handle forced logout from token refresh interceptor
   useEffect(() => {
@@ -253,7 +281,8 @@ export function StoreProvider({ children }) {
       setCart(mapServerCartRows(serverCart ?? []))
     } catch {}
     try {
-      await mergeLocalWishlistToServer()
+      const validIds = await fetchValidProductIds()
+      await mergeLocalWishlistToServer(validIds)
       setWishlist(await fetchServerWishlist())
     } catch {}
     return data.user
@@ -458,6 +487,7 @@ export function StoreProvider({ children }) {
       addToCart,
       removeFromCart,
       toggleWishlist,
+      syncWishlist,
       refreshCartStock,
       checkoutCart,
       checkoutCoupon,
@@ -475,7 +505,7 @@ export function StoreProvider({ children }) {
       suspendProductSearchFilter,
       updateSearchDraft,
     }),
-    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, unseenOrders, addOrderNotification, markOrderSeen, login, register, logout, clearCartAfterOrder, addToCart, removeFromCart, toggleWishlist, refreshCartStock, setCart, setUser, productSearch, applyProductSearch, forceProductSearch, suspendProductSearchFilter, updateSearchDraft, productSearchRevision],
+    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, unseenOrders, addOrderNotification, markOrderSeen, login, register, logout, clearCartAfterOrder, addToCart, removeFromCart, toggleWishlist, syncWishlist, refreshCartStock, setCart, setUser, productSearch, applyProductSearch, forceProductSearch, suspendProductSearchFilter, updateSearchDraft, productSearchRevision],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

@@ -5,8 +5,12 @@ import { useStore } from '../context/StoreContext'
 import ProductCard from '../components/ProductCard'
 
 export default function Wishlist() {
-  const { wishlist, toggleWishlist } = useStore()
+  const { wishlist, toggleWishlist, syncWishlist } = useStore()
   const [catalogById, setCatalogById] = useState(null)
+
+  useEffect(() => {
+    syncWishlist()
+  }, [syncWishlist])
 
   useEffect(() => {
     api.get('/products')
