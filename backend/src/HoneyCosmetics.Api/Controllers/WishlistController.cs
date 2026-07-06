@@ -16,7 +16,7 @@ public class WishlistController(AppDbContext db) : ControllerBase
     {
         var userId = User.GetUserId();
         var items = await db.Wishlists
-            .Where(x => x.UserId == userId)
+            .Where(x => x.UserId == userId && x.Product != null && !x.Product.IsDeleted)
             .Include(x => x.Product)
             .Select(x => new
             {
