@@ -9,7 +9,9 @@ public static class ProductMapper
     public static ProductVariantOption ToVariantOption(Product p) =>
         new(
             p.Id,
-            p.VariantLabel ?? string.Empty,
+            p.VariantLabel?.Trim()
+                ?? ProductDisplayNaming.TryExtractVariantLabel(p.Name)
+                ?? string.Empty,
             p.Price,
             p.StockQuantity > 0,
             p.StockQuantity,
@@ -49,6 +51,47 @@ public static class ProductMapper
             includeUnitCost ? p.UnitTransportCost : null,
             p.VariantGroupId,
             p.VariantLabel,
+            p.VariantSortOrder,
+            variants,
+            p.IsDefaultVariant);
+    }
+
+    /// <summary>Admin editor: raw DB name, variant labels resolved, all options listed.</summary>
+    public static ProductResponse ToAdminResponse(
+        Product p,
+        IReadOnlyList<Product>? siblings = null)
+    {
+        var resolvedSiblings = siblings is { Count: > 0 } ? siblings : new[] { p };
+        var variants = resolvedSiblings.Count > 0
+            ? resolvedSiblings.Select(ToVariantOption).ToList()
+            : null;
+        var resolvedVariantLabel = p.VariantLabel?.Trim()
+            ?? ProductDisplayNaming.TryExtractVariantLabel(p.Name);
+
+        return new ProductResponse(
+            p.Id,
+            p.Name.Trim(),
+            p.Description,
+            p.Price,
+            p.ImageUrl,
+            p.ProductTypeId,
+            p.ProductType != null ? p.ProductType.Name : string.Empty,
+            p.CategoryId,
+            p.Category != null ? p.Category.Name : string.Empty,
+            p.IsBestseller,
+            p.BestsellerSortOrder,
+            p.StockQuantity,
+            p.OrderedQuantity,
+            p.StockQuantity > 0,
+            p.CreatedAt,
+            p.AdditionalImages
+                .OrderBy(x => x.SortOrder)
+                .Select(x => x.ImageUrl)
+                .ToList(),
+            p.UnitCostPrice,
+            p.UnitTransportCost,
+            p.VariantGroupId,
+            resolvedVariantLabel,
             p.VariantSortOrder,
             variants,
             p.IsDefaultVariant);

@@ -5,8 +5,39 @@ namespace HoneyCosmetics.Application;
 
 public static partial class ProductDisplayNaming
 {
-    [GeneratedRegex(@"\s*[\(\-–]?\s*(\d+)\s*(ml|gr)\s*\)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\s*[(\\-–]?\s*(\d+)\s*(ml|gr|g)\s*\)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TrailingVariantInNameRegex();
+
+    [GeneratedRegex(@"(\d+)\s*(ml|gr|g)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex VariantTokenRegex();
+
+    public static string? TryExtractVariantLabel(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        var trimmed = text.Trim();
+        var trailing = TrailingVariantInNameRegex().Match(trimmed);
+        if (trailing.Success)
+            return NormalizeVariantUnit(trailing.Groups[1].Value, trailing.Groups[2].Value);
+
+        // Legacy: gramaža u nazivu ali ne nužno na kraju.
+        Match? last = null;
+        foreach (Match match in VariantTokenRegex().Matches(trimmed))
+            last = match;
+        if (last is null || !last.Success)
+            return null;
+
+        return NormalizeVariantUnit(last.Groups[1].Value, last.Groups[2].Value);
+    }
+
+    private static string NormalizeVariantUnit(string num, string unit)
+    {
+        var u = unit.ToLowerInvariant();
+        if (u == "g")
+            u = "gr";
+        return $"{num}{u}";
+    }
 
     public static string StripVariantFromName(string name)
     {

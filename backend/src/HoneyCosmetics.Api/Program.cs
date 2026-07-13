@@ -38,14 +38,17 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 //
 // Configurations
 //
-builder.Services.Configure<SendGridSettings>(
-    builder.Configuration.GetSection("SendGrid"));
+builder.Services.Configure<BrevoSettings>(
+    builder.Configuration.GetSection("Brevo"));
+builder.Services.Configure<MakeWebhookSettings>(
+    builder.Configuration.GetSection("MakeWebhook"));
 
 //
 // Services
 //
 builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddHttpClient<IEmailService, EmailService>();
+builder.Services.AddHttpClient<IMakeWebhookService, MakeWebhookService>();
 builder.Services.AddSingleton<ImageThumbnailService>();
 
 //
@@ -181,7 +184,8 @@ app.Logger.LogInformation(
         ? "(auto-detekcija iz domena zahteva)"
         : configuredFrontendUrl);
 
-app.LogSendGridProductionReadiness();
+app.LogBrevoProductionReadiness();
+app.LogMakeWebhookProductionReadiness();
 
 //
 // Database Seed

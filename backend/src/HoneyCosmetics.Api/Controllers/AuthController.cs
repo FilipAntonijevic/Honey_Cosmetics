@@ -72,7 +72,7 @@ public class AuthController(
             return StatusCode(503, "Došlo je do greške prilikom registracije. Pokušajte ponovo kasnije.");
         }
 
-        var devLink = environment.IsDevelopment() && !IsSendGridConfigured() ? link : null;
+        var devLink = environment.IsDevelopment() && !IsEmailConfigured() ? link : null;
         var message = legacyProfile is null
             ? devLink is null
                 ? "Poslali smo vam email sa linkom za potvrdu. Kliknite na link da biste aktivirali nalog."
@@ -113,7 +113,7 @@ public class AuthController(
             return StatusCode(503, "Došlo je do greške prilikom slanja emaila za potvrdu registracije. Pokušajte ponovo kasnije.");
         }
 
-        var devLink = environment.IsDevelopment() && !IsSendGridConfigured() ? link : null;
+        var devLink = environment.IsDevelopment() && !IsEmailConfigured() ? link : null;
         return Ok(new RegisterResponse(
             devLink is null
                 ? "Poslali smo novi email sa linkom za potvrdu."
@@ -383,18 +383,18 @@ public class AuthController(
     private string BuildConfirmationLink(string token) =>
         $"{GetFrontendBaseUrl()}/confirm-email?token={Uri.EscapeDataString(token)}";
 
-    private bool IsSendGridConfigured()
+    private bool IsEmailConfigured()
     {
-        var apiKey = configuration["SendGrid:ApiKey"];
+        var apiKey = configuration["Brevo:ApiKey"];
         return !string.IsNullOrWhiteSpace(apiKey) &&
-               !string.Equals(apiKey, "YOUR_SENDGRID_API_KEY", StringComparison.Ordinal);
+               !string.Equals(apiKey, "CHANGE_ME", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task SendConfirmationEmailAsync(string email, string firstName, string link)
     {
-        if (environment.IsDevelopment() && !IsSendGridConfigured())
+        if (environment.IsDevelopment() && !IsEmailConfigured())
         {
-            logger.LogWarning("SendGrid nije podešen. DEV link za potvrdu ({Email}): {Link}", email, link);
+            logger.LogWarning("Brevo nije podešen. DEV link za potvrdu ({Email}): {Link}", email, link);
             return;
         }
 

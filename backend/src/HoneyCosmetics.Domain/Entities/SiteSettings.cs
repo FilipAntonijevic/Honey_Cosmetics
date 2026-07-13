@@ -28,7 +28,7 @@ public class SiteSettings
 
     /// <summary>
     /// Inbox where order/shipment notifications are delivered. When empty,
-    /// the system falls back to <c>SendGrid:AdminEmail</c> from appsettings.
+    /// the system falls back to <c>Brevo:AdminEmail</c> from appsettings.
     /// </summary>
     public string NotificationsEmail { get; set; } = string.Empty;
 

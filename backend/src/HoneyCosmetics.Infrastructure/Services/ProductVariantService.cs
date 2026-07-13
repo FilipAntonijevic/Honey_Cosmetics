@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using HoneyCosmetics.Application;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Infrastructure.Data;
@@ -6,13 +5,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HoneyCosmetics.Infrastructure.Services;
 
-public static partial class ProductVariantService
+public static class ProductVariantService
 {
     public const string DefaultMl = "15ml";
     public const string DefaultGr = "15gr";
-
-    [GeneratedRegex(@"(\d+)\s*(ml|gr)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex VariantTokenRegex();
 
     public static bool IsInVariantGroup(Product p) =>
         p.VariantGroupId is not null || !string.IsNullOrWhiteSpace(p.VariantLabel);
@@ -37,17 +33,8 @@ public static partial class ProductVariantService
     public static string FormatForRecord(string name, string? variantLabel) =>
         ProductDisplayNaming.FormatForRecord(name, variantLabel);
 
-    public static string? TryExtractVariantLabel(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return null;
-
-        var match = VariantTokenRegex().Match(text.Trim());
-        if (!match.Success)
-            return null;
-
-        return $"{match.Groups[1].Value}{match.Groups[2].Value.ToLowerInvariant()}";
-    }
+    public static string? TryExtractVariantLabel(string? text) =>
+        ProductDisplayNaming.TryExtractVariantLabel(text);
 
     public static string? NormalizeVariantLabel(string? label)
     {

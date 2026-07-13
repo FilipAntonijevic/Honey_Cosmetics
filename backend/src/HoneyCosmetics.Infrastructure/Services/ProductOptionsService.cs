@@ -70,7 +70,6 @@ public static class ProductOptionsService
         var existingById = existing.ToDictionary(p => p.Id);
 
         var single = opts.Count == 1;
-        var mergeSingleIntoName = single && !await IsManicureToolsAsync(db, anchor.ProductTypeId, ct);
 
         // Na kreiranju ponovo iskoristi tek napravljeni anchor red za prvu opciju.
         Product? reusableAnchor = null;
@@ -111,7 +110,9 @@ public static class ProductOptionsService
             }
 
             // Zajednička polja proizvoda (sa anchor-a).
-            var baseName = ProductVariantService.StripVariantFromName(anchor.Name);
+            var sharedName = single
+                ? anchor.Name.Trim()
+                : ProductVariantService.StripVariantFromName(anchor.Name);
             row.Description = anchor.Description;
             row.ImageUrl = anchor.ImageUrl;
             row.ProductTypeId = anchor.ProductTypeId;
@@ -119,17 +120,9 @@ public static class ProductOptionsService
 
             // Polja specifična za opciju.
             row.Price = o.Price;
-            if (mergeSingleIntoName)
+            if (single)
             {
-                row.Name = $"{baseName} {o.Label}".Trim();
-                row.VariantLabel = null;
-                row.VariantGroupId = null;
-                row.IsDefaultVariant = false;
-                row.VariantSortOrder = 0;
-            }
-            else if (single)
-            {
-                row.Name = baseName;
+                row.Name = sharedName;
                 row.VariantLabel = o.Label;
                 row.VariantGroupId = null;
                 row.IsDefaultVariant = true;
@@ -139,7 +132,7 @@ public static class ProductOptionsService
             }
             else
             {
-                row.Name = baseName;
+                row.Name = sharedName;
                 row.VariantLabel = o.Label;
                 row.IsDefaultVariant = o.IsDefault;
                 row.VariantSortOrder = o.SortOrder > 0

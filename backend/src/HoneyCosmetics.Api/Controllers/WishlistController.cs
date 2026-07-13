@@ -15,6 +15,13 @@ public class WishlistController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IReadOnlyCollection<object>>> Get()
     {
         var userId = User.GetUserId();
+
+        // Remove stale rows (soft-deleted or missing products) so counts stay accurate.
+        await db.Wishlists
+            .Where(w => w.UserId == userId)
+            .Where(w => !db.Products.Any(p => p.Id == w.ProductId && !p.IsDeleted))
+            .ExecuteDeleteAsync();
+
         var items = await db.Wishlists
             .Where(x => x.UserId == userId && x.Product != null && !x.Product.IsDeleted)
             .Include(x => x.Product)
@@ -36,6 +43,10 @@ public class WishlistController(AppDbContext db) : ControllerBase
     public async Task<IActionResult> Add(int productId)
     {
         var userId = User.GetUserId();
+        var productActive = await db.Products.AnyAsync(p => p.Id == productId && !p.IsDeleted);
+        if (!productActive)
+            return NotFound("Proizvod nije dostupan.");
+
         var exists = await db.Wishlists.AnyAsync(x => x.UserId == userId && x.ProductId == productId);
         if (!exists)
         {

@@ -1,22 +1,25 @@
+using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Infrastructure.Configurations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SendGrid;
-using SendGrid.Helpers.Mail;
 
 namespace HoneyCosmetics.Infrastructure.Services;
 
 public class EmailService : IEmailService
 {
-    private readonly SendGridSettings _settings;
+    private readonly BrevoSettings _settings;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<EmailService> _logger;
 
     public EmailService(
-        IOptions<SendGridSettings> settings,
+        IOptions<BrevoSettings> settings,
+        HttpClient httpClient,
         ILogger<EmailService> logger)
     {
         _settings = settings.Value;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
@@ -30,66 +33,90 @@ public class EmailService : IEmailService
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_settings.ApiKey)
-            || _settings.ApiKey.Contains("YOUR_SENDGRID", StringComparison.OrdinalIgnoreCase))
+            || _settings.ApiKey.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("SendGrid API ključ nije podešen.");
+            throw new InvalidOperationException("Brevo API ključ nije podešen.");
         }
 
         var effectiveFromEmail = !string.IsNullOrWhiteSpace(fromEmail)
             ? fromEmail.Trim()
             : _settings.FromEmail;
         if (string.IsNullOrWhiteSpace(effectiveFromEmail))
-            throw new InvalidOperationException("SendGrid FromEmail nije podešen.");
+            throw new InvalidOperationException("Brevo FromEmail nije podešen.");
 
         var effectiveFromName = !string.IsNullOrWhiteSpace(fromName)
             ? fromName.Trim()
             : _settings.FromName;
 
-        var client = new SendGridClient(_settings.ApiKey);
-        var from = new EmailAddress(effectiveFromEmail, effectiveFromName);
-        var toEmail = new EmailAddress(to);
-        var plainText = EmailContentHelper.ToPlainText(body);
-
-        var msg = MailHelper.CreateSingleEmail(from, toEmail, subject, plainText, body);
-
-        // Transactional best practice: do not rewrite links or track opens/clicks.
-        msg.SetClickTracking(false, false);
-        msg.SetOpenTracking(false);
-        msg.AddCategory("transactional");
-
-        // Transactional mail: bypass list/unsubscribe/bounce/spam suppression.
-        // SendGrid treats bypass_list_management as mutually exclusive with the
-        // individual bypass_* flags — use only BypassListManagement.
-        msg.MailSettings = new MailSettings
-        {
-            BypassListManagement = new BypassListManagement { Enable = true },
-        };
-
         var effectiveReplyTo = !string.IsNullOrWhiteSpace(replyTo)
             ? replyTo.Trim()
             : _settings.ReplyToEmail?.Trim();
-        if (!string.IsNullOrWhiteSpace(effectiveReplyTo))
-            msg.ReplyTo = new EmailAddress(effectiveReplyTo);
 
-        var response = await client.SendEmailAsync(msg, cancellationToken);
-        var responseBody = await response.Body.ReadAsStringAsync(cancellationToken);
+        var plainText = EmailContentHelper.ToPlainText(body);
+        var payload = new BrevoSendEmailRequest
+        {
+            Sender = new BrevoEmailAddress(effectiveFromEmail, effectiveFromName),
+            To = [new BrevoEmailAddress(to)],
+            Subject = subject,
+            HtmlContent = body,
+            TextContent = plainText,
+            ReplyTo = string.IsNullOrWhiteSpace(effectiveReplyTo)
+                ? null
+                : new BrevoEmailAddress(effectiveReplyTo),
+            Tags = ["transactional"],
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.brevo.com/v3/smtp/email");
+        request.Headers.Add("api-key", _settings.ApiKey);
+        request.Content = JsonContent.Create(payload);
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogError(
-                "SendGrid odbio slanje na {To} sa {From}: HTTP {Status} — {Body}",
+                "Brevo odbio slanje na {To} sa {From}: HTTP {Status} — {Body}",
                 to,
                 effectiveFromEmail,
                 (int)response.StatusCode,
                 string.IsNullOrWhiteSpace(responseBody) ? "(prazan odgovor)" : responseBody);
             throw new InvalidOperationException(
-                $"Slanje emaila nije uspelo (SendGrid HTTP {(int)response.StatusCode}).");
+                $"Slanje emaila nije uspelo (Brevo HTTP {(int)response.StatusCode}).");
         }
 
         _logger.LogInformation(
-            "SendGrid poslao email na {To} (subject: {Subject}, from: {From})",
+            "Brevo poslao email na {To} (subject: {Subject}, from: {From})",
             to,
             subject,
             effectiveFromEmail);
     }
+
+    private sealed class BrevoSendEmailRequest
+    {
+        [JsonPropertyName("sender")]
+        public BrevoEmailAddress Sender { get; set; } = null!;
+
+        [JsonPropertyName("to")]
+        public List<BrevoEmailAddress> To { get; set; } = [];
+
+        [JsonPropertyName("subject")]
+        public string Subject { get; set; } = string.Empty;
+
+        [JsonPropertyName("htmlContent")]
+        public string HtmlContent { get; set; } = string.Empty;
+
+        [JsonPropertyName("textContent")]
+        public string TextContent { get; set; } = string.Empty;
+
+        [JsonPropertyName("replyTo")]
+        public BrevoEmailAddress? ReplyTo { get; set; }
+
+        [JsonPropertyName("tags")]
+        public List<string> Tags { get; set; } = [];
+    }
+
+    private sealed record BrevoEmailAddress(
+        [property: JsonPropertyName("email")] string Email,
+        [property: JsonPropertyName("name")] string? Name = null);
 }

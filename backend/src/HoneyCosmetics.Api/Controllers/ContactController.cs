@@ -13,7 +13,7 @@ namespace HoneyCosmetics.Api.Controllers;
 public class ContactController(
     AppDbContext db,
     IEmailService emailService,
-    IOptions<SendGridSettings> sendGridOptions,
+    IOptions<BrevoSettings> brevoOptions,
     ILogger<ContactController> logger) : ControllerBase
 {
     public record CollaborationRequest(
@@ -37,7 +37,7 @@ public class ContactController(
         var adminEmail = EmailRecipients.ResolveContactInbox(
             settings?.InfoEmails,
             settings?.EmailAddress,
-            sendGridOptions.Value.AdminEmail);
+            brevoOptions.Value.AdminEmail);
         var companyLine = string.IsNullOrWhiteSpace(request.Company)
             ? ""
             : $"<tr><td style='color:#6b6b6b;padding:4px 0;'>Firma</td><td style='padding:4px 0 4px 16px;'>{System.Net.WebUtility.HtmlEncode(request.Company)}</td></tr>";
@@ -67,7 +67,7 @@ public class ContactController(
                 $"Saradnja: {request.FullName}",
                 html,
                 replyTo: request.Email.Trim(),
-                fromEmail: sendGridOptions.Value.CollaborationFromEmail);
+                fromEmail: brevoOptions.Value.CollaborationFromEmail);
         }
         catch (Exception ex)
         {
@@ -98,7 +98,7 @@ public class ContactController(
         var inbox = EmailRecipients.ResolveContactInbox(
             settingsRow?.InfoEmails,
             settingsRow?.EmailAddress,
-            sendGridOptions.Value.AdminEmail);
+            brevoOptions.Value.AdminEmail);
 
         var phone = (request.Phone ?? string.Empty).Trim();
         var phoneLine = string.IsNullOrEmpty(phone)
@@ -165,7 +165,7 @@ public class ContactController(
             recipients.Add(EmailRecipients.ResolveContactInbox(
                 settingsRow?.InfoEmails,
                 settingsRow?.EmailAddress,
-                sendGridOptions.Value.AdminEmail));
+                brevoOptions.Value.AdminEmail));
         }
 
         var phone = (request.Phone ?? string.Empty).Trim();
@@ -203,7 +203,7 @@ public class ContactController(
                     $"Reklamacija — {fullName}",
                     html,
                     replyTo: request.Email.Trim(),
-                    fromEmail: sendGridOptions.Value.ComplaintsFromEmail);
+                    fromEmail: brevoOptions.Value.ComplaintsFromEmail);
             }
         }
         catch (Exception ex)

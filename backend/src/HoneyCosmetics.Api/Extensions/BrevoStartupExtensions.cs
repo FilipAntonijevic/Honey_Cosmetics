@@ -2,14 +2,14 @@ using HoneyCosmetics.Infrastructure.Configurations;
 
 namespace HoneyCosmetics.Api.Extensions;
 
-public static class SendGridStartupExtensions
+public static class BrevoStartupExtensions
 {
-    public static void LogSendGridProductionReadiness(
+    public static void LogBrevoProductionReadiness(
         this WebApplication app,
         string authenticatedDomain = "honey-cosmetic.com")
     {
-        var section = app.Configuration.GetSection("SendGrid");
-        var settings = section.Get<SendGridSettings>() ?? new SendGridSettings();
+        var section = app.Configuration.GetSection("Brevo");
+        var settings = section.Get<BrevoSettings>() ?? new BrevoSettings();
 
         var apiKey = settings.ApiKey;
         var fromEmail = settings.FromEmail?.Trim() ?? string.Empty;
@@ -18,10 +18,10 @@ public static class SendGridStartupExtensions
         var replyTo = settings.ReplyToEmail?.Trim() ?? string.Empty;
 
         var keyConfigured = !string.IsNullOrWhiteSpace(apiKey)
-            && !apiKey.Contains("YOUR_SENDGRID", StringComparison.OrdinalIgnoreCase);
+            && !apiKey.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase);
 
         app.Logger.LogInformation(
-            "SendGrid: API key {KeyState}, From={FromEmail} ({FromName}), Admin fallback={AdminEmail}, Reply-To default={ReplyTo}",
+            "Brevo: API key {KeyState}, From={FromEmail} ({FromName}), Admin fallback={AdminEmail}, Reply-To default={ReplyTo}",
             keyConfigured ? "configured" : "MISSING",
             string.IsNullOrEmpty(fromEmail) ? "(not set)" : fromEmail,
             string.IsNullOrEmpty(fromName) ? "(not set)" : fromName,
@@ -34,13 +34,13 @@ public static class SendGridStartupExtensions
         if (!keyConfigured)
         {
             app.Logger.LogWarning(
-                "PRODUCTION: SendGrid__ApiKey is not set. Transactional email will fail.");
+                "PRODUCTION: Brevo__ApiKey is not set. Transactional email will fail.");
         }
 
         if (string.IsNullOrEmpty(fromEmail))
         {
             app.Logger.LogWarning(
-                "PRODUCTION: SendGrid__FromEmail is not set. Use noreply@{Domain} after domain authentication.",
+                "PRODUCTION: Brevo__FromEmail is not set. Use info@{Domain} after domain authentication.",
                 authenticatedDomain);
             return;
         }
@@ -48,8 +48,8 @@ public static class SendGridStartupExtensions
         if (!fromEmail.EndsWith($"@{authenticatedDomain}", StringComparison.OrdinalIgnoreCase))
         {
             app.Logger.LogWarning(
-                "PRODUCTION: SendGrid__FromEmail ({FromEmail}) does not use authenticated domain @{Domain}. " +
-                "Emails may land in spam until domain authentication is verified in SendGrid.",
+                "PRODUCTION: Brevo__FromEmail ({FromEmail}) does not use authenticated domain @{Domain}. " +
+                "Emails may land in spam until domain authentication is verified in Brevo.",
                 fromEmail,
                 authenticatedDomain);
         }

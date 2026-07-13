@@ -20,7 +20,8 @@ namespace HoneyCosmetics.Api.Controllers;
 public class OrdersController(
     AppDbContext db,
     IEmailService emailService,
-    IOptions<SendGridSettings> sendGridOptions,
+    IMakeWebhookService makeWebhookService,
+    IOptions<BrevoSettings> brevoOptions,
     ILogger<OrdersController> logger) : ControllerBase
 {
     [HttpGet("mine")]
@@ -152,7 +153,7 @@ public class OrdersController(
         await CustomerProfileService.UpsertFromRegisteredOrderAsync(db, user, order);
         await db.SaveChangesAsync();
 
-        var settings = sendGridOptions.Value;
+        var settings = brevoOptions.Value;
         // Build from cartItems — Product nav property is already loaded there
         var orderItems = cartItems.Select(x => (
             ProductVariantService.GetDisplayName(x.Product!),
@@ -187,7 +188,14 @@ public class OrdersController(
             user.FullName, user.Email, order.Id, orderItems, order.Subtotal, order.Discount,
             order.CouponCode, order.Total, order.ShippingCost, order.FreeShippingApplied, order.DeliveryAddress, order.Phone,
             order.PaymentMethod.ToString(), order.CreatedAt);
-        await SendAdminNotificationAsync(order.Id, notificationsEmails, $"Nova porudžbina #{order.Id} — {user.FullName}", adminBody);
+        await SendAdminNotificationAsync(
+            order.Id,
+            notificationsEmails,
+            $"Honey Cosmetics — Nova porudžbina #{order.Id} — {user.FullName}",
+            adminBody,
+            replyTo: user.Email);
+
+        await NotifyMakeWebhookAsync(order, user.FullName, user.Email, orderItems);
 
         return Ok(MapOrder(order));
     }
@@ -283,7 +291,7 @@ public class OrdersController(
 
         await CustomerProfileService.UpsertFromGuestOrderAsync(db, order);
 
-        var settings = sendGridOptions.Value;
+        var settings = brevoOptions.Value;
         var guestName = order.GuestName ?? "Gost";
         // Build from products dict — Product nav property is not loaded on order.Items
         var orderItemsGuest = request.Items.Select(i => (
@@ -340,7 +348,18 @@ public class OrdersController(
             order.Phone,
             order.PaymentMethod.ToString(),
             order.CreatedAt);
-        await SendAdminNotificationAsync(order.Id, notificationsEmailsGuest, $"Nova gost porudžbina #{order.Id} — {guestName}", adminBodyGuest);
+        await SendAdminNotificationAsync(
+            order.Id,
+            notificationsEmailsGuest,
+            $"Honey Cosmetics — Nova porudžbina #{order.Id} — {guestName}",
+            adminBodyGuest,
+            replyTo: string.IsNullOrWhiteSpace(order.GuestEmail) ? null : order.GuestEmail);
+
+        await NotifyMakeWebhookAsync(
+            order,
+            guestName,
+            order.GuestEmail ?? string.Empty,
+            orderItemsGuest);
 
         return Ok(MapOrder(order));
     }
@@ -419,7 +438,7 @@ public class OrdersController(
 
     // Resolves the inbox(es) where order/shipment notifications should be delivered.
     // Podržava više adresa (admin ih unosi u panelu). Ako nijedna nije uneta,
-    // vraća se rezervni SendGrid:AdminEmail iz appsettings.
+    // vraća se rezervni Brevo:AdminEmail iz appsettings.
     private async Task<IReadOnlyList<string>> ResolveNotificationsEmailsAsync()
     {
         var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
@@ -427,18 +446,51 @@ public class OrdersController(
         if (list.Count > 0)
             return list;
 
-        var fallback = (sendGridOptions.Value.AdminEmail ?? string.Empty).Trim();
+        var fallback = (brevoOptions.Value.AdminEmail ?? string.Empty).Trim();
         return string.IsNullOrEmpty(fallback) ? [] : [fallback];
     }
 
+    private async Task NotifyMakeWebhookAsync(
+        Order order,
+        string customerName,
+        string email,
+        List<(string Name, string? VariantLabel, int Qty, decimal Price)> items)
+    {
+        var paymentMethod = order.PaymentMethod.ToString();
+        var data = new MakeOrderWebhookData(
+            order.Id,
+            order.CreatedAt,
+            customerName,
+            email,
+            order.Phone,
+            order.DeliveryAddress,
+            paymentMethod,
+            order.Subtotal,
+            order.Discount,
+            order.ShippingCost,
+            order.Total,
+            items.Select(i => new MakeOrderWebhookLineItem(
+                i.Name,
+                i.Qty,
+                i.VariantLabel,
+                i.Price)).ToList());
+
+        await makeWebhookService.NotifyOrderCreatedAsync(data);
+    }
+
     // Šalje isti mejl na svaku admin adresu; greška na jednu adresu ne prekida ostale.
-    private async Task SendAdminNotificationAsync(int orderId, IReadOnlyList<string> recipients, string subject, string body)
+    private async Task SendAdminNotificationAsync(
+        int orderId,
+        IReadOnlyList<string> recipients,
+        string subject,
+        string body,
+        string? replyTo = null)
     {
         foreach (var recipient in recipients)
         {
             try
             {
-                await emailService.SendAsync(recipient, subject, body);
+                await emailService.SendAsync(recipient, subject, body, replyTo: replyTo);
                 logger.LogInformation("[Order {OrderId}] Admin email sent OK to {Admin}", orderId, recipient);
             }
             catch (Exception ex)
@@ -454,7 +506,7 @@ public class OrdersController(
         return EmailRecipients.ResolveContactInbox(
             s?.InfoEmails,
             s?.EmailAddress,
-            sendGridOptions.Value.AdminEmail);
+            brevoOptions.Value.AdminEmail);
     }
 
     private static string ItemsTableHtml(List<(string Name, string? VariantLabel, int Qty, decimal Price)> items)

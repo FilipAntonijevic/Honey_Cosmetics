@@ -24,7 +24,7 @@ public class AdminController(
     ImageThumbnailService thumbnails,
     IEmailService emailService,
     IConfiguration configuration,
-    IOptions<SendGridSettings> sendGridOptions,
+    IOptions<BrevoSettings> brevoOptions,
     ILogger<AdminController> logger) : ControllerBase
 {
     // ── Orders ───────────────────────────────────────────────────────────────
@@ -198,11 +198,6 @@ public class AdminController(
             return BadRequest(ex.Message);
         }
 
-        ProductVariantService.NormalizeProductNaming(product);
-        product.VariantLabel = null;
-        product.VariantGroupId = null;
-        await db.SaveChangesAsync();
-
         var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
             db, product, request, allowReuseAnchor: true);
         if (optError is not null)
@@ -253,9 +248,6 @@ public class AdminController(
         var stockBefore = product.StockQuantity;
         ProductCatalogService.ApplyRequest(product, request);
 
-        product.Name = ProductVariantService.StripVariantFromName(product.Name);
-        await db.SaveChangesAsync();
-
         var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
             db, product, request, allowReuseAnchor: false);
         if (optError is not null)
@@ -268,7 +260,7 @@ public class AdminController(
         var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
 
         await WishlistStockNotificationService.TryNotifyBackInStockAsync(
-            db, emailService, configuration, sendGridOptions, result, stockBefore, logger,
+            db, emailService, configuration, brevoOptions, result, stockBefore, logger,
             frontendBaseUrl: PublicUrlResolver.ResolveFrontend(configuration, Request),
             apiBaseUrl: PublicUrlResolver.ResolvePublicApi(configuration, Request));
 
@@ -489,7 +481,7 @@ public class AdminController(
             return BadRequest(error);
 
         await WishlistStockNotificationService.TryNotifyBackInStockAsync(
-            db, emailService, configuration, sendGridOptions, product, stockBefore, logger,
+            db, emailService, configuration, brevoOptions, product, stockBefore, logger,
             frontendBaseUrl: PublicUrlResolver.ResolveFrontend(configuration, Request),
             apiBaseUrl: PublicUrlResolver.ResolvePublicApi(configuration, Request));
 
@@ -1172,7 +1164,7 @@ public class AdminController(
 
     // ── Mappers ───────────────────────────────────────────────────────────────
     private static ProductResponse MapProduct(Product p, IReadOnlyList<Product>? siblings = null) =>
-        ProductMapper.ToResponse(p, includeUnitCost: true, siblings);
+        ProductMapper.ToAdminResponse(p, siblings);
 
     private static OrderItemResponse MapOrderItem(OrderItem item) =>
         new(

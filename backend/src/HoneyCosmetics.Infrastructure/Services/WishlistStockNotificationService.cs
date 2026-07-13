@@ -16,7 +16,7 @@ public static class WishlistStockNotificationService
         AppDbContext db,
         IEmailService emailService,
         IConfiguration configuration,
-        IOptions<SendGridSettings> sendGridOptions,
+        IOptions<BrevoSettings> brevoOptions,
         Product product,
         int stockBefore,
         ILogger logger,
@@ -49,7 +49,7 @@ public static class WishlistStockNotificationService
         await db.Entry(product).Reference(p => p.ProductType).LoadAsync(ct);
 
         var siteSettings = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync(ct);
-        var replyTo = ResolveInfoEmail(siteSettings, sendGridOptions.Value);
+        var replyTo = ResolveInfoEmail(siteSettings, brevoOptions.Value);
         var frontendBase = string.IsNullOrWhiteSpace(frontendBaseUrl)
             ? GetFrontendBaseUrl(configuration)
             : frontendBaseUrl.TrimEnd('/');
@@ -94,12 +94,12 @@ public static class WishlistStockNotificationService
         }
     }
 
-    private static string ResolveInfoEmail(SiteSettings? settings, SendGridSettings sendGrid)
+    private static string ResolveInfoEmail(SiteSettings? settings, BrevoSettings brevo)
     {
         return EmailRecipients.ResolveInfoReplyTo(
             settings?.InfoEmails,
             settings?.EmailAddress,
-            sendGrid.AdminEmail.Trim());
+            brevo.AdminEmail.Trim());
     }
 
     private static string GetFrontendBaseUrl(IConfiguration configuration)
