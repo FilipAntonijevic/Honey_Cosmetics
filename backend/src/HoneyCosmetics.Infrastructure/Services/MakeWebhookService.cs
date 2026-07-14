@@ -1,5 +1,6 @@
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Infrastructure.Configurations;
 using Microsoft.Extensions.Logging;
@@ -12,6 +13,12 @@ public class MakeWebhookService(
     HttpClient httpClient,
     ILogger<MakeWebhookService> logger) : IMakeWebhookService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = null,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never,
+    };
+
     public async Task NotifyOrderCreatedAsync(MakeOrderWebhookData data, CancellationToken cancellationToken = default)
     {
         var url = settings.Value.WebhookUrl?.Trim();
@@ -28,6 +35,19 @@ public class MakeWebhookService(
             OrderId = data.OrderId,
             OrderNumber = data.OrderId,
             CreatedAt = data.CreatedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss"),
+            CustomerName = data.CustomerName,
+            Phone = data.Phone ?? string.Empty,
+            Email = data.Email,
+            Address = street,
+            City = city ?? string.Empty,
+            PostalCode = postalCode ?? string.Empty,
+            Country = country ?? string.Empty,
+            PaymentMethod = data.PaymentMethod,
+            Subtotal = data.Subtotal,
+            ShippingPrice = data.ShippingCost,
+            Discount = data.Discount,
+            Total = data.Total,
+            TotalPrice = data.Total,
             Customer = new MakeWebhookCustomerPayload
             {
                 FirstName = firstName,
@@ -43,11 +63,6 @@ public class MakeWebhookService(
                 PostalCode = postalCode ?? string.Empty,
                 Country = country ?? string.Empty,
             },
-            PaymentMethod = data.PaymentMethod,
-            Subtotal = data.Subtotal,
-            ShippingPrice = data.ShippingCost,
-            Discount = data.Discount,
-            Total = data.Total,
             Items = data.Items.Select(i => new MakeWebhookItemPayload
             {
                 Name = i.Name,
@@ -57,21 +72,35 @@ public class MakeWebhookService(
             }).ToList(),
         };
 
+        var json = JsonSerializer.Serialize(payload, JsonOptions);
+        if (json is "{}" or "[]")
+        {
+            logger.LogError("Make webhook payload za porudžbinu #{OrderId} je prazan — preskačem slanje", data.OrderId);
+            return;
+        }
+
         try
         {
-            using var response = await httpClient.PostAsJsonAsync(url, payload, cancellationToken);
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+            using var response = await httpClient.PostAsync(url, content, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogWarning(
-                    "Make webhook za porudžbinu #{OrderId} vratio HTTP {Status}: {Body}",
+                    "Make webhook za porudžbinu #{OrderId} vratio HTTP {Status}: {Body}. Payload={Payload}",
                     data.OrderId,
                     (int)response.StatusCode,
-                    string.IsNullOrWhiteSpace(body) ? "(prazan)" : body);
+                    string.IsNullOrWhiteSpace(body) ? "(prazan)" : body,
+                    json);
                 return;
             }
 
-            logger.LogInformation("Make webhook poslat za porudžbinu #{OrderId}", data.OrderId);
+            logger.LogInformation(
+                "Make webhook poslat za porudžbinu #{OrderId}. Payload={Payload}",
+                data.OrderId,
+                json);
         }
         catch (Exception ex)
         {
@@ -126,88 +155,4 @@ public class MakeWebhookService(
 
     private static bool IsPostalCode(string value) =>
         value.Length is >= 4 and <= 10 && value.All(char.IsDigit);
-
-    private sealed class MakeWebhookPayload
-    {
-        [JsonPropertyName("order_id")]
-        public int OrderId { get; set; }
-
-        [JsonPropertyName("order_number")]
-        public int OrderNumber { get; set; }
-
-        [JsonPropertyName("created_at")]
-        public string CreatedAt { get; set; } = string.Empty;
-
-        [JsonPropertyName("customer")]
-        public MakeWebhookCustomerPayload Customer { get; set; } = new();
-
-        [JsonPropertyName("shipping")]
-        public MakeWebhookShippingPayload Shipping { get; set; } = new();
-
-        [JsonPropertyName("payment_method")]
-        public string PaymentMethod { get; set; } = string.Empty;
-
-        [JsonPropertyName("subtotal")]
-        public decimal Subtotal { get; set; }
-
-        [JsonPropertyName("shipping_price")]
-        public decimal ShippingPrice { get; set; }
-
-        [JsonPropertyName("discount")]
-        public decimal Discount { get; set; }
-
-        [JsonPropertyName("total")]
-        public decimal Total { get; set; }
-
-        [JsonPropertyName("items")]
-        public List<MakeWebhookItemPayload> Items { get; set; } = [];
-    }
-
-    private sealed class MakeWebhookCustomerPayload
-    {
-        [JsonPropertyName("first_name")]
-        public string FirstName { get; set; } = string.Empty;
-
-        [JsonPropertyName("last_name")]
-        public string LastName { get; set; } = string.Empty;
-
-        [JsonPropertyName("full_name")]
-        public string FullName { get; set; } = string.Empty;
-
-        [JsonPropertyName("email")]
-        public string Email { get; set; } = string.Empty;
-
-        [JsonPropertyName("phone")]
-        public string Phone { get; set; } = string.Empty;
-    }
-
-    private sealed class MakeWebhookShippingPayload
-    {
-        [JsonPropertyName("address")]
-        public string Address { get; set; } = string.Empty;
-
-        [JsonPropertyName("city")]
-        public string City { get; set; } = string.Empty;
-
-        [JsonPropertyName("postal_code")]
-        public string PostalCode { get; set; } = string.Empty;
-
-        [JsonPropertyName("country")]
-        public string Country { get; set; } = string.Empty;
-    }
-
-    private sealed class MakeWebhookItemPayload
-    {
-        [JsonPropertyName("name")]
-        public string Name { get; set; } = string.Empty;
-
-        [JsonPropertyName("size")]
-        public string Size { get; set; } = string.Empty;
-
-        [JsonPropertyName("quantity")]
-        public int Quantity { get; set; }
-
-        [JsonPropertyName("price")]
-        public decimal Price { get; set; }
-    }
 }
