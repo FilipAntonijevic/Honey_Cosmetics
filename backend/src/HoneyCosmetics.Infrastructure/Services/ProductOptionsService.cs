@@ -61,6 +61,12 @@ public static class ProductOptionsService
         foreach (var o in opts)
             o.IsDefault = ReferenceEquals(o, firstDefault);
 
+        // Prva opcija na kreiranju mora da iskoristi anchor red iz CreateOrRestore.
+        // Ranije se proveravalo existingById.ContainsKey(anchor.Id), ali anchor.Id je 0
+        // pre prvog SaveChanges — zbog toga se pravio dupli red i rušio unique indeks na imenu.
+        if (anchor.Id == 0)
+            await db.SaveChangesAsync(ct);
+
         var groupId = anchor.VariantGroupId ?? anchor.Id;
 
         var existing = await db.Products
@@ -73,12 +79,8 @@ public static class ProductOptionsService
 
         // Na kreiranju ponovo iskoristi tek napravljeni anchor red za prvu opciju.
         Product? reusableAnchor = null;
-        if (allowReuseAnchor
-            && existingById.ContainsKey(anchor.Id)
-            && opts.All(o => o.Id != anchor.Id))
-        {
+        if (allowReuseAnchor && !opts.Any(o => o.Id == anchor.Id && anchor.Id > 0))
             reusableAnchor = anchor;
-        }
 
         var anchorImageUrls = (request.AdditionalImageUrls ?? Array.Empty<string>())
             .Select(u => u.Trim())

@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace HoneyCosmetics.Api.Controllers;
 
@@ -198,17 +199,41 @@ public class AdminController(
             return BadRequest(ex.Message);
         }
 
-        var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
-            db, product, request, allowReuseAnchor: true);
-        if (optError is not null)
-            return BadRequest(optError);
+        try
+        {
+            var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
+                db, product, request, allowReuseAnchor: true);
+            if (optError is not null)
+                return BadRequest(optError);
 
-        var result = defaultRow ?? product;
-        await db.Entry(result).Reference(p => p.Category).LoadAsync();
-        await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
-        await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
-        var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
-        return Ok(new { product = MapProduct(result, optSiblings), restored });
+            var result = defaultRow ?? product;
+            await db.Entry(result).Reference(p => p.Category).LoadAsync();
+            await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
+            await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
+            var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
+            return Ok(new { product = MapProduct(result, optSiblings), restored });
+        }
+        catch (DbUpdateException ex) when (MapProductSaveException(ex) is { } mapped)
+        {
+            return mapped;
+        }
+    }
+
+    private static ActionResult? MapProductSaveException(DbUpdateException ex)
+    {
+        if (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg)
+        {
+            return pg.ConstraintName switch
+            {
+                "IX_Products_Name" =>
+                    new BadRequestObjectResult("Proizvod sa tim imenom već postoji u prodavnici."),
+                "IX_Products_VariantGroupId_VariantLabel" =>
+                    new BadRequestObjectResult("Proizvod sa istom gramazom već postoji u ovoj grupi opcija."),
+                _ => new BadRequestObjectResult("Proizvod sa istim podacima već postoji."),
+            };
+        }
+
+        return null;
     }
 
     [HttpPut("products/{id:int}")]
@@ -248,23 +273,30 @@ public class AdminController(
         var stockBefore = product.StockQuantity;
         ProductCatalogService.ApplyRequest(product, request);
 
-        var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
-            db, product, request, allowReuseAnchor: false);
-        if (optError is not null)
-            return BadRequest(optError);
+        try
+        {
+            var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
+                db, product, request, allowReuseAnchor: false);
+            if (optError is not null)
+                return BadRequest(optError);
 
-        var result = defaultRow ?? product;
-        await db.Entry(result).Reference(p => p.Category).LoadAsync();
-        await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
-        await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
-        var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
+            var result = defaultRow ?? product;
+            await db.Entry(result).Reference(p => p.Category).LoadAsync();
+            await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
+            await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
+            var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
 
-        await WishlistStockNotificationService.TryNotifyBackInStockAsync(
-            db, emailService, configuration, brevoOptions, result, stockBefore, logger,
-            frontendBaseUrl: PublicUrlResolver.ResolveFrontend(configuration, Request),
-            apiBaseUrl: PublicUrlResolver.ResolvePublicApi(configuration, Request));
+            await WishlistStockNotificationService.TryNotifyBackInStockAsync(
+                db, emailService, configuration, brevoOptions, result, stockBefore, logger,
+                frontendBaseUrl: PublicUrlResolver.ResolveFrontend(configuration, Request),
+                apiBaseUrl: PublicUrlResolver.ResolvePublicApi(configuration, Request));
 
-        return Ok(MapProduct(result, optSiblings));
+            return Ok(MapProduct(result, optSiblings));
+        }
+        catch (DbUpdateException ex) when (MapProductSaveException(ex) is { } mapped)
+        {
+            return mapped;
+        }
     }
 
     [HttpGet("products/{id:int}")]
