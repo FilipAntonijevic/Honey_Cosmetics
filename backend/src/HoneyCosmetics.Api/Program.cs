@@ -241,12 +241,6 @@ using (var scope = app.Services.CreateScope())
     }
 
     //
-    // Podrazumevano stanje: aktivni proizvodi bez zaliha dobijaju 50 komada
-    //
-    foreach (var product in db.Products.Where(p => !p.IsDeleted && p.StockQuantity == 0))
-        product.StockQuantity = 50;
-
-    //
     // Seed Default Coupon
     //
     if (!db.Coupons.Any(x => x.Code == "SUMMER10"))
