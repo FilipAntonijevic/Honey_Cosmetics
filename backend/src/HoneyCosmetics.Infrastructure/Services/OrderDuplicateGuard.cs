@@ -51,7 +51,7 @@ public static class OrderDuplicateGuard
 
     public static async Task<Order?> FindRecentDuplicateUserOrderAsync(
         AppDbContext db,
-        int userId,
+        Guid userId,
         string deliveryAddress,
         string phone,
         PaymentMethod paymentMethod,
