@@ -21,7 +21,7 @@ public static class OrderDuplicateGuard
         string deliveryAddress,
         PaymentMethod paymentMethod,
         decimal total,
-        IReadOnlyList<GuestCheckoutItemRequest> items,
+        IReadOnlyList<CartItemRequest> items,
         CancellationToken ct = default)
     {
         var since = DateTime.UtcNow.Subtract(DuplicateWindow);
