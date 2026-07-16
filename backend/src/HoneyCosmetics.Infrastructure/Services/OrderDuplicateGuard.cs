@@ -56,7 +56,7 @@ public static class OrderDuplicateGuard
         string phone,
         PaymentMethod paymentMethod,
         decimal total,
-        IReadOnlyList<(int ProductId, int Quantity)> cartLines,
+        IEnumerable<(int ProductId, int Quantity)> cartLines,
         CancellationToken ct = default)
     {
         var since = DateTime.UtcNow.Subtract(DuplicateWindow);
