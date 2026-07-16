@@ -80,7 +80,7 @@ public static class OrderDuplicateGuard
     }
 
     private static List<(int ProductId, int Quantity)> NormalizeLines(
-        IEnumerable<GuestCheckoutItemRequest> items) =>
+        IEnumerable<CartItemRequest> items) =>
         items
             .GroupBy(i => i.ProductId)
             .Select(g => (g.Key, g.Sum(x => x.Quantity)))
