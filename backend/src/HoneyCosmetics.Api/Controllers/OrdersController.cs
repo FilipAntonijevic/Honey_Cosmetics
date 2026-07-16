@@ -114,6 +114,27 @@ public class OrdersController(
         var shippingCost = freeShippingApplied ? 0m : standardShippingCost;
         var total = itemsTotal + shippingCost;
 
+        var deliveryAddress = string.IsNullOrWhiteSpace(request.DeliveryAddress)
+            ? user.DefaultAddress ?? string.Empty
+            : request.DeliveryAddress.Trim();
+
+        var duplicateOrder = await OrderDuplicateGuard.FindRecentDuplicateUserOrderAsync(
+            db,
+            userId,
+            deliveryAddress,
+            phone,
+            request.PaymentMethod,
+            total,
+            cartItems.Select(x => (x.ProductId, x.Quantity)));
+        if (duplicateOrder is not null)
+        {
+            logger.LogWarning(
+                "[Order {OrderId}] Duplicate registered checkout suppressed for user {UserId}",
+                duplicateOrder.Id,
+                userId);
+            return Ok(MapOrder(duplicateOrder));
+        }
+
         var stockError = await InventoryFinanceService.ValidateAndApplyStockForOrderAsync(
             db,
             cartItems.Select(x => (x.ProductId, x.Quantity)));
@@ -123,7 +144,7 @@ public class OrdersController(
         var order = new Order
         {
             UserId = userId,
-            DeliveryAddress = string.IsNullOrWhiteSpace(request.DeliveryAddress) ? user.DefaultAddress ?? string.Empty : request.DeliveryAddress,
+            DeliveryAddress = deliveryAddress,
             Phone = phone,
             PaymentMethod = request.PaymentMethod,
             Subtotal = subtotal,
@@ -252,6 +273,28 @@ public class OrdersController(
         var shippingCost = freeShippingApplied ? 0m : standardShippingCost;
         var total = itemsTotal + shippingCost;
 
+        var deliveryAddress = request.DeliveryAddress.Trim();
+        var guestName = request.GuestName?.Trim() ?? string.Empty;
+        var guestEmail = request.GuestEmail?.Trim() ?? string.Empty;
+
+        var duplicateOrder = await OrderDuplicateGuard.FindRecentDuplicateGuestOrderAsync(
+            db,
+            guestName,
+            guestEmail,
+            guestPhone,
+            deliveryAddress,
+            request.PaymentMethod,
+            total,
+            request.Items);
+        if (duplicateOrder is not null)
+        {
+            logger.LogWarning(
+                "[Order {OrderId}] Duplicate guest checkout suppressed for {Email}",
+                duplicateOrder.Id,
+                string.IsNullOrWhiteSpace(guestEmail) ? guestPhone : guestEmail);
+            return Ok(MapOrder(duplicateOrder));
+        }
+
         var stockError = await InventoryFinanceService.ValidateAndApplyStockForOrderAsync(
             db,
             request.Items.Select(i => (i.ProductId, i.Quantity)));
@@ -261,9 +304,9 @@ public class OrdersController(
         var order = new Order
         {
             UserId = null,
-            GuestName = request.GuestName?.Trim(),
-            GuestEmail = request.GuestEmail?.Trim(),
-            DeliveryAddress = request.DeliveryAddress.Trim(),
+            GuestName = string.IsNullOrWhiteSpace(guestName) ? null : guestName,
+            GuestEmail = string.IsNullOrWhiteSpace(guestEmail) ? null : guestEmail,
+            DeliveryAddress = deliveryAddress,
             Phone = guestPhone,
             PaymentMethod = request.PaymentMethod,
             Subtotal = subtotal,
@@ -292,7 +335,7 @@ public class OrdersController(
         await CustomerProfileService.UpsertFromGuestOrderAsync(db, order);
 
         var settings = brevoOptions.Value;
-        var guestName = order.GuestName ?? "Gost";
+        guestName = order.GuestName ?? "Gost";
         // Build from products dict — Product nav property is not loaded on order.Items
         var orderItemsGuest = request.Items.Select(i => (
             ProductVariantService.GetDisplayName(products[i.ProductId]),

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useStore } from '../context/StoreContext'
@@ -52,6 +52,7 @@ export default function Checkout() {
     createAccount: false,
   })
   const [submitting, setSubmitting] = useState(false)
+  const submitInFlight = useRef(false)
   const [error, setError] = useState('')
   const [completedBankOrder, setCompletedBankOrder] = useState(null)
 
@@ -134,19 +135,21 @@ export default function Checkout() {
 
   const submit = async (e) => {
     e.preventDefault()
-    setError('')
-    const inStockItems = await refreshCartStock()
-    if (!inStockItems.length) {
-      setError('Nema proizvoda na stanju u korpi.')
-      setToast('Nema proizvoda na stanju u korpi.')
-      return
-    }
-    if (!isPhoneComplete(form.phone)) {
-      setError('Broj telefona je obavezan.')
-      return
-    }
+    if (submitting || submitInFlight.current) return
+    submitInFlight.current = true
     setSubmitting(true)
+    setError('')
     try {
+      const inStockItems = await refreshCartStock()
+      if (!inStockItems.length) {
+        setError('Nema proizvoda na stanju u korpi.')
+        setToast('Nema proizvoda na stanju u korpi.')
+        return
+      }
+      if (!isPhoneComplete(form.phone)) {
+        setError('Broj telefona je obavezan.')
+        return
+      }
       const phoneClean = cleanPhone(form.phone)
       const isBankTransfer = Number(form.paymentMethod) === 1
       if (user) {
@@ -184,6 +187,7 @@ export default function Checkout() {
     } catch (err) {
       setError(err.response?.data ?? 'Greška prilikom naručivanja. Pokušajte ponovo.')
     } finally {
+      submitInFlight.current = false
       setSubmitting(false)
     }
   }
