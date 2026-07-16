@@ -11,7 +11,8 @@ namespace HoneyCosmetics.Infrastructure.Services;
 /// </summary>
 public static class OrderDuplicateGuard
 {
-    private static readonly TimeSpan DuplicateWindow = TimeSpan.FromMinutes(3);
+    // Dupli klik / paralelni submit — ne namerna druga porudžbina minut kasnije.
+    private static readonly TimeSpan DuplicateWindow = TimeSpan.FromSeconds(60);
 
     public static async Task<Order?> FindRecentDuplicateGuestOrderAsync(
         AppDbContext db,
