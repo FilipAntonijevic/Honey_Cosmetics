@@ -26,3 +26,33 @@ Three services make up the local stack. Standard commands live in `README.md` an
 ### Tests / lint / build
 - Backend: `dotnet build HoneyCosmetics.slnx` and `dotnet test HoneyCosmetics.slnx` (xUnit) from repo root. One test (`ProductCatalogSortOrderTests`) currently fails on `master` — pre-existing, unrelated to setup.
 - Frontend: `npm run lint` (ESLint) and `npm run build` (Vite) from `frontend`. `npm run lint` currently reports pre-existing errors on `master`.
+
+### Hetzner production (when SSH is configured)
+Live site: `honey-cosmetic.com` / `honeycosmetics.rs` on `142.132.185.126` (user `root`, SSH key auth). Connect via `ssh honey-prod` if `~/.ssh/config` Host `honey-prod` is set up with the agent key.
+
+| What | Path |
+|---|---|
+| Source | `/opt/Honey_Cosmetics` |
+| Running API publish | `/opt/honey-api` |
+| Frontend (nginx) | `/var/www/honey` |
+| API secrets | `/etc/honey-api.env` (**read on server only — never commit/paste**) |
+| systemd unit | `honey-api.service` |
+| Postgres | Docker container `honey_cosmetics-postgres-1` |
+| Dotnet | `/root/.dotnet/dotnet` |
+| API listen | `http://127.0.0.1:5128` (nginx proxies `/api/` + `/images/`) |
+
+Deploy backend (edit source under `/opt/Honey_Cosmetics`, do not hand-edit DLLs in `/opt/honey-api`):
+```bash
+/root/.dotnet/dotnet publish /opt/Honey_Cosmetics/backend/src/HoneyCosmetics.Api/HoneyCosmetics.Api.csproj -c Release -o /tmp/honey-api-build
+rsync -a /tmp/honey-api-build/ /opt/honey-api/
+systemctl restart honey-api
+journalctl -u honey-api -n 50 --no-pager
+```
+
+Deploy frontend:
+```bash
+cd /opt/Honey_Cosmetics/frontend && npm ci && npm run build
+rsync -az --delete dist/ /var/www/honey/
+```
+
+Rules: never force-push, never drop the DB, never change SSL certs unless asked. Server tree and local/GitHub repo are **not always 1:1** (often deployed via rsync) — prefer editing `/opt/Honey_Cosmetics` then rebuild/deploy for live fixes; sync back to git when durable.
