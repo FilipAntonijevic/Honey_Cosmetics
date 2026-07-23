@@ -9164,28 +9164,50 @@ body.is-site-popup-open {
 }
 
 
-/* ===== QR coupon win modal (?qr=hny15) ===== */
-.qr-coupon-dialog {
+/* ===== QR coupon win modal (?qr=hny15) — standalone overlay (not site-popup) ===== */
+.qr-coupon-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.72);
+  pointer-events: auto;
+}
+.qr-coupon-card {
+  position: relative;
   width: min(92vw, 420px);
-  height: auto;
-  max-height: min(90vh, 560px);
   background: #fffaf4;
   border-radius: 16px;
-  overflow: visible;
   box-shadow: 0 24px 64px rgba(40, 24, 12, 0.28);
+  pointer-events: auto;
 }
 .qr-coupon-close {
-  color: #2a1a10 !important;
-  z-index: 5;
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #f3e4d4;
+  color: #2a1a10;
   cursor: pointer;
   pointer-events: auto;
 }
 .qr-coupon-close:hover {
-  color: #000 !important;
-  opacity: 0.75;
+  background: #e8d2bc;
+  color: #000;
 }
 .qr-coupon-body {
-  padding: 2.25rem 1.75rem 1.75rem;
+  padding: 2.5rem 1.75rem 1.75rem;
   text-align: center;
 }
 .qr-coupon-eyebrow {
@@ -9226,4 +9248,18 @@ body.is-site-popup-open {
 .qr-coupon-action {
   width: 100%;
   max-width: 260px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem 1.25rem;
+  border: none;
+  border-radius: 999px;
+  background: #2a1a10;
+  color: #fffaf4;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qr-coupon-action:hover {
+  background: #3d2818;
 }

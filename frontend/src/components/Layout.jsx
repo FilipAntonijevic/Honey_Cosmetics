@@ -14,7 +14,7 @@ import SitePopupModal, { getDismissedSitePopupId } from './SitePopupModal'
 import QrCouponModal from './QrCouponModal'
 import CommunityBanner from './CommunityBanner'
 import { clampCartQuantity, isInStock } from '../utils/stock'
-import { consumeQrCouponParam, getQrCouponCode } from '../utils/qrCoupon'
+import { consumeQrCouponParam, getQrCouponCode, isQrPopupDismissed } from '../utils/qrCoupon'
 
 const EMPTY_LINKS = {
   instagramUrl: '',
@@ -298,9 +298,9 @@ export default function Layout({ children }) {
 
   // QR campaign (?qr=hny15): activate session coupon + show win popup once.
   useEffect(() => {
-    if (consumeQrCouponParam(location.search, navigate)) {
-      setQrCouponPopupVisible(true)
-    }
+    if (!consumeQrCouponParam(location.search, navigate)) return
+    if (isQrPopupDismissed()) return
+    setQrCouponPopupVisible(true)
   }, [location.search, navigate])
 
   useEffect(() => {

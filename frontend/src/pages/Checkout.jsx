@@ -11,7 +11,7 @@ import useCheckoutTotals from '../hooks/useCheckoutTotals'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 import ProductNameWithVariant from '../components/ProductNameWithVariant'
-import { getQrCouponCode } from '../utils/qrCoupon'
+import { getQrCouponCode, isQrCouponOptedOut, setQrCouponOptedOut } from '../utils/qrCoupon'
 
 export default function Checkout() {
   const {
@@ -122,16 +122,17 @@ export default function Checkout() {
     }
   }
 
-  // QR campaign: auto-apply HNY15 whenever checkout opens in a QR session.
+  // QR campaign: auto-apply HNY15 once. If the user removes it, stay removed.
   useEffect(() => {
     const qrCode = getQrCouponCode()
-    if (!qrCode) return
+    if (!qrCode || isQrCouponOptedOut()) return
     if (checkoutCoupon?.code?.toUpperCase() === qrCode) return
     applyCoupon(qrCode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply once when QR session active / coupon cleared
-  }, [checkoutCoupon?.code])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on first checkout entry in QR session
+  }, [])
 
   const removeCoupon = () => {
+    if (getQrCouponCode()) setQrCouponOptedOut(true)
     setCheckoutCoupon(null)
     setCouponInput('')
     setForm(f => ({ ...f, couponCode: '' }))
