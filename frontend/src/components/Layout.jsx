@@ -14,7 +14,7 @@ import SitePopupModal, { getDismissedSitePopupId } from './SitePopupModal'
 import QrCouponModal from './QrCouponModal'
 import CommunityBanner from './CommunityBanner'
 import { clampCartQuantity, isInStock } from '../utils/stock'
-import { consumeQrCouponParam } from '../utils/qrCoupon'
+import { consumeQrCouponParam, getQrCouponCode } from '../utils/qrCoupon'
 
 const EMPTY_LINKS = {
   instagramUrl: '',
@@ -315,8 +315,10 @@ export default function Layout({ children }) {
       .catch(() => {})
   }, [])
 
-  // Don't stack the admin site popup under the QR win modal.
-  const showSitePopup = sitePopupVisible && sitePopup && !qrCouponPopupVisible
+  // Don't stack the admin site popup under/after the QR win modal.
+  // While a QR session is active, skip the global site popup entirely.
+  const showSitePopup =
+    sitePopupVisible && sitePopup && !qrCouponPopupVisible && !getQrCouponCode()
 
   const footerEmail =
     siteLinks.infoEmails?.[0] ||
