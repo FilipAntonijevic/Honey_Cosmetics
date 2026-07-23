@@ -11,6 +11,7 @@ import useCheckoutTotals from '../hooks/useCheckoutTotals'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 import ProductNameWithVariant from '../components/ProductNameWithVariant'
+import { getQrCouponCode } from '../utils/qrCoupon'
 
 export default function Checkout() {
   const {
@@ -95,8 +96,8 @@ export default function Checkout() {
     }
   }
 
-  const applyCoupon = async () => {
-    const code = couponInput.trim().toUpperCase()
+  const applyCoupon = async (rawCode) => {
+    const code = (typeof rawCode === 'string' ? rawCode : couponInput).trim().toUpperCase()
     if (!code) return
     setCouponError('')
     setCouponLoading(true)
@@ -107,6 +108,7 @@ export default function Checkout() {
       if (data.isValid) {
         setCheckoutCoupon({ code, discountValue: data.discountValue, isPercentage: data.isPercentage })
         setForm(f => ({ ...f, couponCode: code }))
+        setCouponInput(code)
         setCouponError('')
       } else {
         setCheckoutCoupon(null)
@@ -119,6 +121,15 @@ export default function Checkout() {
       setCouponLoading(false)
     }
   }
+
+  // QR campaign: autofill HNY15 whenever checkout opens in a QR session.
+  useEffect(() => {
+    const qrCode = getQrCouponCode()
+    if (!qrCode) return
+    if (checkoutCoupon?.code?.toUpperCase() === qrCode) return
+    applyCoupon(qrCode)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount / when QR session or cart coupon changes
+  }, [checkoutCoupon?.code])
 
   const removeCoupon = () => {
     setCheckoutCoupon(null)
@@ -463,7 +474,7 @@ export default function Checkout() {
                     <button
                       type="button"
                       className="co-coupon-apply"
-                      onClick={applyCoupon}
+                      onClick={() => applyCoupon()}
                       disabled={couponLoading}
                     >
                       {couponLoading ? '…' : 'Primeni'}

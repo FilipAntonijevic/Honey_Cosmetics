@@ -9163,3 +9163,55 @@ body.is-site-popup-open {
   height: 72px;
 }
 
+
+/* ===== QR coupon win modal (?qr=hny15) ===== */
+.qr-coupon-dialog {
+  width: min(92vw, 420px);
+  background: #fffaf4;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(40, 24, 12, 0.28);
+}
+.qr-coupon-body {
+  padding: 2.25rem 1.75rem 1.75rem;
+  text-align: center;
+}
+.qr-coupon-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #9a6b3f;
+}
+.qr-coupon-title {
+  margin: 0 0 1rem;
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: #2a1a10;
+  line-height: 1.25;
+}
+.qr-coupon-code {
+  display: inline-block;
+  margin: 0 0 1rem;
+  padding: 0.55rem 1.1rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #2a1a10;
+  background: #f3e4d4;
+  border: 1px dashed #c49a6c;
+  border-radius: 10px;
+}
+.qr-coupon-desc {
+  margin: 0 0 1.35rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #5c4636;
+}
+.qr-coupon-desc strong {
+  color: #2a1a10;
+}
+.qr-coupon-action {
+  width: 100%;
+  max-width: 260px;
+}

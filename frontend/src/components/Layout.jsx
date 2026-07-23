@@ -11,8 +11,10 @@ import useCheckoutTotals from '../hooks/useCheckoutTotals'
 import FreeShippingBar from './FreeShippingBar'
 import Toast from './Toast'
 import SitePopupModal, { getDismissedSitePopupId } from './SitePopupModal'
+import QrCouponModal from './QrCouponModal'
 import CommunityBanner from './CommunityBanner'
 import { clampCartQuantity, isInStock } from '../utils/stock'
+import { consumeQrCouponParam } from '../utils/qrCoupon'
 
 const EMPTY_LINKS = {
   instagramUrl: '',
@@ -124,6 +126,7 @@ export default function Layout({ children }) {
   const { itemsTotal } = useCheckoutTotals(siteLinks)
   const [sitePopup, setSitePopup] = useState(null)
   const [sitePopupVisible, setSitePopupVisible] = useState(false)
+  const [qrCouponPopupVisible, setQrCouponPopupVisible] = useState(false)
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false)
@@ -293,6 +296,13 @@ export default function Layout({ children }) {
       .catch(() => setSiteLinks(EMPTY_LINKS))
   }, [])
 
+  // QR campaign (?qr=hny15): activate session coupon + show win popup once.
+  useEffect(() => {
+    if (consumeQrCouponParam(location.search, navigate)) {
+      setQrCouponPopupVisible(true)
+    }
+  }, [location.search, navigate])
+
   useEffect(() => {
     api
       .get('/site-popup/active')
@@ -304,6 +314,9 @@ export default function Layout({ children }) {
       })
       .catch(() => {})
   }, [])
+
+  // Don't stack the admin site popup under the QR win modal.
+  const showSitePopup = sitePopupVisible && sitePopup && !qrCouponPopupVisible
 
   const footerEmail =
     siteLinks.infoEmails?.[0] ||
@@ -871,12 +884,16 @@ export default function Layout({ children }) {
         </div>
       </footer>
 
-      {sitePopupVisible && sitePopup && (
+      {showSitePopup && (
         <SitePopupModal
           popup={sitePopup}
           onClose={() => setSitePopupVisible(false)}
         />
       )}
+      <QrCouponModal
+        open={qrCouponPopupVisible}
+        onClose={() => setQrCouponPopupVisible(false)}
+      />
 
       {!isDesktop && cartCount > 0 && !miniCartOpen && !miniCartClosing && (
         <button
