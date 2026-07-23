@@ -256,6 +256,20 @@ using (var scope = app.Services.CreateScope())
         });
     }
 
+    // QR campaign coupon — unlimited 15% (autofilled only when site opened via ?qr=hny15)
+    if (!db.Coupons.Any(x => x.Code == "HNY15"))
+    {
+        db.Coupons.Add(new Coupon
+        {
+            Code = "HNY15",
+            DiscountValue = 15,
+            IsPercentage = true,
+            ExpiresAt = null,
+            IsActive = true,
+            UsageLimit = HoneyCosmetics.Domain.Enums.CouponUsageLimit.Unlimited,
+        });
+    }
+
     //
     // Seed Site Settings (single-row, holds public social/contact links)
     //
