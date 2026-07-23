@@ -4,8 +4,7 @@ import { QR_COUPON_CODE } from '../utils/qrCoupon'
 
 /**
  * Shown only when the site is opened via the QR campaign URL (?qr=hny15).
- * Closing dismisses the modal; checkout still pre-fills HNY15 in the input
- * (user must click Primeni — coupon is not auto-applied).
+ * Closing dismisses the modal; checkout still auto-applies HNY15 for this session.
  */
 export default function QrCouponModal({ open, onClose }) {
   useEffect(() => {
@@ -64,9 +63,8 @@ export default function QrCouponModal({ open, onClose }) {
             {QR_COUPON_CODE}
           </p>
           <p className="qr-coupon-desc">
-            Popust od <strong>15%</strong> na porudžbinu. Kod će biti unet na
-            stranici za plaćanje — pritisnite <strong>Primeni</strong> da ga
-            iskoristite.
+            Popust od <strong>15%</strong> na porudžbinu. Kod će biti automatski
+            primenjen na stranici za plaćanje.
           </p>
           <button type="button" className="site-popup-action qr-coupon-action" onClick={handleClose}>
             Nastavi kupovinu
