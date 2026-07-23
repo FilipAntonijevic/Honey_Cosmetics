@@ -9167,10 +9167,22 @@ body.is-site-popup-open {
 /* ===== QR coupon win modal (?qr=hny15) ===== */
 .qr-coupon-dialog {
   width: min(92vw, 420px);
+  height: auto;
+  max-height: min(90vh, 560px);
   background: #fffaf4;
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 24px 64px rgba(40, 24, 12, 0.28);
+}
+.qr-coupon-close {
+  color: #2a1a10 !important;
+  z-index: 5;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.qr-coupon-close:hover {
+  color: #000 !important;
+  opacity: 0.75;
 }
 .qr-coupon-body {
   padding: 2.25rem 1.75rem 1.75rem;

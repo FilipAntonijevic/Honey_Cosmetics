@@ -122,13 +122,12 @@ export default function Checkout() {
     }
   }
 
-  // QR campaign: autofill HNY15 whenever checkout opens in a QR session.
+  // QR campaign: pre-fill HNY15 in the input only — do NOT auto-apply / use it.
   useEffect(() => {
     const qrCode = getQrCouponCode()
     if (!qrCode) return
-    if (checkoutCoupon?.code?.toUpperCase() === qrCode) return
-    applyCoupon(qrCode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount / when QR session or cart coupon changes
+    if (checkoutCoupon?.code) return
+    setCouponInput((prev) => (prev?.trim() ? prev : qrCode))
   }, [checkoutCoupon?.code])
 
   const removeCoupon = () => {
