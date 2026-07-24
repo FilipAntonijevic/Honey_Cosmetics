@@ -27,8 +27,8 @@ Three services make up the local stack. Standard commands live in `README.md` an
 - Backend: `dotnet build HoneyCosmetics.slnx` and `dotnet test HoneyCosmetics.slnx` (xUnit) from repo root. One test (`ProductCatalogSortOrderTests`) currently fails on `master` — pre-existing, unrelated to setup.
 - Frontend: `npm run lint` (ESLint) and `npm run build` (Vite) from `frontend`. `npm run lint` currently reports pre-existing errors on `master`.
 
-### Hetzner production (when SSH is configured)
-Live site: `honey-cosmetic.com` / `honeycosmetics.rs` on `142.132.185.126` (user `root`, SSH key auth). Connect via `ssh honey-prod` if `~/.ssh/config` Host `honey-prod` is set up with the agent key.
+### Hetzner production (optional; SSH when available)
+Live site: `honey-cosmetic.com` / `honeycosmetics.rs` on `142.132.185.126` (user `root`, SSH key auth). Local Cloud Agent setup does **not** require Hetzner access. When SSH is configured (`Host honey-prod` in `~/.ssh/config`), connect with `ssh honey-prod`.
 
 | What | Path |
 |---|---|
