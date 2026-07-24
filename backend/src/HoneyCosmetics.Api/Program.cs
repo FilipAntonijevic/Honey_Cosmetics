@@ -1,5 +1,6 @@
 using System.Text;
 using HoneyCosmetics.Api.Extensions;
+using HoneyCosmetics.Api.Middleware;
 using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Domain.Enums;
@@ -401,6 +402,9 @@ app.UseStaticFiles(new StaticFileOptions
 //
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Silent ops alert on failed checkout (email only — not shown on storefront)
+app.UseMiddleware<CheckoutFailureAlertMiddleware>();
 
 //
 // Controllers
