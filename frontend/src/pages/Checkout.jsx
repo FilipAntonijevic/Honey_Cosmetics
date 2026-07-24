@@ -11,6 +11,7 @@ import useCheckoutTotals from '../hooks/useCheckoutTotals'
 import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 import ProductNameWithVariant from '../components/ProductNameWithVariant'
+import { getQrCouponCode, isQrCouponOptedOut, setQrCouponOptedOut } from '../utils/qrCoupon'
 
 export default function Checkout() {
   const {
@@ -95,8 +96,8 @@ export default function Checkout() {
     }
   }
 
-  const applyCoupon = async () => {
-    const code = couponInput.trim().toUpperCase()
+  const applyCoupon = async (rawCode) => {
+    const code = (typeof rawCode === 'string' ? rawCode : couponInput).trim().toUpperCase()
     if (!code) return
     setCouponError('')
     setCouponLoading(true)
@@ -107,6 +108,7 @@ export default function Checkout() {
       if (data.isValid) {
         setCheckoutCoupon({ code, discountValue: data.discountValue, isPercentage: data.isPercentage })
         setForm(f => ({ ...f, couponCode: code }))
+        setCouponInput(code)
         setCouponError('')
       } else {
         setCheckoutCoupon(null)
@@ -120,7 +122,17 @@ export default function Checkout() {
     }
   }
 
+  // QR campaign: auto-apply HNY15 once. If the user removes it, stay removed.
+  useEffect(() => {
+    const qrCode = getQrCouponCode()
+    if (!qrCode || isQrCouponOptedOut()) return
+    if (checkoutCoupon?.code?.toUpperCase() === qrCode) return
+    applyCoupon(qrCode)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on first checkout entry in QR session
+  }, [])
+
   const removeCoupon = () => {
+    if (getQrCouponCode()) setQrCouponOptedOut(true)
     setCheckoutCoupon(null)
     setCouponInput('')
     setForm(f => ({ ...f, couponCode: '' }))
@@ -132,6 +144,32 @@ export default function Checkout() {
 
   const buildAddress = () =>
     [form.address, form.city, form.state, form.postalCode].filter(Boolean).join(', ')
+
+
+const makeIdempotencyKey = () => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+  } catch { /* ignore */ }
+  return `chk-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
+}
+
+const formatCheckoutError = (err) => {
+  const raw = err?.response?.data
+  if (!raw) return 'Greška prilikom naručivanja. Pokušajte ponovo.'
+  if (typeof raw === 'string') return raw
+  if (typeof raw === 'object') {
+    if (typeof raw.message === 'string' && raw.message.trim()) return raw.message
+    if (typeof raw.title === 'string' && raw.title.trim()) {
+      const details = raw.errors
+        ? Object.values(raw.errors).flat().filter(Boolean).join(' ')
+        : ''
+      return details ? `${raw.title} ${details}` : raw.title
+    }
+  }
+  return 'Greška prilikom naručivanja. Pokušajte ponovo.'
+}
 
   const submit = async (e) => {
     e.preventDefault()
@@ -153,11 +191,15 @@ export default function Checkout() {
       const phoneClean = cleanPhone(form.phone)
       const isBankTransfer = Number(form.paymentMethod) === 1
       if (user) {
+        const idempotencyKey = makeIdempotencyKey()
         const { data } = await api.post('/orders/checkout', {
           deliveryAddress: buildAddress(),
           phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
           couponCode: form.couponCode || null,
+          customerNote: form.addNote ? (form.note || null) : null,
+          instagramHandle: form.instagram?.trim() || null,
+          idempotencyKey,
         })
         await clearCartAfterOrder()
         addOrderNotification(data.id)
@@ -167,6 +209,7 @@ export default function Checkout() {
           navigate('/my-orders')
         }
       } else {
+        const idempotencyKey = makeIdempotencyKey()
         const { data } = await api.post('/orders/guest-checkout', {
           items: inStockItems.map((item) => ({ productId: item.id, quantity: item.quantity })),
           deliveryAddress: buildAddress(),
@@ -175,6 +218,9 @@ export default function Checkout() {
           couponCode: form.couponCode || null,
           guestName: `${form.firstName} ${form.lastName}`.trim() || null,
           guestEmail: form.email || null,
+          customerNote: form.addNote ? (form.note || null) : null,
+          instagramHandle: form.instagram?.trim() || null,
+          idempotencyKey,
         })
         await clearCartAfterOrder()
         if (isBankTransfer) {
@@ -185,7 +231,7 @@ export default function Checkout() {
       }
       setToast('Porudžbina je kreirana')
     } catch (err) {
-      setError(err.response?.data ?? 'Greška prilikom naručivanja. Pokušajte ponovo.')
+      setError(formatCheckoutError(err))
     } finally {
       submitInFlight.current = false
       setSubmitting(false)
@@ -463,7 +509,7 @@ export default function Checkout() {
                     <button
                       type="button"
                       className="co-coupon-apply"
-                      onClick={applyCoupon}
+                      onClick={() => applyCoupon()}
                       disabled={couponLoading}
                     >
                       {couponLoading ? '…' : 'Primeni'}
