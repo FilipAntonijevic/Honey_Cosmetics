@@ -26,19 +26,20 @@ public class ProductsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<SiteLinksResponse>> GetSiteLinks()
     {
         var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
+        // Do not expose private delivery inboxes (ContactEmail / NotificationsEmail) publicly.
         return Ok(new SiteLinksResponse(
             s?.InstagramUrl ?? string.Empty,
             s?.TikTokUrl ?? string.Empty,
             s?.EmailAddress ?? string.Empty,
             s?.InfoEmails ?? string.Empty,
-            s?.ContactEmail ?? string.Empty,
+            string.Empty,
             s?.MarketingEmail ?? string.Empty,
             s?.OfficeEmail ?? string.Empty,
             s?.PhoneNumber ?? string.Empty,
             s?.ComplaintsEmail ?? string.Empty,
             s?.WhatsAppNumber ?? string.Empty,
             s?.ViberNumber ?? string.Empty,
-            s?.NotificationsEmail ?? string.Empty,
+            string.Empty,
             s?.FreeShippingThreshold ?? 10000m,
             s?.ShippingCost ?? 430m,
             s?.NotificationBannerText ?? string.Empty,
