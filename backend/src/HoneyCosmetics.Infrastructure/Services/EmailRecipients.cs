@@ -28,18 +28,49 @@ public static class EmailRecipients
     /// <summary>First valid address from a stored multi-email field.</summary>
     public static string? First(string? raw) => Parse(raw).FirstOrDefault();
 
-    /// <summary>Contact-form inbox: first info address, then legacy EmailAddress.</summary>
-    public static string ResolveContactInbox(string? infoEmails, string? legacyEmailAddress, string fallback)
+    /// <summary>
+    /// Contact-form delivery inbox (single): dedicated ContactEmail first, then public
+    /// info address, then legacy EmailAddress, then Brevo admin fallback.
+    /// </summary>
+    public static string ResolveContactInbox(
+        string? contactEmail,
+        string? infoEmails,
+        string? legacyEmailAddress,
+        string fallback)
     {
-        var info = First(infoEmails);
-        if (!string.IsNullOrEmpty(info))
-            return info;
-
-        var legacy = (legacyEmailAddress ?? string.Empty).Trim();
-        return string.IsNullOrEmpty(legacy) ? fallback : legacy;
+        var inboxes = ResolveContactInboxes(contactEmail, infoEmails, legacyEmailAddress, fallback);
+        return inboxes.Count > 0 ? inboxes[0] : (fallback ?? string.Empty).Trim();
     }
 
-    /// <summary>Reply-to for customer-facing mail: first info address, then legacy.</summary>
+    /// <summary>
+    /// Contact-form delivery inboxes (all): dedicated ContactEmail list when set;
+    /// otherwise one address from info / legacy / fallback.
+    /// Public InfoEmails may be a branded address without working MX — ContactEmail
+    /// should point at a real mailbox (e.g. Gmail) until domain MX/forwarding exists.
+    /// </summary>
+    public static List<string> ResolveContactInboxes(
+        string? contactEmail,
+        string? infoEmails,
+        string? legacyEmailAddress,
+        string fallback)
+    {
+        var dedicated = Parse(contactEmail);
+        if (dedicated.Count > 0)
+            return dedicated;
+
+        var info = First(infoEmails);
+        if (!string.IsNullOrEmpty(info))
+            return [info];
+
+        var legacy = (legacyEmailAddress ?? string.Empty).Trim();
+        if (!string.IsNullOrEmpty(legacy))
+            return [legacy];
+
+        var fb = (fallback ?? string.Empty).Trim();
+        return string.IsNullOrEmpty(fb) ? [] : [fb];
+    }
+
+    /// <summary>Public / mailto reply address: first info address, then legacy.</summary>
     public static string ResolveInfoReplyTo(string? infoEmails, string? legacyEmailAddress, string fallback)
     {
         var info = First(infoEmails);
