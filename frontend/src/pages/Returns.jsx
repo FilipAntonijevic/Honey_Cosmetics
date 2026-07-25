@@ -8,9 +8,13 @@ import { PHONE_DEFAULT, cleanPhone } from '../utils/phone'
 const EMPTY = { firstName: '', lastName: '', email: '', phone: PHONE_DEFAULT, orderNumber: '', message: '' }
 
 export default function Returns() {
-  const { complaintsEmail } = useSiteLinks()
-  const emailNode = complaintsEmail
-    ? <a href={`mailto:${complaintsEmail}`}>{complaintsEmail}</a>
+  const { complaintsEmail, infoEmails } = useSiteLinks()
+  const publicEmail =
+    complaintsEmail?.trim() ||
+    (infoEmails || []).map((e) => e?.trim()).find(Boolean) ||
+    ''
+  const emailNode = publicEmail
+    ? <a href={`mailto:${publicEmail}`}>{publicEmail}</a>
     : <span className="legal-empty">—</span>
 
   const [form, setForm] = useState(EMPTY)
