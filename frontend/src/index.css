@@ -6321,6 +6321,22 @@ body.is-adm-modal-open {
   color: #5c4a3a;
   line-height: 1.6;
 }
+.co-bank-success-totals {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.1rem;
+  background: #faf6f1;
+  border: 1px solid #eadfce;
+  border-radius: 10px;
+}
+.co-bank-success-totals .co-total-row--discount {
+  color: #c0392b;
+}
+.co-bank-success-totals .co-total-row--shipping-free {
+  color: #16a34a;
+}
+.co-bank-success-totals .co-sum-divider {
+  margin: 0.55rem 0;
+}
 .co-bank-success-actions {
   margin-top: 1.5rem;
 }

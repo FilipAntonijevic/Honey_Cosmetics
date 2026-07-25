@@ -60,6 +60,16 @@ export default function Checkout() {
     refreshCartStock()
   }, [refreshCartStock])
 
+  // checkoutCoupon živi u StoreContext-u; form.couponCode je lokalni state.
+  // Posle remount-a / povratka na checkout UI i dalje pokazuje popust, a submit
+  // bi slao prazan kod — sync drži oba usklađena.
+  useEffect(() => {
+    if (!checkoutCoupon?.code) return
+    const code = checkoutCoupon.code
+    setForm((f) => (f.couponCode === code ? f : { ...f, couponCode: code }))
+    setCouponInput((prev) => (prev === code ? prev : code))
+  }, [checkoutCoupon])
+
   const subtotal = checkoutSubtotal
 
   const changeQty = (id, delta) => {
@@ -152,18 +162,22 @@ export default function Checkout() {
       }
       const phoneClean = cleanPhone(form.phone)
       const isBankTransfer = Number(form.paymentMethod) === 1
+      // Source of truth: applied coupon in context (UI), fallback to form field.
+      const couponCode =
+        (checkoutCoupon?.code || form.couponCode || '').trim().toUpperCase() || null
       if (user) {
         const { data } = await api.post('/orders/checkout', {
           deliveryAddress: buildAddress(),
           phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
-          couponCode: form.couponCode || null,
+          couponCode,
         })
-        await clearCartAfterOrder()
-        addOrderNotification(data.id)
         if (isBankTransfer) {
           setCompletedBankOrder(data)
-        } else {
+        }
+        await clearCartAfterOrder()
+        addOrderNotification(data.id)
+        if (!isBankTransfer) {
           navigate('/my-orders')
         }
       } else {
@@ -172,14 +186,15 @@ export default function Checkout() {
           deliveryAddress: buildAddress(),
           phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
-          couponCode: form.couponCode || null,
+          couponCode,
           guestName: `${form.firstName} ${form.lastName}`.trim() || null,
           guestEmail: form.email || null,
         })
-        await clearCartAfterOrder()
         if (isBankTransfer) {
           setCompletedBankOrder(data)
-        } else {
+        }
+        await clearCartAfterOrder()
+        if (!isBankTransfer) {
           navigate('/')
         }
       }
@@ -206,6 +221,11 @@ export default function Checkout() {
   }
 
   if (completedBankOrder) {
+    const orderSubtotal = Number(completedBankOrder.subtotal) || 0
+    const orderDiscount = Number(completedBankOrder.discount) || 0
+    const orderShipping = Number(completedBankOrder.shippingCost) || 0
+    const orderTotal = Number(completedBankOrder.total) || 0
+    const orderCoupon = completedBankOrder.couponCode
     return (
       <div className="co-page co-page--bank-success shell">
         <div className="co-bank-success">
@@ -213,11 +233,39 @@ export default function Checkout() {
           <p className="co-bank-success-lead">
             Izvršite bankovnu uplatu prema uputstvu ispod. Porudžbina se šalje tek nakon evidentirane uplate.
           </p>
+          <div className="co-bank-success-totals" aria-label="Pregled iznosa porudžbine">
+            <div className="co-total-row">
+              <span>Međuzbir</span>
+              <span>{fmt(orderSubtotal)} RSD</span>
+            </div>
+            {orderDiscount > 0 && (
+              <div className="co-total-row co-total-row--discount">
+                <span>Popust{orderCoupon ? ` (${orderCoupon})` : ''}</span>
+                <span>&minus;{fmt(orderDiscount)} RSD</span>
+              </div>
+            )}
+            {completedBankOrder.freeShippingApplied ? (
+              <div className="co-total-row co-total-row--shipping-free">
+                <span>Poštarina</span>
+                <span>Besplatna</span>
+              </div>
+            ) : orderShipping > 0 ? (
+              <div className="co-total-row">
+                <span>Poštarina</span>
+                <span>+{fmt(orderShipping)} RSD</span>
+              </div>
+            ) : null}
+            <div className="co-sum-divider" />
+            <div className="co-grand-row">
+              <span>Ukupno za uplatu</span>
+              <strong className="co-grand-value">{fmt(orderTotal)} RSD</strong>
+            </div>
+          </div>
           <BankTransferPaymentInfo
             template={siteLinks}
             loading={siteLinksLoading}
             orderId={completedBankOrder.id}
-            amount={completedBankOrder.total}
+            amount={orderTotal}
           />
           <div className="co-bank-success-actions">
             {user ? (
