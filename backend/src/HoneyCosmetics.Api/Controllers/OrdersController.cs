@@ -545,8 +545,9 @@ public class OrdersController(
 
     private async Task<string> ResolveContactEmailAsync()
     {
+        // Public address shown to customers (mailto) — not the form-delivery inbox.
         var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
-        return EmailRecipients.ResolveContactInbox(
+        return EmailRecipients.ResolveInfoReplyTo(
             s?.InfoEmails,
             s?.EmailAddress,
             brevoOptions.Value.AdminEmail);

@@ -31,13 +31,16 @@ public class ContactController(
             string.IsNullOrWhiteSpace(request.Message))
             return BadRequest("Obavezna polja nisu popunjena.");
 
-        // Collaboration submissions land in the configurable contact inbox
-        // (SiteSettings.EmailAddress), falling back to appsettings AdminEmail.
+        // Collaboration → ContactEmail inbox(es); public InfoEmails may lack MX.
         var settings = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
-        var adminEmail = EmailRecipients.ResolveContactInbox(
+        var recipients = EmailRecipients.ResolveContactInboxes(
+            settings?.ContactEmail,
             settings?.InfoEmails,
             settings?.EmailAddress,
             brevoOptions.Value.AdminEmail);
+        if (recipients.Count == 0)
+            return StatusCode(503, "Kontakt inbox nije konfigurisan.");
+
         var companyLine = string.IsNullOrWhiteSpace(request.Company)
             ? ""
             : $"<tr><td style='color:#6b6b6b;padding:4px 0;'>Firma</td><td style='padding:4px 0 4px 16px;'>{System.Net.WebUtility.HtmlEncode(request.Company)}</td></tr>";
@@ -62,12 +65,15 @@ public class ContactController(
 
         try
         {
-            await emailService.SendAsync(
-                adminEmail,
-                $"Saradnja: {request.FullName}",
-                html,
-                replyTo: request.Email.Trim(),
-                fromEmail: brevoOptions.Value.CollaborationFromEmail);
+            foreach (var recipient in recipients)
+            {
+                await emailService.SendAsync(
+                    recipient,
+                    $"Saradnja: {request.FullName}",
+                    html,
+                    replyTo: request.Email.Trim(),
+                    fromEmail: brevoOptions.Value.CollaborationFromEmail);
+            }
         }
         catch (Exception ex)
         {
@@ -95,10 +101,13 @@ public class ContactController(
             return BadRequest("Obavezna polja nisu popunjena.");
 
         var settingsRow = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
-        var inbox = EmailRecipients.ResolveContactInbox(
+        var recipients = EmailRecipients.ResolveContactInboxes(
+            settingsRow?.ContactEmail,
             settingsRow?.InfoEmails,
             settingsRow?.EmailAddress,
             brevoOptions.Value.AdminEmail);
+        if (recipients.Count == 0)
+            return StatusCode(503, "Kontakt inbox nije konfigurisan.");
 
         var phone = (request.Phone ?? string.Empty).Trim();
         var phoneLine = string.IsNullOrEmpty(phone)
@@ -123,11 +132,14 @@ public class ContactController(
         var fullName = $"{request.FirstName.Trim()} {request.LastName.Trim()}".Trim();
         try
         {
-            await emailService.SendAsync(
-                inbox,
-                $"Kontakt sa sajta — {fullName}",
-                html,
-                replyTo: request.Email.Trim());
+            foreach (var recipient in recipients)
+            {
+                await emailService.SendAsync(
+                    recipient,
+                    $"Kontakt sa sajta — {fullName}",
+                    html,
+                    replyTo: request.Email.Trim());
+            }
         }
         catch (Exception ex)
         {
@@ -162,11 +174,14 @@ public class ContactController(
         var recipients = EmailRecipients.Parse(settingsRow?.ComplaintsEmail);
         if (recipients.Count == 0)
         {
-            recipients.Add(EmailRecipients.ResolveContactInbox(
+            recipients = EmailRecipients.ResolveContactInboxes(
+                settingsRow?.ContactEmail,
                 settingsRow?.InfoEmails,
                 settingsRow?.EmailAddress,
-                brevoOptions.Value.AdminEmail));
+                brevoOptions.Value.AdminEmail);
         }
+        if (recipients.Count == 0)
+            return StatusCode(503, "Inbox za reklamacije nije konfigurisan.");
 
         var phone = (request.Phone ?? string.Empty).Trim();
         var phoneLine = string.IsNullOrEmpty(phone)

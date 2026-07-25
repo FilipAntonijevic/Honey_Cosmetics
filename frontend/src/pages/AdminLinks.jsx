@@ -8,6 +8,7 @@ const EMPTY = {
   instagramUrl: '',
   tikTokUrl: '',
   infoEmails: [''],
+  contactEmails: [''],
   officeEmail: '',
   phoneNumber: '',
   complaintsEmail: '',
@@ -58,6 +59,7 @@ export default function AdminLinks() {
           instagramUrl: data?.instagramUrl ?? '',
           tikTokUrl: data?.tikTokUrl ?? '',
           infoEmails: splitEmails(data?.infoEmails),
+          contactEmails: splitEmails(data?.contactEmail),
           officeEmail: data?.officeEmail ?? '',
           phoneNumber: data?.phoneNumber ?? '',
           complaintsEmail: data?.complaintsEmail ?? '',
@@ -136,10 +138,34 @@ export default function AdminLinks() {
     setMessage('')
   }
 
+  const setContactEmail = (index) => (e) => {
+    const value = e.target.value
+    setForm((f) => {
+      const next = [...f.contactEmails]
+      next[index] = value
+      return { ...f, contactEmails: next }
+    })
+    setMessage('')
+  }
+
+  const addContactEmail = () => {
+    setForm((f) => ({ ...f, contactEmails: [...f.contactEmails, ''] }))
+    setMessage('')
+  }
+
+  const removeContactEmail = (index) => {
+    setForm((f) => {
+      const next = f.contactEmails.filter((_, i) => i !== index)
+      return { ...f, contactEmails: next.length ? next : [''] }
+    })
+    setMessage('')
+  }
+
   const dirty =
     form.instagramUrl !== initial.instagramUrl ||
     form.tikTokUrl !== initial.tikTokUrl ||
     joinEmails(form.infoEmails) !== joinEmails(initial.infoEmails) ||
+    joinEmails(form.contactEmails) !== joinEmails(initial.contactEmails) ||
     form.officeEmail !== initial.officeEmail ||
     form.phoneNumber !== initial.phoneNumber ||
     form.complaintsEmail !== initial.complaintsEmail ||
@@ -162,6 +188,8 @@ export default function AdminLinks() {
     const tt = form.tikTokUrl.trim()
     const infoList = form.infoEmails.map((s) => s.trim()).filter(Boolean)
     const ie = infoList.join('\n')
+    const contactList = form.contactEmails.map((s) => s.trim()).filter(Boolean)
+    const contactJoined = contactList.join('\n')
     const office = form.officeEmail.trim()
     const ph = form.phoneNumber.trim()
     const ce = form.complaintsEmail.trim()
@@ -184,6 +212,10 @@ export default function AdminLinks() {
     }
     if (infoList.some((email) => !isLikelyEmail(email))) {
       setError('Svaki info email mora sadržati @.')
+      return
+    }
+    if (contactList.some((email) => !isLikelyEmail(email))) {
+      setError('Svaki email za kontakt formu mora sadržati @.')
       return
     }
     if (office && !isLikelyEmail(office)) {
@@ -220,6 +252,7 @@ export default function AdminLinks() {
         instagramUrl: ig,
         tikTokUrl: tt,
         infoEmails: ie,
+        contactEmail: contactJoined,
         officeEmail: office,
         phoneNumber: ph,
         complaintsEmail: ce,
@@ -237,6 +270,7 @@ export default function AdminLinks() {
         instagramUrl: data?.instagramUrl ?? ig,
         tikTokUrl: data?.tikTokUrl ?? tt,
         infoEmails: splitEmails(data?.infoEmails ?? ie),
+        contactEmails: splitEmails(data?.contactEmail ?? contactJoined),
         officeEmail: data?.officeEmail ?? office,
         phoneNumber: data?.phoneNumber ?? ph,
         complaintsEmail: data?.complaintsEmail ?? ce,
@@ -281,8 +315,8 @@ export default function AdminLinks() {
         <MultiEmailField
           icon={<OrdersInboxIcon />}
           label="Porudžbine i notifikacije (inbox)"
-          hint="Dodaj proizvoljan broj adresa — svaka dobija notifikaciju o novoj porudžbini."
-          placeholder="npr. narudzbine@honey-cosmetic.com"
+          hint="Stvarne adrese koje primaju mail (npr. Gmail). Ne stavljati info@ dok domen nema MX / prosleđivanje."
+          placeholder="npr. vas@gmail.com"
           values={form.notificationEmails}
           onChange={setNotificationEmail}
           onAdd={addNotificationEmail}
@@ -291,8 +325,19 @@ export default function AdminLinks() {
 
         <MultiEmailField
           icon={<MailIcon />}
-          label="Info"
-          hint="Adrese prikazane na sajtu (npr. info@honey-cosmetic.com)."
+          label="Kontakt forma (inbox)"
+          hint="Gde stižu poruke sa /contact i /collaboration. Koristite radne sandučiće (Gmail), ne info@ bez MX-a."
+          placeholder="npr. vas@gmail.com"
+          values={form.contactEmails}
+          onChange={setContactEmail}
+          onAdd={addContactEmail}
+          onRemove={removeContactEmail}
+        />
+
+        <MultiEmailField
+          icon={<MailIcon />}
+          label="Info (prikaz na sajtu)"
+          hint="Javna adresa na Kontakt stranici / footeru (mailto). Za prijem maila potreban je MX na domenu."
           placeholder="npr. info@honey-cosmetic.com"
           values={form.infoEmails}
           onChange={setInfoEmail}

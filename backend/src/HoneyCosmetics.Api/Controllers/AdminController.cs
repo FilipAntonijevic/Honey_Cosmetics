@@ -816,9 +816,11 @@ public class AdminController(
         s.InstagramUrl = (request.InstagramUrl ?? string.Empty).Trim();
         s.TikTokUrl = (request.TikTokUrl ?? string.Empty).Trim();
         s.InfoEmails = EmailRecipients.Normalize(request.InfoEmails);
+        // Dedicated delivery inbox for Kontakt / Saradnja forms (may differ from public Info).
+        s.ContactEmail = EmailRecipients.Normalize(request.ContactEmail);
         s.OfficeEmail = (request.OfficeEmail ?? string.Empty).Trim();
-        s.ComplaintsEmail = (request.ComplaintsEmail ?? string.Empty).Trim();
-        // Legacy polje — prva info adresa (kontakt forma, footer).
+        s.ComplaintsEmail = EmailRecipients.Normalize(request.ComplaintsEmail);
+        // Legacy polje — prva javna info adresa (footer / mailto).
         s.EmailAddress = EmailRecipients.First(s.InfoEmails) ?? string.Empty;
         s.PhoneNumber = (request.PhoneNumber ?? string.Empty).Trim();
         s.WhatsAppNumber = (request.WhatsAppNumber ?? string.Empty).Trim();
