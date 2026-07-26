@@ -181,6 +181,14 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
+
+    # Product / slideshow images are served by the API, not the frontend dist.
+    location /images/ {
+        proxy_pass http://127.0.0.1:5128/images/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
 }
 ```
 

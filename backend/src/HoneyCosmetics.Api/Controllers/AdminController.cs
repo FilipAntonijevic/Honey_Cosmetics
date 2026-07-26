@@ -21,7 +21,7 @@ namespace HoneyCosmetics.Api.Controllers;
 [Route("api/admin")]
 public class AdminController(
     AppDbContext db,
-    IWebHostEnvironment env,
+    ImageStorage imageStorage,
     ImageThumbnailService thumbnails,
     IEmailService emailService,
     IConfiguration configuration,
@@ -1070,7 +1070,7 @@ public class AdminController(
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!allowed.Contains(ext)) return BadRequest("Unsupported file type.");
 
-        var imagesDir = Path.Combine(env.ContentRootPath, "images");
+        var imagesDir = imageStorage.RootPath;
         Directory.CreateDirectory(imagesDir);
 
         var fileName = $"{Guid.NewGuid()}{ext}";

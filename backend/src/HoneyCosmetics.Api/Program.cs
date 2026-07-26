@@ -49,6 +49,7 @@ builder.Services.Configure<MakeWebhookSettings>(
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddHttpClient<IMakeWebhookService, MakeWebhookService>();
+builder.Services.AddSingleton<ImageStorage>();
 builder.Services.AddSingleton<ImageThumbnailService>();
 
 //
@@ -360,11 +361,10 @@ app.UseCors("frontend");
 
 //
 // Static Images
+// Prefer Images:RootPath / Images__RootPath so deploy publish dirs never own uploads.
 //
-var imagesPath =
-    Path.Combine(
-        app.Environment.ContentRootPath,
-        "images");
+var imagesPath = app.Services.GetRequiredService<ImageStorage>().RootPath;
+app.Logger.LogInformation("Serving product images from {ImagesPath}", imagesPath);
 
 Directory.CreateDirectory(imagesPath);
 
