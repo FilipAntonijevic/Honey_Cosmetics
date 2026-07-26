@@ -164,9 +164,21 @@ public class AdminController(
                     .ToList();
                 var rep = ProductVariantService.PickDefaultVariant(siblings);
                 var mapped = MapProduct(rep);
-                var listName = ProductDisplayNaming.StripVariantFromName(mapped.Name);
-                if (string.IsNullOrWhiteSpace(listName))
-                    listName = mapped.Name;
+                // Puni naziv na kartici: ime iz baze + gramaza kada nije već u nazivu.
+                var listName = mapped.Name.Trim();
+                if (siblings.Count == 1
+                    && !string.IsNullOrWhiteSpace(rep.VariantLabel)
+                    && !listName.Contains(rep.VariantLabel.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    listName = $"{listName} {rep.VariantLabel.Trim()}";
+                }
+                else if (siblings.Count > 1)
+                {
+                    // Za grupe opcija ostaje zajednički pun naziv (bez skraćivanja).
+                    listName = ProductDisplayNaming.StripVariantFromName(listName);
+                    if (string.IsNullOrWhiteSpace(listName))
+                        listName = mapped.Name.Trim();
+                }
                 var variantStocks = siblings
                     .Select(x => new AdminProductVariantStockResponse(
                         string.IsNullOrWhiteSpace(x.VariantLabel)

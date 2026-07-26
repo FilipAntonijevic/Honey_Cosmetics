@@ -2448,14 +2448,13 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 .adm-product-name {
   font-weight: 600;
   font-size: 0.84rem;
-  line-height: 1.2;
+  line-height: 1.25;
   color: #111827;
   margin-bottom: 0.18rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .adm-product-meta {
   display: flex;
