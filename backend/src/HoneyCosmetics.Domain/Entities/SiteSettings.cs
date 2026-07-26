@@ -27,8 +27,8 @@ public class SiteSettings
     public string ViberNumber { get; set; } = string.Empty;
 
     /// <summary>
-    /// Inbox where order/shipment notifications are delivered. When empty,
-    /// the system falls back to <c>Brevo:AdminEmail</c> from appsettings.
+    /// Inbox(es) for order/shipment notifications. When empty, no order admin
+    /// mail is sent. Ops/system alerts use <c>Brevo:AdminEmail</c> separately.
     /// </summary>
     public string NotificationsEmail { get; set; } = string.Empty;
 

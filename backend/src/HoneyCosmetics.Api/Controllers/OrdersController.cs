@@ -608,15 +608,14 @@ public class OrdersController(
     // Resolves the inbox(es) where order/shipment notifications should be delivered.
     // Podržava više adresa (admin ih unosi u panelu). Ako nijedna nije uneta,
     // vraća se rezervni Brevo:AdminEmail iz appsettings.
+    /// <summary>
+    /// Order/shipment alerts go only to SiteSettings.NotificationsEmail.
+    /// Never fall back to Brevo:AdminEmail — that inbox is reserved for system/ops errors.
+    /// </summary>
     private async Task<IReadOnlyList<string>> ResolveNotificationsEmailsAsync()
     {
         var s = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
-        var list = EmailRecipients.Parse(s?.NotificationsEmail);
-        if (list.Count > 0)
-            return list;
-
-        var fallback = (brevoOptions.Value.AdminEmail ?? string.Empty).Trim();
-        return string.IsNullOrEmpty(fallback) ? [] : [fallback];
+        return EmailRecipients.Parse(s?.NotificationsEmail);
     }
 
     private async Task NotifyMakeWebhookAsync(
