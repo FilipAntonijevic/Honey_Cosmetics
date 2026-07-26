@@ -26,6 +26,12 @@ public class Order
     /// <summary>Da li je uplata evidentirana (relevantno za bankovni prenos). Admin označava ručno.</summary>
     public bool IsPaid { get; set; }
     public bool FinanceRecorded { get; set; }
+    /// <summary>Napomena kupca pri porudžbini (opciono).</summary>
+    public string? CustomerNote { get; set; }
+    /// <summary>Instagram nalog kupca (opciono).</summary>
+    public string? InstagramHandle { get; set; }
+    /// <summary>Ključ za idempotentno kreiranje porudžbine (sprečava duplikate pri retry-u).</summary>
+    public string? IdempotencyKey { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<OrderItem> Items { get; set; } = [];
 }

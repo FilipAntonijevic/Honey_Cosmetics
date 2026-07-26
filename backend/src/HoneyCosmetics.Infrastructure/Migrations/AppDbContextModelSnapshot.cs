@@ -175,7 +175,13 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.HasIndex("CouponId", "UserId");
+                    b.HasIndex("CouponId", "UserId")
+                        .IsUnique()
+                        .HasFilter("\"UserId\" IS NOT NULL");
+
+                    b.HasIndex("CouponId")
+                        .IsUnique()
+                        .HasFilter("\"UserId\" IS NULL");
 
                     b.ToTable("CouponUsages");
                 });
@@ -332,6 +338,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<string>("CouponCode")
                         .HasColumnType("text");
 
+                    b.Property<string>("CustomerNote")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -355,6 +364,12 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("GuestName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasColumnType("text");
+
+                    b.Property<string>("InstagramHandle")
                         .HasColumnType("text");
 
                     b.Property<bool>("IsPaid")
@@ -382,6 +397,10 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("\"IdempotencyKey\" IS NOT NULL");
 
                     b.HasIndex("UserId");
 
@@ -429,8 +448,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<string>("City")
                         .HasColumnType("text");
 
-                    b.Property<string>("ConfirmationToken")
+                    b.Property<string>("ConfirmationTokenHash")
                         .IsRequired()
+                        .HasColumnName("ConfirmationToken")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("ConfirmationTokenExpiresAt")
@@ -469,7 +489,7 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ConfirmationToken")
+                    b.HasIndex("ConfirmationTokenHash")
                         .IsUnique();
 
                     b.HasIndex("Email")
@@ -552,7 +572,7 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.HasIndex("Name")
                         .IsUnique()
-                        .HasFilter("\"VariantGroupId\" IS NULL");
+                        .HasFilter("\"VariantGroupId\" IS NULL AND \"IsDeleted\" = false");
 
                     b.HasIndex("ProductTypeId");
 
@@ -560,7 +580,7 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.HasIndex("VariantGroupId", "VariantLabel")
                         .IsUnique()
-                        .HasFilter("\"VariantGroupId\" IS NOT NULL AND \"VariantLabel\" IS NOT NULL");
+                        .HasFilter("\"VariantGroupId\" IS NOT NULL AND \"VariantLabel\" IS NOT NULL AND \"IsDeleted\" = false");
 
                     b.ToTable("Products");
                 });
@@ -643,7 +663,9 @@ namespace HoneyCosmetics.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IsActive");
+                    b.HasIndex("IsActive")
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = true");
 
                     b.HasIndex("ProductId");
 
@@ -823,13 +845,15 @@ namespace HoneyCosmetics.Infrastructure.Migrations
                     b.Property<string>("PostalCode")
                         .HasColumnType("text");
 
-                    b.Property<string>("RefreshToken")
+                    b.Property<string>("RefreshTokenHash")
+                        .HasColumnName("RefreshToken")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("RefreshTokenExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("ResetToken")
+                    b.Property<string>("ResetTokenHash")
+                        .HasColumnName("ResetToken")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("ResetTokenExpiresAt")

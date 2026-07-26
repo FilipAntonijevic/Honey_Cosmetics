@@ -3,6 +3,7 @@ using HoneyCosmetics.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace HoneyCosmetics.Api.Controllers;
 
@@ -51,7 +52,15 @@ public class WishlistController(AppDbContext db) : ControllerBase
         if (!exists)
         {
             db.Wishlists.Add(new HoneyCosmetics.Domain.Entities.Wishlist { UserId = userId, ProductId = productId });
-            await db.SaveChangesAsync();
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+            {
+                // A concurrent identical request already created the row; adding is idempotent.
+            }
         }
 
         return NoContent();

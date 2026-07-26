@@ -62,7 +62,15 @@ public class ProductsController(AppDbContext db) : ControllerBase
             .Where(x => x.IsBestseller)
             .OrderBy(x => x.BestsellerSortOrder)
             .ToListAsync();
-        return Ok(await MapManyWithVariantsAsync(list));
+
+        var deduped = list
+            .GroupBy(ProductVariantService.ResolveGroupId)
+            .Select(g => g.OrderBy(x => x.BestsellerSortOrder).ThenBy(x => x.Id).First())
+            .OrderBy(x => x.BestsellerSortOrder)
+            .ThenBy(x => x.Id)
+            .ToList();
+
+        return Ok(await MapManyWithVariantsAsync(deduped));
     }
 
     [AllowAnonymous]

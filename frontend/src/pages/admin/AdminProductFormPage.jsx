@@ -23,6 +23,10 @@ function productToImageUrls(product) {
   return urls.length > 0 ? urls : ['']
 }
 
+function resolveOptionLabel(variantLabel, name) {
+  return variantLabel?.trim() || extractVariantLabelFromName(name) || ''
+}
+
 function productToOptions(product) {
   const variants = product.variants?.length ? product.variants : null
   if (variants) {
@@ -31,7 +35,7 @@ function productToOptions(product) {
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.id ?? 0) - (b.id ?? 0))
       .map((v) => ({
         id: v.id,
-        label: v.variantLabel ?? '',
+        label: resolveOptionLabel(v.variantLabel, product.name),
         price: String(v.price ?? ''),
         isDefault: !!v.isDefault,
       }))
@@ -40,10 +44,35 @@ function productToOptions(product) {
   }
   return [{
     id: product.id,
-    label: product.variantLabel?.trim() || extractVariantLabelFromName(product.name),
+    label: resolveOptionLabel(product.variantLabel, product.name),
     price: String(product.price ?? ''),
     isDefault: true,
   }]
+}
+
+function productToForm(product) {
+  return {
+    name: product.name ?? '',
+    description: product.description ?? '',
+    imageUrls: productToImageUrls(product),
+    productTypeId: String(product.productTypeId ?? ''),
+    categoryId: product.categoryId != null ? String(product.categoryId) : '',
+    unitCostPrice: product.unitCostPrice != null ? String(product.unitCostPrice) : '',
+    unitTransportCost: product.unitTransportCost != null ? String(product.unitTransportCost) : '',
+    options: productToOptions(product),
+  }
+}
+
+function readApiError(err, fallback) {
+  const data = err.response?.data
+  if (typeof data === 'string' && data.trim()) return data.trim()
+  if (data?.errors) {
+    const msgs = Object.values(data.errors).flat().filter(Boolean)
+    if (msgs.length) return msgs.join(' ')
+  }
+  if (typeof data?.title === 'string' && data.title.trim()) return data.title.trim()
+  if (typeof data?.detail === 'string' && data.detail.trim()) return data.detail.trim()
+  return fallback
 }
 
 export default function AdminProductFormPage() {
@@ -57,25 +86,36 @@ export default function AdminProductFormPage() {
   const [saving, setSaving] = useState(false)
   const [uploadingIndex, setUploadingIndex] = useState(null)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const fileRefs = useRef([])
+  const formActionsRef = useRef(null)
+  const savingRef = useRef(false)
+  const uploadingRef = useRef(false)
+
+  const showError = (message) => {
+    setSuccess('')
+    setError(message)
+    requestAnimationFrame(() => {
+      formActionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }
+
+  const showSuccess = (message) => {
+    setError('')
+    setSuccess(message)
+    requestAnimationFrame(() => {
+      formActionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }
 
   useEffect(() => {
     api.get('/admin/product-types').then(({ data }) => setProductTypes(data))
     if (isNew) return
     setLoading(true)
+    setError('')
+    setSuccess('')
     api.get(`/admin/products/${id}`)
-      .then(({ data }) => {
-        setForm({
-          name: data.name,
-          description: data.description ?? '',
-          imageUrls: productToImageUrls(data),
-          productTypeId: String(data.productTypeId ?? ''),
-          categoryId: data.categoryId != null ? String(data.categoryId) : '',
-          unitCostPrice: data.unitCostPrice != null ? String(data.unitCostPrice) : '',
-          unitTransportCost: data.unitTransportCost != null ? String(data.unitTransportCost) : '',
-          options: productToOptions(data),
-        })
-      })
+      .then(({ data }) => setForm(productToForm(data)))
       .catch(() => setError('Proizvod nije pronađen.'))
       .finally(() => setLoading(false))
   }, [id, isNew])
@@ -93,6 +133,7 @@ export default function AdminProductFormPage() {
 
   const set = (key) => (e) => {
     const v = e.target.value
+    setSuccess('')
     setForm((f) => {
       if (key === 'productTypeId' && v !== f.productTypeId) {
         return { ...f, productTypeId: v, categoryId: '' }
@@ -102,6 +143,7 @@ export default function AdminProductFormPage() {
   }
 
   const setImageUrl = (index, value) => {
+    setSuccess('')
     setForm((f) => {
       const imageUrls = [...f.imageUrls]
       imageUrls[index] = value
@@ -110,6 +152,7 @@ export default function AdminProductFormPage() {
   }
 
   const setOptionField = (index, key, value) => {
+    setSuccess('')
     setForm((f) => {
       const options = f.options.map((o, i) => (i === index ? { ...o, [key]: value } : o))
       return { ...f, options }
@@ -117,6 +160,7 @@ export default function AdminProductFormPage() {
   }
 
   const setDefaultOption = (index) => {
+    setSuccess('')
     setForm((f) => ({
       ...f,
       options: f.options.map((o, i) => ({ ...o, isDefault: i === index })),
@@ -124,6 +168,7 @@ export default function AdminProductFormPage() {
   }
 
   const addOption = () => {
+    setSuccess('')
     setForm((f) => ({
       ...f,
       options: [...f.options, { id: null, label: '', price: '', isDefault: f.options.length === 0 }],
@@ -131,6 +176,7 @@ export default function AdminProductFormPage() {
   }
 
   const removeOption = (index) => {
+    setSuccess('')
     setForm((f) => {
       if (f.options.length <= 1) return f
       const wasDefault = f.options[index].isDefault
@@ -146,11 +192,17 @@ export default function AdminProductFormPage() {
   const isManicureTools = isManicureToolsProductType(selectedProductType?.name)
 
   const save = async (e) => {
-    e.preventDefault()
+    e?.preventDefault?.()
+    if (savingRef.current) return
+    if (uploadingRef.current) {
+      showError('Sačekajte da se upload slike završi.')
+      return
+    }
     setError('')
+    setSuccess('')
     const urls = form.imageUrls.map((u) => u.trim()).filter(Boolean)
     if (!form.name.trim() || !form.productTypeId || urls.length === 0) {
-      setError('Naziv, vrsta i bar jedna slika su obavezni.')
+      showError('Naziv, vrsta i bar jedna slika su obavezni.')
       return
     }
     const options = form.options.map((o, i) => ({
@@ -166,7 +218,7 @@ export default function AdminProductFormPage() {
       return false
     })
     if (options.length === 0 || optionInvalid) {
-      setError(
+      showError(
         isManicureTools
           ? 'Svaka opcija mora imati cenu veću od 0. Gramaža je opciona za alate za manikir.'
           : 'Svaka opcija mora imati gramazu i cenu veću od 0.',
@@ -176,6 +228,7 @@ export default function AdminProductFormPage() {
     if (!options.some((o) => o.isDefault)) options[0].isDefault = true
     const defaultOpt = options.find((o) => o.isDefault) ?? options[0]
 
+    savingRef.current = true
     setSaving(true)
     try {
       const payload = {
@@ -198,13 +251,13 @@ export default function AdminProductFormPage() {
         })
       } else {
         const { data } = await api.put(`/admin/products/${id}`, payload)
-        const target = data?.id ?? id
-        navigate(`/admin/products/${target}`)
+        setForm(productToForm(data))
+        showSuccess('Izmene su sačuvane.')
       }
     } catch (err) {
-      const d = err.response?.data
-      setError(typeof d === 'string' ? d : d?.title ?? d?.detail ?? 'Čuvanje nije uspelo.')
+      showError(readApiError(err, 'Čuvanje nije uspelo.'))
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
@@ -220,16 +273,15 @@ export default function AdminProductFormPage() {
         </div>
       </div>
 
-      <form onSubmit={save} className="adm-form adm-form--page">
-        {error && <div className="adm-form-error">{error}</div>}
+      <form onSubmit={save} className="adm-form adm-form--page" noValidate>
         <div className="adm-form-row">
           <label>Naziv *</label>
-          <input className="adm-input" value={form.name} onChange={set('name')} required />
+          <input className="adm-input" value={form.name} onChange={set('name')} />
         </div>
         <div className="adm-form-row adm-form-row--2">
           <div>
             <label>Vrsta *</label>
-            <select className="adm-input" value={form.productTypeId} onChange={set('productTypeId')} required>
+            <select className="adm-input" value={form.productTypeId} onChange={set('productTypeId')}>
               <option value="">— izaberite —</option>
               {productTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
@@ -325,27 +377,41 @@ export default function AdminProductFormPage() {
                 onChange={(e) => {
                   const file = e.target.files?.[0]
                   if (!file) return
+                  if (uploadingRef.current) return
+                  const input = e.currentTarget
+                  uploadingRef.current = true
                   setUploadingIndex(index)
                   const fd = new FormData()
                   fd.append('file', file)
                   api.post('/admin/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
                     .then(({ data }) => setImageUrl(index, data.url))
-                    .finally(() => setUploadingIndex(null))
+                    .catch((err) => {
+                      showError(readApiError(err, 'Upload slike nije uspeo.'))
+                      input.value = ''
+                    })
+                    .finally(() => {
+                      uploadingRef.current = false
+                      setUploadingIndex(null)
+                    })
                 }}
               />
-              <button type="button" className="adm-btn" disabled={uploadingIndex === index} onClick={() => fileRefs.current[index]?.click()}>
-                Upload
+              <button type="button" className="adm-btn" disabled={uploadingIndex !== null} onClick={() => fileRefs.current[index]?.click()}>
+                {uploadingIndex === index ? 'Upload…' : 'Upload'}
               </button>
               {url ? <img src={apiImageUrl(url)} alt="" className="adm-img-preview adm-img-preview--sm" /> : null}
             </div>
           ))}
           <button type="button" className="adm-btn" onClick={() => setForm((f) => ({ ...f, imageUrls: [...f.imageUrls, ''] }))}>+ Slika</button>
         </div>
-        <div className="adm-form-actions">
-          <button type="button" className="adm-btn" onClick={() => navigate(isNew ? '/admin/products' : `/admin/products/${id}`)}>Odustani</button>
-          <button type="submit" className="adm-btn adm-btn-primary" disabled={saving}>
-            {saving ? 'Čuvanje…' : isNew ? 'Sačuvaj' : 'Sačuvaj izmene'}
-          </button>
+        <div className="adm-form-actions" ref={formActionsRef}>
+          {error && <div className="adm-form-error adm-form-actions__error" role="alert">{error}</div>}
+          {success && <div className="adm-notice adm-form-actions__success" role="status">{success}</div>}
+          <div className="adm-form-actions__buttons">
+            <button type="button" className="adm-btn" onClick={() => navigate(isNew ? '/admin/products' : `/admin/products/${id}`)}>Odustani</button>
+            <button type="button" className="adm-btn adm-btn-primary" disabled={saving || uploadingIndex !== null} onClick={save}>
+              {saving ? 'Čuvanje…' : isNew ? 'Sačuvaj' : 'Sačuvaj izmene'}
+            </button>
+          </div>
         </div>
       </form>
     </div>

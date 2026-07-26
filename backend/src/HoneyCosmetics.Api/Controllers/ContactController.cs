@@ -1,8 +1,10 @@
+using System.Net.Mail;
 using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Infrastructure.Services;
 using HoneyCosmetics.Infrastructure.Configurations;
 using HoneyCosmetics.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -10,6 +12,7 @@ namespace HoneyCosmetics.Api.Controllers;
 
 [ApiController]
 [Route("api/contact")]
+[EnableRateLimiting("contact")]
 public class ContactController(
     AppDbContext db,
     IEmailService emailService,
@@ -30,6 +33,8 @@ public class ContactController(
             string.IsNullOrWhiteSpace(request.Email) ||
             string.IsNullOrWhiteSpace(request.Message))
             return BadRequest("Obavezna polja nisu popunjena.");
+        if (!TryNormalizeEmail(request.Email, out var senderEmail))
+            return BadRequest("Email adresa nije ispravna.");
 
         // Collaboration submissions land in the configurable contact inbox
         // (SiteSettings.EmailAddress), falling back to appsettings AdminEmail.
@@ -51,7 +56,7 @@ public class ContactController(
               <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
                 <tr><td style="color:#6b6b6b;padding:4px 0;">Ime i prezime</td><td style="padding:4px 0 4px 16px;">{System.Net.WebUtility.HtmlEncode(request.FullName)}</td></tr>
                 {companyLine}
-                <tr><td style="color:#6b6b6b;padding:4px 0;">Email</td><td style="padding:4px 0 4px 16px;"><a href="mailto:{request.Email}">{System.Net.WebUtility.HtmlEncode(request.Email)}</a></td></tr>
+                <tr><td style="color:#6b6b6b;padding:4px 0;">Email</td><td style="padding:4px 0 4px 16px;"><a href="mailto:{System.Net.WebUtility.HtmlEncode(senderEmail)}">{System.Net.WebUtility.HtmlEncode(senderEmail)}</a></td></tr>
                 {phoneLine}
               </table>
               <hr style="border:none;border-top:1px solid #e8dcd0;margin:1.2rem 0;" />
@@ -66,7 +71,7 @@ public class ContactController(
                 adminEmail,
                 $"Saradnja: {request.FullName}",
                 html,
-                replyTo: request.Email.Trim(),
+                replyTo: senderEmail,
                 fromEmail: brevoOptions.Value.CollaborationFromEmail);
         }
         catch (Exception ex)
@@ -93,6 +98,8 @@ public class ContactController(
             string.IsNullOrWhiteSpace(request.Email) ||
             string.IsNullOrWhiteSpace(request.Message))
             return BadRequest("Obavezna polja nisu popunjena.");
+        if (!TryNormalizeEmail(request.Email, out var senderEmail))
+            return BadRequest("Email adresa nije ispravna.");
 
         var settingsRow = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
         var inbox = EmailRecipients.ResolveContactInbox(
@@ -111,7 +118,7 @@ public class ContactController(
               <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
                 <tr><td style="color:#6b6b6b;padding:4px 0;">Ime</td><td style="padding:4px 0 4px 16px;">{System.Net.WebUtility.HtmlEncode(request.FirstName.Trim())}</td></tr>
                 <tr><td style="color:#6b6b6b;padding:4px 0;">Prezime</td><td style="padding:4px 0 4px 16px;">{System.Net.WebUtility.HtmlEncode(request.LastName.Trim())}</td></tr>
-                <tr><td style="color:#6b6b6b;padding:4px 0;">Email</td><td style="padding:4px 0 4px 16px;"><a href="mailto:{request.Email}">{System.Net.WebUtility.HtmlEncode(request.Email.Trim())}</a></td></tr>
+                <tr><td style="color:#6b6b6b;padding:4px 0;">Email</td><td style="padding:4px 0 4px 16px;"><a href="mailto:{System.Net.WebUtility.HtmlEncode(senderEmail)}">{System.Net.WebUtility.HtmlEncode(senderEmail)}</a></td></tr>
                 {phoneLine}
               </table>
               <hr style="border:none;border-top:1px solid #e8dcd0;margin:1.2rem 0;" />
@@ -127,7 +134,7 @@ public class ContactController(
                 inbox,
                 $"Kontakt sa sajta — {fullName}",
                 html,
-                replyTo: request.Email.Trim());
+                replyTo: senderEmail);
         }
         catch (Exception ex)
         {
@@ -154,6 +161,8 @@ public class ContactController(
             string.IsNullOrWhiteSpace(request.Email) ||
             string.IsNullOrWhiteSpace(request.Message))
             return BadRequest("Obavezna polja nisu popunjena.");
+        if (!TryNormalizeEmail(request.Email, out var senderEmail))
+            return BadRequest("Email adresa nije ispravna.");
 
         var settingsRow = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync();
 
@@ -183,7 +192,7 @@ public class ContactController(
               <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
                 <tr><td style="color:#6b6b6b;padding:4px 0;">Ime</td><td style="padding:4px 0 4px 16px;">{System.Net.WebUtility.HtmlEncode(request.FirstName.Trim())}</td></tr>
                 <tr><td style="color:#6b6b6b;padding:4px 0;">Prezime</td><td style="padding:4px 0 4px 16px;">{System.Net.WebUtility.HtmlEncode(request.LastName.Trim())}</td></tr>
-                <tr><td style="color:#6b6b6b;padding:4px 0;">Email</td><td style="padding:4px 0 4px 16px;"><a href="mailto:{request.Email}">{System.Net.WebUtility.HtmlEncode(request.Email.Trim())}</a></td></tr>
+                <tr><td style="color:#6b6b6b;padding:4px 0;">Email</td><td style="padding:4px 0 4px 16px;"><a href="mailto:{System.Net.WebUtility.HtmlEncode(senderEmail)}">{System.Net.WebUtility.HtmlEncode(senderEmail)}</a></td></tr>
                 {phoneLine}
                 {orderLine}
               </table>
@@ -202,7 +211,7 @@ public class ContactController(
                     recipient,
                     $"Reklamacija — {fullName}",
                     html,
-                    replyTo: request.Email.Trim(),
+                    replyTo: senderEmail,
                     fromEmail: brevoOptions.Value.ComplaintsFromEmail);
             }
         }
@@ -213,5 +222,30 @@ public class ContactController(
         }
 
         return Ok();
+    }
+
+    private static bool TryNormalizeEmail(string value, out string normalized)
+    {
+        normalized = value.Trim();
+        if (normalized.Length is 0 or > 254 ||
+            normalized.Contains('\r') ||
+            normalized.Contains('\n'))
+        {
+            return false;
+        }
+
+        try
+        {
+            var address = new MailAddress(normalized);
+            if (!string.Equals(address.Address, normalized, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            normalized = address.Address;
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 }

@@ -24,10 +24,17 @@ export default function Checkout() {
     clearCartAfterOrder,
     setToast,
     refreshCartStock,
+    syncCartQuantity,
+    pushCartToServer,
     addOrderNotification,
   } = useStore()
   const siteLinks = useSiteLinks()
-  const { freeShippingThreshold, loading: siteLinksLoading } = siteLinks
+  const {
+    freeShippingThreshold,
+    loading: siteLinksLoading,
+    error: siteLinksError,
+    retry: retrySiteLinks,
+  } = siteLinks
   const { itemsTotal, shipping, grandTotal, freeShippingApplied } = useCheckoutTotals(siteLinks)
   const navigate = useNavigate()
 
@@ -45,7 +52,6 @@ export default function Checkout() {
     postalCode: user?.postalCode ?? '',
     phone: phoneOrDefault(user?.phoneNumber),
     paymentMethod: '0',
-    couponCode: '',
     instagram: '',
     note: '',
     addNote: false,
@@ -53,6 +59,7 @@ export default function Checkout() {
   })
   const [submitting, setSubmitting] = useState(false)
   const submitInFlight = useRef(false)
+  const idempotencyKeyRef = useRef(null)
   const [error, setError] = useState('')
   const [completedBankOrder, setCompletedBankOrder] = useState(null)
 
@@ -66,7 +73,7 @@ export default function Checkout() {
     const item = checkoutCart.find((i) => i.id === id)
     if (!item) return
     if (delta > 0 && !isInStock(item)) {
-      setToast('Proizvod trenutno nije na stanju.')
+      setToast('Rasprodato.')
       return
     }
     const stock = Number(item.stockQuantity) || 0
@@ -75,24 +82,30 @@ export default function Checkout() {
       setToast('Nema dovoljno proizvoda na stanju.')
       return
     }
-    setCart((prev) =>
-      prev.map((row) => {
-        if (row.id !== id) return row
-        const rowQty = Number(row.quantity) || 0
-        const requested = rowQty + delta
-        const nextQty = clampCartQuantity(requested, stock)
-        if (nextQty < requested && delta > 0) {
-          setToast('Nema dovoljno proizvoda na stanju.')
-        }
-        return { ...row, quantity: Math.max(1, nextQty) }
-      }),
-    )
-    if (user && delta > 0) {
-      api.post('/cart', { productId: id, quantity: delta }).catch(() => {
-        setToast('Nema dovoljno proizvoda na stanju.')
-        refreshCartStock()
-      })
+    const requested = currentQty + delta
+    if (requested <= 0) {
+      setCart((prev) => prev.filter((row) => row.id !== id))
+      if (user) void syncCartQuantity(id, 0)
+      return
     }
+    const nextQty = Math.max(1, clampCartQuantity(requested, stock))
+    if (nextQty < requested && delta > 0) {
+      setToast('Nema dovoljno proizvoda na stanju.')
+    }
+    setCart((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, quantity: nextQty } : row)),
+    )
+    if (user) void syncCartQuantity(id, nextQty)
+  }
+
+  const normalizeCheckoutError = (err) => {
+    const data = err?.response?.data
+    if (typeof data === 'string' && data.trim()) return data
+    if (data && typeof data === 'object') {
+      const msg = data.title || data.detail || data.message
+      if (typeof msg === 'string' && msg.trim()) return msg
+    }
+    return 'Greška prilikom naručivanja. Pokušajte ponovo.'
   }
 
   const applyCoupon = async () => {
@@ -106,11 +119,9 @@ export default function Checkout() {
       })
       if (data.isValid) {
         setCheckoutCoupon({ code, discountValue: data.discountValue, isPercentage: data.isPercentage })
-        setForm(f => ({ ...f, couponCode: code }))
         setCouponError('')
       } else {
         setCheckoutCoupon(null)
-        setForm(f => ({ ...f, couponCode: '' }))
         setCouponError(data.message || 'Izabrali ste nepostojeci kupon.')
       }
     } catch {
@@ -123,7 +134,6 @@ export default function Checkout() {
   const removeCoupon = () => {
     setCheckoutCoupon(null)
     setCouponInput('')
-    setForm(f => ({ ...f, couponCode: '' }))
     setCouponError('')
   }
 
@@ -136,9 +146,18 @@ export default function Checkout() {
   const submit = async (e) => {
     e.preventDefault()
     if (submitting || submitInFlight.current) return
+    if (siteLinksLoading || siteLinksError) {
+      setError(siteLinksError
+        ? 'Podešavanja dostave nisu dostupna. Učitajte ih ponovo pre naručivanja.'
+        : 'Učitavanje podešavanja dostave, pokušajte ponovo za trenutak.')
+      return
+    }
     submitInFlight.current = true
     setSubmitting(true)
     setError('')
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID()
+    }
     try {
       const inStockItems = await refreshCartStock()
       if (!inStockItems.length) {
@@ -150,16 +169,36 @@ export default function Checkout() {
         setError('Broj telefona je obavezan.')
         return
       }
+      if (!form.address?.trim() || !form.city?.trim()) {
+        setError('Adresa i grad su obavezni.')
+        return
+      }
+      if (!user && !form.firstName?.trim()) {
+        setError('Ime je obavezno.')
+        return
+      }
       const phoneClean = cleanPhone(form.phone)
       const isBankTransfer = Number(form.paymentMethod) === 1
+      const note = form.addNote ? form.note?.trim() || null : null
+      const instagram = form.instagram?.trim() || null
+      const idempotencyKey = idempotencyKeyRef.current
       if (user) {
+        const synced = await pushCartToServer()
+        if (!synced) {
+          setError('Korpa nije sinhronizovana. Pokušajte ponovo.')
+          return
+        }
         const { data } = await api.post('/orders/checkout', {
           deliveryAddress: buildAddress(),
           phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
-          couponCode: form.couponCode || null,
+          couponCode: checkoutCoupon?.code || null,
+          customerNote: note,
+          instagramHandle: instagram,
+          idempotencyKey,
         })
         await clearCartAfterOrder()
+        idempotencyKeyRef.current = null
         addOrderNotification(data.id)
         if (isBankTransfer) {
           setCompletedBankOrder(data)
@@ -172,11 +211,15 @@ export default function Checkout() {
           deliveryAddress: buildAddress(),
           phone: phoneClean,
           paymentMethod: Number(form.paymentMethod),
-          couponCode: form.couponCode || null,
+          couponCode: checkoutCoupon?.code || null,
           guestName: `${form.firstName} ${form.lastName}`.trim() || null,
           guestEmail: form.email || null,
+          customerNote: note,
+          instagramHandle: instagram,
+          idempotencyKey,
         })
         await clearCartAfterOrder()
+        idempotencyKeyRef.current = null
         if (isBankTransfer) {
           setCompletedBankOrder(data)
         } else {
@@ -185,7 +228,7 @@ export default function Checkout() {
       }
       setToast('Porudžbina je kreirana')
     } catch (err) {
-      setError(err.response?.data ?? 'Greška prilikom naručivanja. Pokušajte ponovo.')
+      setError(normalizeCheckoutError(err))
     } finally {
       submitInFlight.current = false
       setSubmitting(false)
@@ -384,12 +427,22 @@ export default function Checkout() {
             )}
           </section>
 
+          {siteLinksError && (
+            <div className="co-error" role="alert">
+              Podešavanja dostave nisu učitana. Ukupan iznos još nije potvrđen.{' '}
+              <button type="button" onClick={retrySiteLinks}>Pokušaj ponovo</button>
+            </div>
+          )}
           {error && <p className="co-error">{error}</p>}
 
           {/* Actions */}
           <div className="co-actions">
             <Link to="/cart" className="co-back-link">← Povratak u korpu</Link>
-            <button type="submit" className="co-submit-btn" disabled={submitting}>
+            <button
+              type="submit"
+              className="co-submit-btn"
+              disabled={submitting || siteLinksLoading || Boolean(siteLinksError)}
+            >
               {submitting ? 'Slanje...' : 'Naručite'}
             </button>
           </div>
@@ -400,7 +453,9 @@ export default function Checkout() {
           <div className="co-summary">
             <div className="co-summary-title">Rezime porudžbine</div>
 
-            <FreeShippingBar cartTotal={itemsTotal} threshold={freeShippingThreshold} compact />
+            {!siteLinksLoading && !siteLinksError && (
+              <FreeShippingBar cartTotal={itemsTotal} threshold={freeShippingThreshold} compact />
+            )}
 
             <div className="co-summary-items">
               {checkoutCart.map((item) => {
@@ -495,7 +550,7 @@ export default function Checkout() {
                 <span>&minus;{fmt(discountAmt)} RSD</span>
               </div>
             )}
-            {freeShippingApplied ? (
+            {!siteLinksLoading && !siteLinksError && (freeShippingApplied ? (
               <div className="co-total-row" style={{ color: '#16a34a' }}>
                 <span>Poštarina</span>
                 <span>Besplatna</span>
@@ -505,12 +560,18 @@ export default function Checkout() {
                 <span>Poštarina</span>
                 <span>+{fmt(shipping)} RSD</span>
               </div>
-            ) : null}
+            ) : null)}
             <div className="co-sum-divider" />
-            <div className="co-grand-row">
-              <span>Ukupno</span>
-              <strong className="co-grand-value">{fmt(grandTotal)} RSD</strong>
-            </div>
+            {!siteLinksLoading && !siteLinksError ? (
+              <div className="co-grand-row">
+                <span>Ukupno</span>
+                <strong className="co-grand-value">{fmt(grandTotal)} RSD</strong>
+              </div>
+            ) : (
+              <p className="co-error">
+                {siteLinksError ? 'Ukupan iznos nije dostupan.' : 'Potvrđivanje ukupnog iznosa…'}
+              </p>
+            )}
           </div>
         </div>
 

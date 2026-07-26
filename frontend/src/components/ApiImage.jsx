@@ -26,25 +26,32 @@ function loadImageElement(src) {
 }
 
 async function resolveUrl(directUrl, useBlob) {
-  if (!directUrl) return ''
-  if (!useBlob) return directUrl
-  return fetchBlobUrl(directUrl)
+  if (!directUrl) return { url: '', owned: false }
+  if (!useBlob) return { url: directUrl, owned: false }
+  return { url: await fetchBlobUrl(directUrl), owned: true }
 }
 
 async function loadVariant(webpUrl, legacyUrl, useBlob) {
   if (webpUrl) {
+    let resolved
     try {
-      const url = await resolveUrl(webpUrl, useBlob)
-      await loadImageElement(url)
-      return url
+      resolved = await resolveUrl(webpUrl, useBlob)
+      await loadImageElement(resolved.url)
+      return resolved
     } catch {
+      if (resolved?.owned) URL.revokeObjectURL(resolved.url)
       /* WebP još nije generisan */
     }
   }
   if (legacyUrl) {
-    const url = await resolveUrl(legacyUrl, useBlob)
-    await loadImageElement(url)
-    return url
+    const resolved = await resolveUrl(legacyUrl, useBlob)
+    try {
+      await loadImageElement(resolved.url)
+      return resolved
+    } catch (error) {
+      if (resolved.owned) URL.revokeObjectURL(resolved.url)
+      throw error
+    }
   }
   throw new Error('variant unavailable')
 }
@@ -53,7 +60,7 @@ async function loadVariantStep(src, variant, webpUrl, legacyUrl, useBlob) {
   const cached = getCachedVariantUrl(src, variant)
   if (cached) {
     await loadImageElement(cached)
-    return cached
+    return { url: cached, owned: false }
   }
   return loadVariant(webpUrl, legacyUrl, useBlob)
 }
@@ -107,15 +114,17 @@ export default function ApiImage({
       try {
         try {
           const thumb = await loadVariantStep(src, 'thumb', thumbDirect, thumbLegacy, useBlob)
-          if (!cancelled) setThumbSrc(trackBlob(thumb))
+          if (thumb.owned) trackBlob(thumb.url)
+          if (!cancelled) setThumbSrc(thumb.url)
         } catch {
           /* thumb još nije generisan */
         }
 
         try {
           const medium = await loadVariantStep(src, 'medium', mediumDirect, mediumLegacy, useBlob)
+          if (medium.owned) trackBlob(medium.url)
           if (cancelled) return
-          setDisplaySrc(trackBlob(medium))
+          setDisplaySrc(medium.url)
           if (!wantFull) {
             setFullReady(true)
             return
@@ -125,10 +134,13 @@ export default function ApiImage({
         }
 
         const fullCached = getCachedVariantUrl(src, 'full')
-        const full = fullCached || (await resolveUrl(fullDirect, useBlob))
-        await loadImageElement(full)
+        const full = fullCached
+          ? { url: fullCached, owned: false }
+          : await resolveUrl(fullDirect, useBlob)
+        if (full.owned) trackBlob(full.url)
+        await loadImageElement(full.url)
         if (cancelled) return
-        setDisplaySrc(trackBlob(full))
+        setDisplaySrc(full.url)
         setFullReady(true)
       } catch {
         if (!cancelled) {

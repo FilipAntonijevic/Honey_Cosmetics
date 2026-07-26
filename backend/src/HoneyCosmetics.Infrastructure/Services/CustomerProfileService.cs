@@ -9,7 +9,7 @@ public static class CustomerProfileService
     public static string NormalizeEmail(string email) =>
         email.Trim().ToLowerInvariant();
 
-    public static async Task UpsertFromUserAsync(
+    public static async Task<CustomerProfile> UpsertFromUserAsync(
         AppDbContext db,
         User user,
         CancellationToken ct = default)
@@ -46,6 +46,7 @@ public static class CustomerProfileService
         profile.LastActivityAt = now;
 
         await LinkGuestOrdersToUserAsync(db, user, email, ct);
+        return profile;
     }
 
     /// <summary>
@@ -112,10 +113,7 @@ public static class CustomerProfileService
         Order order,
         CancellationToken ct = default)
     {
-        await UpsertFromUserAsync(db, user, ct);
-
-        var email = NormalizeEmail(user.Email);
-        var profile = await db.CustomerProfiles.FirstAsync(c => c.Email == email, ct);
+        var profile = await UpsertFromUserAsync(db, user, ct);
 
         if (order.CreatedAt < profile.FirstSeenAt)
             profile.FirstSeenAt = order.CreatedAt;

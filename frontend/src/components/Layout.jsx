@@ -13,21 +13,7 @@ import Toast from './Toast'
 import SitePopupModal, { getDismissedSitePopupId } from './SitePopupModal'
 import CommunityBanner from './CommunityBanner'
 import { clampCartQuantity, isInStock } from '../utils/stock'
-
-const EMPTY_LINKS = {
-  instagramUrl: '',
-  tikTokUrl: '',
-  emailAddress: '',
-  infoEmails: [],
-  officeEmail: '',
-  phoneNumber: '',
-  whatsAppNumber: '',
-  viberNumber: '',
-  freeShippingThreshold: 10000,
-  shippingCost: 430,
-  notificationBannerText: '',
-  notificationBannerEnabled: true,
-}
+import useSiteLinks from '../hooks/useSiteLinks'
 
 const cleanDigits = (v) => (v || '').replace(/[^+\d]/g, '')
 
@@ -118,9 +104,9 @@ function FooterSocials({ instagramUrl, tikTokUrl, mailHref }) {
 }
 
 export default function Layout({ children }) {
-  const { cart, checkoutCart, wishlist, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock, unseenOrders, productSearch, setProductSearch, applyProductSearch, forceProductSearch, suspendProductSearchFilter, updateSearchDraft } = useStore()
+  const { cart, checkoutCart, wishlist, wishlistReady, user, logout, toast, removeFromCart, setCart, setToast, cartAddTick, refreshCartStock, syncCartQuantity, unseenOrders, productSearch, setProductSearch, applyProductSearch, forceProductSearch, suspendProductSearchFilter, updateSearchDraft } = useStore()
   const [vrste, setVrste] = useState([])
-  const [siteLinks, setSiteLinks] = useState(EMPTY_LINKS)
+  const siteLinks = useSiteLinks()
   const { itemsTotal } = useCheckoutTotals(siteLinks)
   const [sitePopup, setSitePopup] = useState(null)
   const [sitePopupVisible, setSitePopupVisible] = useState(false)
@@ -268,29 +254,6 @@ export default function Layout({ children }) {
       .catch(() =>
         setVrste(['Gel Lak', 'Baze', 'Builder Gel', 'Top Coat', 'Nega Kože', 'Alati za manikir']),
       )
-  }, [])
-
-  useEffect(() => {
-    api
-      .get('/site/links')
-      .then(({ data }) => setSiteLinks({
-        instagramUrl: data?.instagramUrl ?? '',
-        tikTokUrl: data?.tikTokUrl ?? '',
-        emailAddress: data?.emailAddress ?? '',
-        infoEmails: String(data?.infoEmails || '')
-          .split(/[\s,;]+/)
-          .map((s) => s.trim())
-          .filter(Boolean),
-        officeEmail: data?.officeEmail ?? '',
-        phoneNumber: data?.phoneNumber ?? '',
-        whatsAppNumber: data?.whatsAppNumber ?? '',
-        viberNumber: data?.viberNumber ?? '',
-        freeShippingThreshold: data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000,
-        shippingCost: data?.shippingCost != null ? Number(data.shippingCost) : 430,
-        notificationBannerText: data?.notificationBannerText ?? '',
-        notificationBannerEnabled: data?.notificationBannerEnabled ?? true,
-      }))
-      .catch(() => setSiteLinks(EMPTY_LINKS))
   }, [])
 
   useEffect(() => {
@@ -567,7 +530,7 @@ export default function Layout({ children }) {
     if (!item) return
 
     if (delta > 0 && !isInStock(item)) {
-      setToast('Proizvod trenutno nije na stanju.')
+      setToast('Rasprodato.')
       return
     }
 
@@ -582,24 +545,16 @@ export default function Layout({ children }) {
       setToast('Nema dovoljno proizvoda na stanju.')
       return
     }
+    const requested = currentQty + delta
+    const nextQty = Math.max(1, clampCartQuantity(requested, stock))
+    if (nextQty < requested && delta > 0) {
+      setToast('Nema dovoljno proizvoda na stanju.')
+    }
     setCart((prev) =>
-      prev.map((row) => {
-        if (row.id !== id) return row
-        const rowQty = Number(row.quantity) || 0
-        const requested = rowQty + delta
-        const nextQty = clampCartQuantity(requested, stock)
-        if (nextQty < requested && delta > 0) {
-          setToast('Nema dovoljno proizvoda na stanju.')
-        }
-        return { ...row, quantity: Math.max(1, nextQty) }
-      }),
+      prev.map((row) => (row.id === id ? { ...row, quantity: nextQty } : row)),
     )
-
-    if (user && delta > 0) {
-      api.post('/cart', { productId: id, quantity: delta }).catch(() => {
-        setToast('Nema dovoljno proizvoda na stanju.')
-        refreshCartStock()
-      })
+    if (user) {
+      void syncCartQuantity(id, nextQty)
     }
   }
 
@@ -612,6 +567,7 @@ export default function Layout({ children }) {
     },
     user,
     wishlist,
+    wishlistReady,
     cartCount,
     orderNotifCount: unseenOrders.length,
     searchInput,
@@ -715,7 +671,7 @@ export default function Layout({ children }) {
               </button>
             </div>
 
-            {checkoutCart.length > 0 && (
+            {checkoutCart.length > 0 && !siteLinks.loading && !siteLinks.error && (
               <div className="mini-cart-shipping">
                 <FreeShippingBar
                   cartTotal={itemsTotal}
@@ -772,7 +728,7 @@ export default function Layout({ children }) {
                           </span>
                         </div>
                         {!inStock && (
-                          <span className="mini-cart-stock-warn" role="status">Nije na stanju</span>
+                          <span className="mini-cart-stock-warn" role="status">Rasprodato</span>
                         )}
                       </div>
                       <button

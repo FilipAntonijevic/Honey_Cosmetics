@@ -72,6 +72,8 @@ public record PagedProductResponse(
     int PageSize,
     bool HasMore);
 
+public record AdminProductVariantStockResponse(string Label, int StockQuantity);
+
 public record AdminProductListItemResponse(
     int Id,
     string Name,
@@ -79,7 +81,8 @@ public record AdminProductListItemResponse(
     string ProductType,
     string? Category,
     int TotalStock,
-    int VariantCount);
+    int VariantCount,
+    IReadOnlyList<AdminProductVariantStockResponse> VariantStocks);
 
 public record PagedAdminProductsResponse(
     IReadOnlyList<AdminProductListItemResponse> Items,

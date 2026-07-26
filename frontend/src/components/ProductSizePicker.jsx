@@ -19,7 +19,7 @@ export default function ProductSizePicker({ variants, selectedId, onSelect }) {
               onClick={() => onSelect?.(variant)}
               aria-pressed={active}
               disabled={out && !active}
-              title={out ? 'Nije na stanju' : undefined}
+              title={out ? 'Rasprodato' : undefined}
             >
               {variant.variantLabel}
             </button>
@@ -27,7 +27,7 @@ export default function ProductSizePicker({ variants, selectedId, onSelect }) {
         })}
       </div>
       {options.every((v) => !v.inStock) ? (
-        <p className="pd-variant-picker__note">Trenutno nije na stanju ni jedna gramaza.</p>
+        <p className="pd-variant-picker__note">Sve gramaže su rasprodate.</p>
       ) : null}
     </div>
   )

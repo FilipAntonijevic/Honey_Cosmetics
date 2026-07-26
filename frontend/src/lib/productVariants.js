@@ -36,11 +36,11 @@ export function getMaxPriceVariant(options, { inStockOnly = false } = {}) {
   }, pool[0])
 }
 
-/** Opcija koja se prikazuje na karticama — uvek najskuplja (najveća gramaža), bez obzira na stanje. */
+/** Opcija koja se prikazuje na karticama — najskuplja na stanju, inače najskuplja. */
 export function getDefaultVariant(product) {
   const options = getVariantOptions(product)
   if (!options.length) return null
-  return getMaxPriceVariant(options) ?? options[0]
+  return getDefaultSelectedVariant(product)
 }
 
 /**
@@ -65,7 +65,7 @@ export function pickDefaultVariantProduct(product, variants = product?.variants,
     return productsById?.get(only.id) ?? { ...product, ...only, variants: product.variants ?? variants }
   }
 
-  const chosen = getMaxPriceVariant(variants) ?? variants[0]
+  const chosen = getDefaultSelectedVariant({ variants }) ?? variants[0]
   if (chosen.id === product.id) return product
   const full = productsById?.get(chosen.id)
   return full

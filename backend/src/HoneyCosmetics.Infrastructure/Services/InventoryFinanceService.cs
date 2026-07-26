@@ -17,6 +17,12 @@ public static class InventoryFinanceService
             .Select(g => (ProductId: g.Key, Quantity: g.Sum(x => x.Quantity)))
             .ToList();
 
+        foreach (var line in grouped)
+        {
+            if (line.Quantity <= 0)
+                return "Količina mora biti veća od nule.";
+        }
+
         var ids = grouped.Select(x => x.ProductId).ToList();
         var products = await db.Products
             .ActiveProducts()
@@ -28,15 +34,45 @@ public static class InventoryFinanceService
             if (!products.TryGetValue(line.ProductId, out var product))
                 return "Jedan ili više proizvoda nije pronađen.";
 
+            if (db.Database.IsNpgsql())
+            {
+                var rows = await db.Database.ExecuteSqlRawAsync(
+                    """
+                    UPDATE "Products"
+                    SET "StockQuantity" = "StockQuantity" - {1}
+                    WHERE "Id" = {0}
+                      AND "IsDeleted" = false
+                      AND "StockQuantity" >= {1}
+                    """,
+                    [line.ProductId, line.Quantity],
+                    ct);
+
+                if (rows == 0)
+                {
+                    var current = await db.Products.AsNoTracking()
+                        .Where(p => p.Id == line.ProductId)
+                        .Select(p => new { p.StockQuantity, p.Name, p.VariantLabel })
+                        .FirstOrDefaultAsync(ct);
+
+                    var label = current is null
+                        ? $"#{line.ProductId}"
+                        : ProductVariantService.FormatForRecord(
+                            new Product { Name = current.Name, VariantLabel = current.VariantLabel });
+                    var available = current?.StockQuantity ?? 0;
+                    return $"Nema dovoljno proizvoda na stanju: {label} (dostupno {available}).";
+                }
+
+                continue;
+            }
+
+            // InMemory / non-Postgres providers used by unit tests.
             if (product.StockQuantity < line.Quantity)
             {
-                return $"Nema dovoljno proizvoda na stanju: {ProductVariantService.FormatForRecord(product)} (dostupno {product.StockQuantity}).";
+                var label = ProductVariantService.FormatForRecord(product);
+                return $"Nema dovoljno proizvoda na stanju: {label} (dostupno {product.StockQuantity}).";
             }
-        }
 
-        foreach (var line in grouped)
-        {
-            products[line.ProductId].StockQuantity -= line.Quantity;
+            product.StockQuantity -= line.Quantity;
         }
 
         return null;
@@ -150,6 +186,10 @@ public static class InventoryFinanceService
         string? note,
         CancellationToken ct = default)
     {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await LockProductAsync(db, product.Id, ct);
+        await db.Entry(product).ReloadAsync(ct);
+
         var merchandiseTotal = totalMerchandiseCost is > 0
             ? totalMerchandiseCost.Value
             : Math.Round(unitCost * quantity, 2);
@@ -200,6 +240,7 @@ public static class InventoryFinanceService
         });
 
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return receipt;
     }
 
@@ -209,19 +250,43 @@ public static class InventoryFinanceService
         int receiptId,
         CancellationToken ct = default)
     {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await LockProductAsync(db, product.Id, ct);
+        await db.Entry(product).ReloadAsync(ct);
+
         var receipt = await db.StockReceipts
             .FirstOrDefaultAsync(
                 r => r.Id == receiptId && r.ProductId == product.Id && r.ReceivedAt == null,
                 ct);
 
         if (receipt is null)
+        {
+            await tx.RollbackAsync(ct);
             return ("Evidencija nabavke nije pronađena ili je roba već primljena.", 0);
+        }
 
+        var now = DateTime.UtcNow;
+        var updated = await db.Database.ExecuteSqlRawAsync(
+            """
+            UPDATE "StockReceipts"
+            SET "ReceivedAt" = {2}
+            WHERE "Id" = {0} AND "ProductId" = {1} AND "ReceivedAt" IS NULL
+            """,
+            [receiptId, product.Id, now],
+            ct);
+
+        if (updated == 0)
+        {
+            await tx.RollbackAsync(ct);
+            return ("Evidencija nabavke nije pronađena ili je roba već primljena.", 0);
+        }
+
+        receipt.ReceivedAt = now;
         var stockBefore = product.StockQuantity;
         ApplyReceiptToStock(product, receipt);
-        receipt.ReceivedAt = DateTime.UtcNow;
         product.OrderedQuantity = Math.Max(0, product.OrderedQuantity - receipt.Quantity);
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return (null, stockBefore);
     }
 
@@ -231,14 +296,24 @@ public static class InventoryFinanceService
         int receiptId,
         CancellationToken ct = default)
     {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await LockProductAsync(db, product.Id, ct);
+        await db.Entry(product).ReloadAsync(ct);
+
         var receipt = await db.StockReceipts
             .FirstOrDefaultAsync(r => r.Id == receiptId && r.ProductId == product.Id, ct);
 
         if (receipt is null)
+        {
+            await tx.RollbackAsync(ct);
             return "Evidencija nabavke nije pronađena.";
+        }
 
         if (receipt.ReceivedAt is not null)
+        {
+            await tx.RollbackAsync(ct);
             return "Roba je već primljena na lager i ne može se ukloniti ovim putem.";
+        }
 
         var ledger = await db.LedgerEntries
             .FirstOrDefaultAsync(e => e.StockReceiptId == receiptId, ct);
@@ -248,6 +323,7 @@ public static class InventoryFinanceService
         product.OrderedQuantity = Math.Max(0, product.OrderedQuantity - receipt.Quantity);
         db.StockReceipts.Remove(receipt);
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return null;
     }
 
@@ -286,6 +362,58 @@ public static class InventoryFinanceService
         await db.SaveChangesAsync(ct);
         return null;
     }
+
+    public static async Task RecalculateWeightedCostsAsync(
+        AppDbContext db,
+        Product product,
+        int? excludedReceiptId = null,
+        CancellationToken ct = default)
+    {
+        var receipts = await db.StockReceipts
+            .Where(r => r.ProductId == product.Id
+                && r.ReceivedAt != null
+                && (!excludedReceiptId.HasValue || r.Id != excludedReceiptId.Value))
+            .OrderBy(r => r.ReceivedAt)
+            .ToListAsync(ct);
+
+        if (receipts.Count == 0 || product.StockQuantity <= 0)
+        {
+            product.UnitCostPrice = null;
+            product.UnitTransportCost = null;
+            return;
+        }
+
+        decimal totalQty = 0;
+        decimal merchandiseValue = 0;
+        decimal transportValue = 0;
+
+        foreach (var receipt in receipts)
+        {
+            var qty = Math.Min(receipt.Quantity, product.StockQuantity - (int)totalQty);
+            if (qty <= 0)
+                break;
+            totalQty += qty;
+            merchandiseValue += qty * receipt.UnitCost;
+            if (receipt.TransportCost > 0)
+                transportValue += receipt.TransportCost * (qty / (decimal)receipt.Quantity);
+        }
+
+        product.UnitCostPrice = totalQty > 0
+            ? Math.Round(merchandiseValue / totalQty, 2)
+            : null;
+        product.UnitTransportCost = totalQty > 0 && transportValue > 0
+            ? Math.Round(transportValue / totalQty, 2)
+            : null;
+    }
+
+    private static Task LockProductAsync(
+        AppDbContext db,
+        int productId,
+        CancellationToken ct) =>
+        db.Database.ExecuteSqlRawAsync(
+            """SELECT 1 FROM "Products" WHERE "Id" = {0} FOR UPDATE""",
+            [productId],
+            ct);
 
     private static void ApplyReceiptToStock(Product product, StockReceipt receipt)
     {

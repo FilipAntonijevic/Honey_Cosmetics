@@ -12,7 +12,7 @@ public class PendingRegistration
     public string? City { get; set; }
     public string? PostalCode { get; set; }
     public string? Country { get; set; }
-    public string ConfirmationToken { get; set; } = string.Empty;
+    public string ConfirmationTokenHash { get; set; } = string.Empty;
     public DateTime ConfirmationTokenExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

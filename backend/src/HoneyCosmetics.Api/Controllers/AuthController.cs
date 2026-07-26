@@ -9,6 +9,7 @@ using HoneyCosmetics.Infrastructure.Data;
 using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -24,7 +25,15 @@ public class AuthController(
     IWebHostEnvironment environment,
     ILogger<AuthController> logger) : ControllerBase
 {
+    private static readonly string DummyPasswordHash =
+        BCrypt.Net.BCrypt.HashPassword("not-a-real-account-password");
+    private const string RegistrationMessage =
+        "Ako je moguće, poslaćemo vam email sa uputstvom za aktivaciju naloga.";
+    private const string ResendMessage =
+        "Ako postoji registracija na čekanju, poslaćemo vam novi email.";
+
     [HttpPost("register")]
+    [EnableRateLimiting("auth-register")]
     public async Task<ActionResult<RegisterResponse>> Register(RegisterRequest request)
     {
         if (request.Password != request.ConfirmPassword)
@@ -33,12 +42,9 @@ public class AuthController(
         var email = request.Email.Trim().ToLowerInvariant();
 
         if (await db.Users.AnyAsync(x => x.Email == email))
-            return BadRequest("Email already in use.");
+            return Ok(new RegisterResponse(RegistrationMessage, null));
 
-        var legacyProfile = await db.CustomerProfiles.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Email == email);
-
-        var token = CreateUrlSafeToken();
+        var token = tokenService.CreateOpaqueToken();
         var pending = await db.PendingRegistrations.FirstOrDefaultAsync(x => x.Email == email);
         if (pending is null)
         {
@@ -54,7 +60,7 @@ public class AuthController(
         pending.City = request.City?.Trim();
         pending.PostalCode = request.PostalCode?.Trim();
         pending.Country = request.Country?.Trim() ?? "Srbija";
-        pending.ConfirmationToken = token;
+        pending.ConfirmationTokenHash = tokenService.HashToken(token);
         pending.ConfirmationTokenExpiresAt = DateTime.UtcNow.AddHours(24);
 
         await db.SaveChangesAsync();
@@ -69,36 +75,30 @@ public class AuthController(
             db.PendingRegistrations.Remove(pending);
             await db.SaveChangesAsync();
             logger.LogError(ex, "Confirmation email failed for {Email}", email);
-            return StatusCode(503, "Došlo je do greške prilikom registracije. Pokušajte ponovo kasnije.");
+            return Ok(new RegisterResponse(RegistrationMessage, null));
         }
 
         var devLink = environment.IsDevelopment() && !IsEmailConfigured() ? link : null;
-        var message = legacyProfile is null
-            ? devLink is null
-                ? "Poslali smo vam email sa linkom za potvrdu. Kliknite na link da biste aktivirali nalog."
-                : "Registracija je sačuvana. Koristite link ispod za potvrdu (samo u razvoju)."
-            : devLink is null
-                ? "Poslali smo vam email za potvrdu. Pronašli smo vaš postojeći profil kupca — nakon potvrde biće automatski povezan sa nalogom."
-                : "Registracija je sačuvana. Postojeći profil kupca biće povezan nakon potvrde. Koristite link ispod (samo u razvoju).";
-        return Ok(new RegisterResponse(message, devLink));
+        return Ok(new RegisterResponse(RegistrationMessage, devLink));
     }
 
     [HttpPost("resend-confirmation")]
+    [EnableRateLimiting("auth-recovery")]
     public async Task<ActionResult<RegisterResponse>> ResendConfirmation(ForgotPasswordRequest request)
     {
         var email = request.Email.Trim().ToLowerInvariant();
         if (await db.Users.AnyAsync(x => x.Email == email))
-            return BadRequest("Nalog je već aktiviran. Prijavite se.");
+            return Ok(new RegisterResponse(ResendMessage, null));
 
         var pending = await db.PendingRegistrations.FirstOrDefaultAsync(x => x.Email == email);
         if (pending is null)
         {
             return Ok(new RegisterResponse(
-                "Ako postoji registracija na čekanju, poslaćemo vam novi email."));
+                ResendMessage));
         }
 
-        var token = CreateUrlSafeToken();
-        pending.ConfirmationToken = token;
+        var token = tokenService.CreateOpaqueToken();
+        pending.ConfirmationTokenHash = tokenService.HashToken(token);
         pending.ConfirmationTokenExpiresAt = DateTime.UtcNow.AddHours(24);
         await db.SaveChangesAsync();
 
@@ -110,22 +110,23 @@ public class AuthController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Resend confirmation email failed for {Email}", email);
-            return StatusCode(503, "Došlo je do greške prilikom slanja emaila za potvrdu registracije. Pokušajte ponovo kasnije.");
+            return Ok(new RegisterResponse(ResendMessage, null));
         }
 
         var devLink = environment.IsDevelopment() && !IsEmailConfigured() ? link : null;
-        return Ok(new RegisterResponse(
-            devLink is null
-                ? "Poslali smo novi email sa linkom za potvrdu."
-                : "Novi link za potvrdu (samo u razvoju):",
-            devLink));
+        return Ok(new RegisterResponse(ResendMessage, devLink));
     }
 
     [HttpPost("confirm-email")]
+    [EnableRateLimiting("auth-confirm")]
     public async Task<ActionResult<AuthResponse>> ConfirmEmail(ConfirmEmailRequest request)
     {
+        if (request.Password != request.ConfirmPassword)
+            return BadRequest("Passwords do not match.");
+
+        var tokenHash = tokenService.HashToken(request.Token);
         var pending = await db.PendingRegistrations.FirstOrDefaultAsync(x =>
-            x.ConfirmationToken == request.Token &&
+            x.ConfirmationTokenHash == tokenHash &&
             x.ConfirmationTokenExpiresAt > DateTime.UtcNow);
         if (pending is null)
             return BadRequest("Link za potvrdu je nevažeći ili je istekao.");
@@ -149,7 +150,7 @@ public class AuthController(
             PostalCode = pending.PostalCode,
             Country = pending.Country ?? "Srbija",
             Role = UserRole.User,
-            PasswordHash = pending.PasswordHash,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
         };
 
         db.Users.Add(user);
@@ -178,29 +179,24 @@ public class AuthController(
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("auth-login")]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
         var email = request.Email.Trim().ToLowerInvariant();
         var user = await db.Users.FirstOrDefaultAsync(x => x.Email == email);
-        if (user is not null)
-        {
-            if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-                return Unauthorized("Invalid credentials.");
-            return Ok(await CreateAuthResponseAsync(user));
-        }
+        var passwordHash = user?.PasswordHash ?? DummyPasswordHash;
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, passwordHash) || user is null)
+            return Unauthorized("Invalid credentials.");
 
-        var pending = await db.PendingRegistrations.FirstOrDefaultAsync(x => x.Email == email);
-        if (pending is not null && BCrypt.Net.BCrypt.Verify(request.Password, pending.PasswordHash))
-            return Unauthorized("Potvrdite registraciju putem linka koji smo poslali na email.");
-
-        return Unauthorized("Invalid credentials.");
+        return Ok(await CreateAuthResponseAsync(user));
     }
 
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthResponse>> Refresh(RefreshTokenRequest request)
     {
+        var refreshTokenHash = tokenService.HashToken(request.RefreshToken);
         var user = await db.Users.FirstOrDefaultAsync(x =>
-            x.RefreshToken == request.RefreshToken &&
+            x.RefreshTokenHash == refreshTokenHash &&
             x.RefreshTokenExpiresAt > DateTime.UtcNow);
         if (user is null)
             return Unauthorized("Invalid or expired refresh token.");
@@ -216,7 +212,7 @@ public class AuthController(
         var user = await db.Users.FindAsync(userId);
         if (user is not null)
         {
-            user.RefreshToken = null;
+            user.RefreshTokenHash = null;
             user.RefreshTokenExpiresAt = null;
             await db.SaveChangesAsync();
         }
@@ -224,18 +220,19 @@ public class AuthController(
     }
 
     [HttpPost("forgot-password")]
+    [EnableRateLimiting("auth-recovery")]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request)
     {
         var user = await db.Users.FirstOrDefaultAsync(x => x.Email == request.Email.Trim().ToLowerInvariant());
         if (user is null)
             return Ok(); // Never reveal whether an email exists
 
-        user.ResetToken = Convert.ToBase64String(Guid.NewGuid().ToByteArray())
-            .Replace("+", "-").Replace("/", "_").Replace("=", "");
+        var resetToken = tokenService.CreateOpaqueToken();
+        user.ResetTokenHash = tokenService.HashToken(resetToken);
         user.ResetTokenExpiresAt = DateTime.UtcNow.AddHours(2);
         await db.SaveChangesAsync();
 
-        var link = $"{GetFrontendBaseUrl()}/reset-password?token={Uri.EscapeDataString(user.ResetToken)}";
+        var link = $"{GetFrontendBaseUrl()}/reset-password?token={Uri.EscapeDataString(resetToken)}";
         var body = BuildForgotPasswordEmail(user.FirstName, link);
         try
         {
@@ -244,25 +241,27 @@ public class AuthController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Forgot password email failed for {Email}", user.Email);
-            return StatusCode(503, "Došlo je do greške prilikom slanja linka za reset lozinke. Pokušajte ponovo kasnije.");
+            return Ok();
         }
         return Ok();
     }
 
     [HttpPost("reset-password")]
+    [EnableRateLimiting("auth-recovery")]
     public async Task<IActionResult> ResetPassword(ResetPasswordRequest request)
     {
+        var resetTokenHash = tokenService.HashToken(request.Token);
         var user = await db.Users.FirstOrDefaultAsync(x =>
-            x.ResetToken == request.Token &&
+            x.ResetTokenHash == resetTokenHash &&
             x.ResetTokenExpiresAt > DateTime.UtcNow);
         if (user is null)
             return BadRequest("Token is invalid or has expired.");
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        user.ResetToken = null;
+        user.ResetTokenHash = null;
         user.ResetTokenExpiresAt = null;
         // Invalidate existing sessions after password change
-        user.RefreshToken = null;
+        user.RefreshTokenHash = null;
         user.RefreshTokenExpiresAt = null;
         await db.SaveChangesAsync();
         return Ok();
@@ -312,14 +311,15 @@ public class AuthController(
     private async Task<AuthResponse> CreateAuthResponseAsync(User user)
     {
         var accessToken = tokenService.CreateAccessToken(user);
-        user.RefreshToken = tokenService.CreateRefreshToken();
+        var refreshToken = tokenService.CreateRefreshToken();
+        user.RefreshTokenHash = tokenService.HashToken(refreshToken);
         user.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(14);
         await db.SaveChangesAsync();
 
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
         return new AuthResponse(
             accessToken,
-            user.RefreshToken,
+            refreshToken,
             jwt.ValidTo,
             new UserSummary(
                 user.Id,
@@ -402,18 +402,14 @@ public class AuthController(
         await emailService.SendAsync(email, "Honey Cosmetics — Potvrdite registraciju", body);
     }
 
-    private static string CreateUrlSafeToken() =>
-        Convert.ToBase64String(Guid.NewGuid().ToByteArray())
-            .Replace("+", "-").Replace("/", "_").Replace("=", "");
-
     private static string BuildConfirmEmailBody(string name, string link) => $"""
         <div style="font-family:'Source Sans Pro',Arial,Helvetica,sans-serif;max-width:520px;margin:auto;background:#fff;padding:2rem;border:1px solid #f1e5d8;border-radius:12px;">
           <h2 style="color:#3f2b22;margin-bottom:0.3rem;">Honey Cosmetics</h2>
           <p style="color:#9b8276;font-size:0.85rem;margin-top:0;">Premium Beauty</p>
           <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.5rem 0;">
-          <p>Zdravo {name},</p>
+          <p>Zdravo {System.Net.WebUtility.HtmlEncode(name)},</p>
           <p>Hvala što ste se registrovali. Da bismo proverili da je ova email adresa vaša, kliknite na dugme ispod i aktivirajte nalog:</p>
-          <a href="{link}" style="display:inline-block;background:#131313;color:#fff;padding:.75rem 1.5rem;border-radius:999px;text-decoration:none;margin:1rem 0;font-size:0.9rem;">Potvrdi registraciju</a>
+          <a href="{System.Net.WebUtility.HtmlEncode(link)}" style="display:inline-block;background:#131313;color:#fff;padding:.75rem 1.5rem;border-radius:999px;text-decoration:none;margin:1rem 0;font-size:0.9rem;">Potvrdi registraciju</a>
           <p style="color:#9b8276;font-size:0.82rem;margin-top:1.5rem;">Link važi 24 sata. Ako niste vi kreirali nalog, ignorišite ovaj email.</p>
         </div>
         """;
@@ -423,9 +419,9 @@ public class AuthController(
           <h2 style="color:#3f2b22;margin-bottom:0.3rem;">Honey Cosmetics</h2>
           <p style="color:#9b8276;font-size:0.85rem;margin-top:0;">Premium Beauty</p>
           <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.5rem 0;">
-          <p>Zdravo {name},</p>
+          <p>Zdravo {System.Net.WebUtility.HtmlEncode(name)},</p>
           <p>Primili smo zahtev za reset vaše lozinke. Kliknite na dugme ispod da nastavite:</p>
-          <a href="{link}" style="display:inline-block;background:#131313;color:#fff;padding:.75rem 1.5rem;border-radius:999px;text-decoration:none;margin:1rem 0;font-size:0.9rem;">Resetuj lozinku</a>
+          <a href="{System.Net.WebUtility.HtmlEncode(link)}" style="display:inline-block;background:#131313;color:#fff;padding:.75rem 1.5rem;border-radius:999px;text-decoration:none;margin:1rem 0;font-size:0.9rem;">Resetuj lozinku</a>
           <p style="color:#9b8276;font-size:0.82rem;margin-top:1.5rem;">Link važi 2 sata. Ako niste zatražili reset lozinke, slobodno ignorišite ovaj email.</p>
         </div>
         """;

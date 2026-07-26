@@ -1,9 +1,17 @@
+using System.ComponentModel.DataAnnotations;
 using HoneyCosmetics.Domain.Enums;
 
 namespace HoneyCosmetics.Application.DTOs;
 
 public record CartItemRequest(int ProductId, int Quantity);
-public record CheckoutRequest(string? DeliveryAddress, string? Phone, PaymentMethod PaymentMethod, string? CouponCode);
+public record CheckoutRequest(
+    string? DeliveryAddress,
+    string? Phone,
+    PaymentMethod PaymentMethod,
+    string? CouponCode,
+    string? CustomerNote,
+    string? InstagramHandle,
+    [param: Required, StringLength(128, MinimumLength = 1)] string IdempotencyKey);
 public record GuestCheckoutRequest(
     IReadOnlyList<CartItemRequest> Items,
     string DeliveryAddress,
@@ -11,7 +19,10 @@ public record GuestCheckoutRequest(
     PaymentMethod PaymentMethod,
     string? CouponCode,
     string? GuestName,
-    string? GuestEmail);
+    string? GuestEmail,
+    string? CustomerNote,
+    string? InstagramHandle,
+    [param: Required, StringLength(128, MinimumLength = 1)] string IdempotencyKey);
 
 public record OrderItemResponse(
     int ProductId,

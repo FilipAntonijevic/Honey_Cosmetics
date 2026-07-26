@@ -45,9 +45,26 @@ function QuickLink({ to, icon, children }) {
   )
 }
 
+function HeartIcon({ filled }) {
+  return (
+    <svg
+      className="product-card-heart-icon"
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="0.875"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+}
+
 export default function ProductDetails() {
   const { id } = useParams()
-  const { addToCart, toggleWishlist } = useStore()
+  const { addToCart, toggleWishlist, wishlist } = useStore()
   const [product, setProduct] = useState(null)
   const [related, setRelated] = useState([])
   const [loading, setLoading] = useState(true)
@@ -107,12 +124,14 @@ export default function ProductDetails() {
       id: selectedOption.id,
       price: selectedOption.price,
       stockQuantity: selectedOption.stockQuantity,
+      inStock: selectedOption.inStock,
       variantLabel: selectedOption.variantLabel,
     }
   }, [product, selectedOption])
 
   const inStock = effective ? isInStock(effective) : false
   const maxQty = effective ? Math.max(0, effective.stockQuantity ?? 0) : 0
+  const inWishlist = effective ? wishlist.some((item) => item.id === effective.id) : false
 
   const onSelectOption = (variant) => {
     setSelectedOptionId(variant.id)
@@ -188,14 +207,25 @@ export default function ProductDetails() {
                   +
                 </button>
               </div>
-              <button
-                type="button"
-                className={`pd-add-btn${!inStock ? ' pd-add-btn--out-of-stock' : ''}`}
-                onClick={addWithQty}
-                disabled={!inStock}
-              >
-                {inStock ? 'Dodaj u korpu' : 'Nije na stanju'}
-              </button>
+              <div className="pd-buy-actions">
+                <button
+                  type="button"
+                  className={`pd-add-btn${!inStock ? ' pd-add-btn--out-of-stock' : ''}`}
+                  onClick={addWithQty}
+                  disabled={!inStock}
+                >
+                  {inStock ? 'Dodaj u korpu' : 'Rasprodato'}
+                </button>
+                <button
+                  type="button"
+                  className={`product-card-action product-card-action--wishlist pd-buy-wishlist-btn${inWishlist ? ' is-active' : ''}`}
+                  onClick={() => effective && toggleWishlist(effective)}
+                  aria-label={inWishlist ? 'Ukloni sa wishlist-e' : 'Dodaj u wishlist'}
+                  aria-pressed={inWishlist}
+                >
+                  <HeartIcon filled={inWishlist} />
+                </button>
+              </div>
             </div>
 
             <div className="pd-quick-links">

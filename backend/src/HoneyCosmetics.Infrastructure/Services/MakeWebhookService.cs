@@ -81,26 +81,32 @@ public class MakeWebhookService(
 
         try
         {
-            using var content = new StringContent(json, Encoding.UTF8, "application/json");
-            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-
-            using var response = await httpClient.PostAsync(url, content, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            for (var attempt = 1; attempt <= 3; attempt++)
             {
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                using var response = await httpClient.PostAsync(url, content, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    logger.LogInformation(
+                        "Make webhook poslat za porudžbinu #{OrderId}. Payload={Payload}",
+                        data.OrderId,
+                        json);
+                    return;
+                }
+
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogWarning(
-                    "Make webhook za porudžbinu #{OrderId} vratio HTTP {Status}: {Body}. Payload={Payload}",
+                    "Make webhook za porudžbinu #{OrderId} pokušaj {Attempt}/3 vratio HTTP {Status}: {Body}",
                     data.OrderId,
+                    attempt,
                     (int)response.StatusCode,
-                    string.IsNullOrWhiteSpace(body) ? "(prazan)" : body,
-                    json);
-                return;
-            }
+                    string.IsNullOrWhiteSpace(body) ? "(prazan)" : body);
 
-            logger.LogInformation(
-                "Make webhook poslat za porudžbinu #{OrderId}. Payload={Payload}",
-                data.OrderId,
-                json);
+                if (attempt < 3)
+                    await Task.Delay(TimeSpan.FromSeconds(attempt), cancellationToken);
+            }
         }
         catch (Exception ex)
         {

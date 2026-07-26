@@ -9,18 +9,31 @@ export function logoUrl() {
   return publicUrl('/logo.webp?v=3')
 }
 
+/**
+ * After disk PNG/JPEG → WebP conversion, DB may still store legacy extensions.
+ * Prefer the .webp twin so images keep loading until paths are updated in SQL.
+ */
+function preferWebpStoragePath(path) {
+  const raw = String(path || '').trim()
+  if (!raw) return ''
+  return raw.replace(/\.(png|jpe?g)(\?.*)?$/i, (_, _ext, query = '') => `.webp${query || ''}`)
+}
+
 /** Product/category images served by the API (/images/...). */
 export function apiImageUrl(path) {
   if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
+  if (/^https?:\/\//i.test(path)) {
+    return preferWebpStoragePath(path)
+  }
 
+  const normalized = preferWebpStoragePath(path)
   const api = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
   if (api) {
     const root = api.replace(/\/api\/?$/i, '')
-    return `${root}${path.startsWith('/') ? path : `/${path}`}`
+    return `${root}${normalized.startsWith('/') ? normalized : `/${normalized}`}`
   }
 
-  return path.startsWith('/') ? path : `/${path}`
+  return normalized.startsWith('/') ? normalized : `/${normalized}`
 }
 
 /** Isto kao backend: /images/foo.jpg → /images/thumbs/foo.webp */

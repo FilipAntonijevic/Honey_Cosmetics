@@ -34,7 +34,10 @@ public record UpdateProfileRequest(
 
 public record RegisterResponse(string Message, string? DevConfirmationLink = null);
 
-public record ConfirmEmailRequest([Required] string Token);
+public record ConfirmEmailRequest(
+    [Required] string Token,
+    [Required, MinLength(8)] string Password,
+    [Required] string ConfirmPassword);
 
 public record AuthResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserSummary User);
 

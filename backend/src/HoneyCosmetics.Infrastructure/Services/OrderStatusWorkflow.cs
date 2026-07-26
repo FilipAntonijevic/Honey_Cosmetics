@@ -1,6 +1,7 @@
 using HoneyCosmetics.Domain.Entities;
 using HoneyCosmetics.Domain.Enums;
 using HoneyCosmetics.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace HoneyCosmetics.Infrastructure.Services;
 
@@ -8,6 +9,15 @@ public static class OrderStatusWorkflow
 {
     public static bool IsFinal(OrderStatus status) =>
         status is OrderStatus.Delivered or OrderStatus.Returned or OrderStatus.Cancelled;
+
+    public static Task LockOrderAsync(
+        AppDbContext db,
+        int orderId,
+        CancellationToken ct = default) =>
+        db.Database.ExecuteSqlRawAsync(
+            """SELECT 1 FROM "Orders" WHERE "Id" = {0} FOR UPDATE""",
+            [orderId],
+            ct);
 
     /// <summary>
     /// Menja status porudžbine: poslato ne dira lager; vraćeno/otkazano vraćaju zalihe;

@@ -92,15 +92,17 @@ public static class ProductVariantService
 
     /// <summary>
     /// Reprezentativna opcija za PRIKAZ na karticama (shop, bestselleri, preporuke):
-    /// uvek najskuplja (najveća gramaža), bez obzira na stanje. Izjednačena cena →
-    /// veća opcija (manji VariantSortOrder), pa manji Id.
+    /// najskuplja koja je na stanju; ako nijedna nije na stanju — najskuplja.
     /// </summary>
     public static Product PickDisplayVariant(IReadOnlyList<Product> siblings)
     {
         if (siblings.Count == 0)
             throw new ArgumentException("No variants.", nameof(siblings));
 
-        return siblings
+        var inStock = siblings.Where(s => s.StockQuantity > 0).ToList();
+        var pool = inStock.Count > 0 ? inStock : siblings;
+
+        return pool
             .OrderByDescending(s => s.Price)
             .ThenBy(s => s.VariantSortOrder)
             .ThenBy(s => s.Id)

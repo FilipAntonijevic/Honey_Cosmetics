@@ -67,6 +67,37 @@ public class CartController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    [HttpPut("{productId:int}")]
+    public async Task<IActionResult> SetQuantity(int productId, CartItemRequest request)
+    {
+        if (request.ProductId != productId)
+            return BadRequest("ProductId mismatch.");
+
+        var userId = User.GetUserId();
+
+        if (request.Quantity <= 0)
+            return await Remove(productId);
+
+        var product = await db.Products.ActiveProducts()
+            .FirstOrDefaultAsync(p => p.Id == productId);
+        if (product is null)
+            return NotFound("Product not found.");
+
+        if (product.StockQuantity <= 0)
+            return BadRequest("Proizvod trenutno nije na stanju.");
+
+        var qty = Math.Min(request.Quantity, product.StockQuantity);
+
+        await db.Database.ExecuteSqlRawAsync(
+            @"INSERT INTO ""Carts"" (""UserId"", ""ProductId"", ""Quantity"")
+              VALUES ({0}, {1}, {2})
+              ON CONFLICT (""UserId"", ""ProductId"") DO UPDATE
+              SET ""Quantity"" = EXCLUDED.""Quantity""",
+            userId, productId, qty);
+
+        return NoContent();
+    }
+
     [HttpDelete("{productId:int}")]
     public async Task<IActionResult> Remove(int productId)
     {

@@ -30,10 +30,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     {
         modelBuilder.Entity<User>().Ignore(x => x.FullName);
         modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
+        modelBuilder.Entity<User>().Property(x => x.RefreshTokenHash).HasColumnName("RefreshToken");
+        modelBuilder.Entity<User>().Property(x => x.ResetTokenHash).HasColumnName("ResetToken");
         modelBuilder.Entity<PendingRegistration>().HasIndex(x => x.Email).IsUnique();
-        modelBuilder.Entity<PendingRegistration>().HasIndex(x => x.ConfirmationToken).IsUnique();
+        modelBuilder.Entity<PendingRegistration>()
+            .Property(x => x.ConfirmationTokenHash)
+            .HasColumnName("ConfirmationToken");
+        modelBuilder.Entity<PendingRegistration>().HasIndex(x => x.ConfirmationTokenHash).IsUnique();
         modelBuilder.Entity<Coupon>().HasIndex(x => x.Code).IsUnique();
-        modelBuilder.Entity<CouponUsage>().HasIndex(x => new { x.CouponId, x.UserId });
+        modelBuilder.Entity<CouponUsage>()
+            .HasIndex(x => new { x.CouponId, x.UserId })
+            .IsUnique()
+            .HasFilter("\"UserId\" IS NOT NULL");
+
+        // OnceTotal / guest: najviše jedan usage red sa null UserId po kuponu.
+        modelBuilder.Entity<CouponUsage>()
+            .HasIndex(x => x.CouponId)
+            .IsUnique()
+            .HasFilter("\"UserId\" IS NULL");
+
+        modelBuilder.Entity<Order>()
+            .HasIndex(x => x.IdempotencyKey)
+            .IsUnique()
+            .HasFilter("\"IdempotencyKey\" IS NOT NULL");
         modelBuilder.Entity<Wishlist>().HasIndex(x => new { x.UserId, x.ProductId }).IsUnique();
         modelBuilder.Entity<Cart>().HasIndex(x => new { x.UserId, x.ProductId }).IsUnique();
 
@@ -81,12 +100,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Product>()
             .HasIndex(p => p.Name)
             .IsUnique()
-            .HasFilter("\"VariantGroupId\" IS NULL");
+            .HasFilter("\"VariantGroupId\" IS NULL AND \"IsDeleted\" = false");
 
         modelBuilder.Entity<Product>()
             .HasIndex(p => new { p.VariantGroupId, p.VariantLabel })
             .IsUnique()
-            .HasFilter("\"VariantGroupId\" IS NOT NULL AND \"VariantLabel\" IS NOT NULL");
+            .HasFilter("\"VariantGroupId\" IS NOT NULL AND \"VariantLabel\" IS NOT NULL AND \"IsDeleted\" = false");
 
         modelBuilder.Entity<Product>()
             .HasIndex(p => p.VariantGroupId);
@@ -104,7 +123,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<SitePopup>()
-            .HasIndex(x => x.IsActive);
+            .HasIndex(x => x.IsActive)
+            .IsUnique()
+            .HasFilter("\"IsActive\" = true");
 
         modelBuilder.Entity<StockReceipt>()
             .HasOne(x => x.Product)

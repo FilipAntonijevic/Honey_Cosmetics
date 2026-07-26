@@ -46,24 +46,22 @@ npm run dev
 
 Otvori **http://localhost:5173** u browseru. Frontend šalje `/api` zahteve na backend preko Vite proxy-ja.
 
-### Hardcodirani admin nalozi
+### Admin nalozi
 
-Lista je u **`backend/src/HoneyCosmetics.Api/appsettings.Development.json`** → `Admin:Accounts`.
+Repozitorijum ne sadrži podrazumevane admin kredencijale. Nalozi se podešavaju
+preko bezbedne konfiguracije ili environment varijabli (`Admin__Accounts__0__...`).
 
-Pri svakom pokretanju API-ja ti nalozi se **sinhronizuju** (email, ime, uloga Admin, lozinka iz config-a).
-
-Podrazumevano (Development):
-- Email: `filipdantonijevic@gmail.com`
-- Lozinka: `sifra1`
-
-Dodaj još admina u isti niz:
+Primer lokalne konfiguracije (ne commitovati stvarne vrednosti):
 ```json
 "Admin": {
   "Accounts": [
-    { "Email": "drugi@example.com", "Password": "lozinka", "FirstName": "Ime", "LastName": "Prezime" }
+    { "Email": "admin@example.com", "Password": "<jaka-lokalna-lozinka>", "FirstName": "Ime", "LastName": "Prezime" }
   ]
 }
 ```
+
+Novi nalozi iz konfiguracije kreiraju se pri pokretanju. U produkciji je
+obavezna lozinka od najmanje 12 karaktera; postojeći nalozi i lozinke se ne menjaju.
 
 **Napomena:** GitHub Pages hostuje samo frontend. Za login na live sajtu treba API u oblaku + `VITE_API_URL` na GitHubu.
 

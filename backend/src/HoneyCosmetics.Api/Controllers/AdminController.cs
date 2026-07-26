@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using SixLabors.ImageSharp;
 
 namespace HoneyCosmetics.Api.Controllers;
 
@@ -21,7 +22,7 @@ namespace HoneyCosmetics.Api.Controllers;
 [Route("api/admin")]
 public class AdminController(
     AppDbContext db,
-    IWebHostEnvironment env,
+    ImageStorage imageStorage,
     ImageThumbnailService thumbnails,
     IEmailService emailService,
     IConfiguration configuration,
@@ -89,17 +90,28 @@ public class AdminController(
     [HttpPut("orders/{orderId:int}/status")]
     public async Task<IActionResult> UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
+        await OrderStatusWorkflow.LockOrderAsync(db, orderId);
+
         var order = await db.Orders
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == orderId);
-        if (order is null) return NotFound();
+        if (order is null)
+        {
+            await tx.RollbackAsync();
+            return NotFound();
+        }
 
         var error = await OrderStatusWorkflow.TryApplyStatusChangeAsync(
             db, order, request.Status, request.AdminDeliveryCost);
         if (error is not null)
+        {
+            await tx.RollbackAsync();
             return BadRequest(error);
+        }
 
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
         return Ok(new { order.Id, status = order.Status.ToString() });
     }
 
@@ -135,21 +147,42 @@ public class AdminController(
         }
 
         var filtered = ApplyAdminProductSearch(products, search);
-        var groups = filtered
-            .GroupBy(p => p.VariantGroupId ?? p.Id)
-            .Select(g =>
+        // Group keys from search hits, but always load FULL sibling set from catalog
+        // so stock-by-gramaza is complete even when only one option matched the query.
+        var groupIds = filtered
+            .Select(ProductVariantService.ResolveGroupId)
+            .Distinct()
+            .ToList();
+
+        var groups = groupIds
+            .Select(groupId =>
             {
-                var siblings = g.ToList();
+                var siblings = products
+                    .Where(p => ProductVariantService.ResolveGroupId(p) == groupId)
+                    .OrderBy(x => x.VariantSortOrder)
+                    .ThenBy(x => x.VariantLabel)
+                    .ToList();
                 var rep = ProductVariantService.PickDefaultVariant(siblings);
                 var mapped = MapProduct(rep);
+                var listName = ProductDisplayNaming.StripVariantFromName(mapped.Name);
+                if (string.IsNullOrWhiteSpace(listName))
+                    listName = mapped.Name;
+                var variantStocks = siblings
+                    .Select(x => new AdminProductVariantStockResponse(
+                        string.IsNullOrWhiteSpace(x.VariantLabel)
+                            ? (ProductDisplayNaming.TryExtractVariantLabel(x.Name) ?? "—")
+                            : x.VariantLabel.Trim(),
+                        x.StockQuantity))
+                    .ToList();
                 return new AdminProductListItemResponse(
                     mapped.Id,
-                    mapped.Name,
+                    listName,
                     mapped.ImageUrl,
                     mapped.ProductType,
                     string.IsNullOrWhiteSpace(mapped.Category) ? null : mapped.Category,
                     siblings.Sum(x => x.StockQuantity),
-                    siblings.Count);
+                    siblings.Count,
+                    variantStocks);
             })
             .OrderBy(x => x.TotalStock)
             .ThenBy(x => x.Name, ProductNaturalNameComparer.Instance)
@@ -188,19 +221,10 @@ public class AdminController(
         if (!await CategoryMatchesProductTypeAsync(request.ProductTypeId, request.CategoryId))
             return BadRequest("Kategorija mora pripadati izabranoj vrsti proizvoda.");
 
-        Product product;
-        bool restored;
+        await using var transaction = await db.Database.BeginTransactionAsync();
         try
         {
-            (product, restored) = await ProductCatalogService.CreateOrRestoreAsync(db, request);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-
-        try
-        {
+            var (product, restored) = await ProductCatalogService.CreateOrRestoreAsync(db, request);
             var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
                 db, product, request, allowReuseAnchor: true);
             if (optError is not null)
@@ -211,7 +235,12 @@ public class AdminController(
             await db.Entry(result).Reference(p => p.ProductType).LoadAsync();
             await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
             var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
+            await transaction.CommitAsync();
             return Ok(new { product = MapProduct(result, optSiblings), restored });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
         }
         catch (DbUpdateException ex) when (MapProductSaveException(ex) is { } mapped)
         {
@@ -270,11 +299,10 @@ public class AdminController(
                     "Proizvod sa tim imenom je uklonjen iz prodavnice. Kreirajte novi proizvod pod tim imenom da ga vratite.");
         }
 
-        var stockBefore = product.StockQuantity;
-        ProductCatalogService.ApplyRequest(product, request);
-
+        await using var transaction = await db.Database.BeginTransactionAsync();
         try
         {
+            ProductCatalogService.ApplyRequest(product, request);
             var (optError, defaultRow) = await ProductOptionsService.ReconcileAsync(
                 db, product, request, allowReuseAnchor: false);
             if (optError is not null)
@@ -286,11 +314,7 @@ public class AdminController(
             await db.Entry(result).Collection(p => p.AdditionalImages).LoadAsync();
             var optSiblings = await ProductVariantService.LoadSiblingsAsync(db, result);
 
-            await WishlistStockNotificationService.TryNotifyBackInStockAsync(
-                db, emailService, configuration, brevoOptions, result, stockBefore, logger,
-                frontendBaseUrl: PublicUrlResolver.ResolveFrontend(configuration, Request),
-                apiBaseUrl: PublicUrlResolver.ResolvePublicApi(configuration, Request));
-
+            await transaction.CommitAsync();
             return Ok(MapProduct(result, optSiblings));
         }
         catch (DbUpdateException ex) when (MapProductSaveException(ex) is { } mapped)
@@ -551,7 +575,14 @@ public class AdminController(
         var product = await db.Products.ActiveProducts().FirstOrDefaultAsync(p => p.Id == id);
         if (product is null) return NotFound();
 
-        await ProductCatalogService.SoftDeleteAsync(db, product);
+        var groupId = product.VariantGroupId ?? product.Id;
+        var siblings = await db.Products.ActiveProducts()
+            .Where(p => p.Id == groupId || p.VariantGroupId == groupId)
+            .ToListAsync();
+
+        foreach (var row in siblings)
+            await ProductCatalogService.SoftDeleteAsync(db, row);
+
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -653,6 +684,12 @@ public class AdminController(
     {
         var entity = await db.Categories.FindAsync(id);
         if (entity is null) return NotFound();
+
+        var hasProducts = await db.Products.ActiveProducts()
+            .AnyAsync(p => p.CategoryId == id);
+        if (hasProducts)
+            return BadRequest("Kategorija sadrži proizvode i ne može se obrisati.");
+
         db.Categories.Remove(entity);
         await db.SaveChangesAsync();
         return NoContent();
@@ -1006,9 +1043,6 @@ public class AdminController(
         if (validationError is not null)
             return BadRequest(validationError);
 
-        if (request.Activate)
-            await DeactivateAllSitePopupsAsync();
-
         var popup = new SitePopup
         {
             ImageUrl = request.ImageUrl.Trim(),
@@ -1021,8 +1055,24 @@ public class AdminController(
             IsActive = request.Activate,
             CreatedAt = DateTime.UtcNow,
         };
-        db.SitePopups.Add(popup);
-        await db.SaveChangesAsync();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        try
+        {
+            if (request.Activate)
+            {
+                await db.SitePopups
+                    .Where(p => p.IsActive)
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsActive, false));
+            }
+
+            db.SitePopups.Add(popup);
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (DbUpdateException ex) when (IsActivePopupConflict(ex))
+        {
+            return Conflict("Drugi popup je u međuvremenu aktiviran. Osvežite stranicu i pokušajte ponovo.");
+        }
 
         return Ok(await MapSitePopupResponseAsync(popup.Id));
     }
@@ -1033,9 +1083,27 @@ public class AdminController(
         var popup = await db.SitePopups.FindAsync(id);
         if (popup is null) return NotFound();
 
-        await DeactivateAllSitePopupsAsync();
-        popup.IsActive = true;
-        await db.SaveChangesAsync();
+        var validationError = await ValidateSitePopupRequestAsync(
+            popup.Type,
+            popup.ProductId,
+            popup.CouponCode);
+        if (validationError is not null)
+            return BadRequest(validationError);
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        try
+        {
+            await db.SitePopups
+                .Where(p => p.IsActive && p.Id != id)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsActive, false));
+            popup.IsActive = true;
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (DbUpdateException ex) when (IsActivePopupConflict(ex))
+        {
+            return Conflict("Drugi popup je u međuvremenu aktiviran. Osvežite stranicu i pokušajte ponovo.");
+        }
         return NoContent();
     }
 
@@ -1070,7 +1138,26 @@ public class AdminController(
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!allowed.Contains(ext)) return BadRequest("Unsupported file type.");
 
-        var imagesDir = Path.Combine(env.ContentRootPath, "images");
+        try
+        {
+            await using var validationStream = file.OpenReadStream();
+            var imageInfo = await Image.IdentifyAsync(validationStream);
+            if (imageInfo is null)
+                return BadRequest("Fajl nije validna slika.");
+
+            const long maxPixels = 100_000_000;
+            if ((long)imageInfo.Width * imageInfo.Height > maxPixels)
+                return BadRequest("Dimenzije slike su prevelike.");
+        }
+        catch (Exception ex) when (
+            ex is UnknownImageFormatException
+            or InvalidImageContentException
+            or NotSupportedException)
+        {
+            return BadRequest("Fajl nije validna ili podržana slika.");
+        }
+
+        var imagesDir = imageStorage.RootPath;
         Directory.CreateDirectory(imagesDir);
 
         var fileName = $"{Guid.NewGuid()}{ext}";
@@ -1086,11 +1173,17 @@ public class AdminController(
             await thumbnails.GenerateAllVariantsAsync(fileName);
 
         var url = $"/images/{fileName}";
+        var thumbnailUrl = ImageThumbnailService.GetThumbnailUrl(url);
+        var mediumUrl = ImageThumbnailService.GetMediumUrl(url);
         return Ok(new
         {
             url,
-            thumbnailUrl = ImageThumbnailService.GetThumbnailUrl(url),
-            mediumUrl = ImageThumbnailService.GetMediumUrl(url),
+            thumbnailUrl = System.IO.File.Exists(Path.Combine(thumbnails.ThumbsDirectory, Path.GetFileName(thumbnailUrl)))
+                ? thumbnailUrl
+                : null,
+            mediumUrl = System.IO.File.Exists(Path.Combine(thumbnails.MediumDirectory, Path.GetFileName(mediumUrl)))
+                ? mediumUrl
+                : null,
         });
     }
 
@@ -1149,12 +1242,12 @@ public class AdminController(
             .ToListAsync();
     }
 
-    private async Task DeactivateAllSitePopupsAsync()
-    {
-        var active = await db.SitePopups.Where(p => p.IsActive).ToListAsync();
-        foreach (var p in active)
-            p.IsActive = false;
-    }
+    private static bool IsActivePopupConflict(DbUpdateException ex) =>
+        ex.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: "IX_SitePopups_IsActive"
+        };
 
     private async Task<string?> ValidateSitePopupRequestAsync(
         SitePopupType type,

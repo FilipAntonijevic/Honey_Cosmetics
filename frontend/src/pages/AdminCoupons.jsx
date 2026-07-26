@@ -18,15 +18,16 @@ function parseExpiryInput(raw) {
   const v = raw.trim()
   if (!v) return null
 
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
-    const dt = new Date(v)
+  const slashOrDot = v.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/)
+  if (slashOrDot) {
+    const [, d, mo, y] = slashOrDot
+    const dt = new Date(Number(y), Number(mo) - 1, Number(d), 23, 59, 59, 999)
     return Number.isNaN(dt.getTime()) ? null : dt.toISOString()
   }
 
-  const m = v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:[.\s]+(\d{1,2}):(\d{2}))?$/)
-  if (m) {
-    const [, d, mo, y, h = '23', mi = '59'] = m
-    const dt = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi))
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y, mo, d] = v.split('-').map(Number)
+    const dt = new Date(y, mo - 1, d, 23, 59, 59, 999)
     return Number.isNaN(dt.getTime()) ? null : dt.toISOString()
   }
 
@@ -34,12 +35,94 @@ function parseExpiryInput(raw) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
 }
 
-function toDatetimeLocalValue(raw) {
-  const iso = parseExpiryInput(raw)
-  if (!iso) return ''
-  const d = new Date(iso)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+/** dd/mm/yyyy ili dd.mm.yyyy → YYYY-MM-DD */
+function displayToIsoDate(display) {
+  const m = display.trim().match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/)
+  if (!m) return ''
+  const [, d, mo, y] = m
+  return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`
+}
+
+function formatExpiryTyping(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+const WEEKDAYS = ['Po', 'Ut', 'Sr', 'Če', 'Pe', 'Su', 'Ne']
+const MONTHS = [
+  'Januar', 'Februar', 'Mart', 'April', 'Maj', 'Jun',
+  'Jul', 'Avgust', 'Septembar', 'Oktobar', 'Novembar', 'Decembar',
+]
+
+function ExpiryCalendar({ open, anchorMonth, selectedDisplay, onPick, onClose }) {
+  const [view, setView] = useState(anchorMonth)
+
+  useEffect(() => {
+    if (open) setView(anchorMonth)
+  }, [open, anchorMonth])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    const onClick = (e) => {
+      if (!e.target.closest('.adm-coupon-expiry-calendar-popup') && !e.target.closest('.adm-coupon-expiry-calendar-btn')) {
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onClick)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onClick)
+    }
+  }, [open, onClose])
+
+  if (!open) return null
+
+  const year = view.getFullYear()
+  const month = view.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const startOffset = (new Date(year, month, 1).getDay() + 6) % 7
+  const cells = []
+  for (let i = 0; i < startOffset; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const pickDay = (day) => {
+    const formatted = `${String(day).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}/${year}`
+    onPick(formatted)
+    onClose()
+  }
+
+  return (
+    <div className="adm-coupon-expiry-calendar-popup" role="dialog" aria-label="Izaberi datum">
+      <div className="adm-coupon-expiry-calendar-head">
+        <button type="button" className="adm-coupon-expiry-calendar-nav" onClick={() => setView(new Date(year, month - 1, 1))} aria-label="Prethodni mesec">‹</button>
+        <span className="adm-coupon-expiry-calendar-title">{MONTHS[month]} {year}</span>
+        <button type="button" className="adm-coupon-expiry-calendar-nav" onClick={() => setView(new Date(year, month + 1, 1))} aria-label="Sledeći mesec">›</button>
+      </div>
+      <div className="adm-coupon-expiry-calendar-weekdays">
+        {WEEKDAYS.map((d) => <span key={d}>{d}</span>)}
+      </div>
+      <div className="adm-coupon-expiry-calendar-grid">
+        {cells.map((day, i) => (
+          day == null ? (
+            <span key={`e-${i}`} className="adm-coupon-expiry-calendar-empty" />
+          ) : (
+            <button
+              key={day}
+              type="button"
+              className={`adm-coupon-expiry-calendar-day${selectedDisplay === `${String(day).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}/${year}` ? ' is-selected' : ''}`}
+              onClick={() => pickDay(day)}
+            >
+              {day}
+            </button>
+          )
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function validateDiscountPercent(raw) {
@@ -67,7 +150,16 @@ export default function AdminCoupons() {
   const [showForm, setShowForm] = useState(false)
   const [selectedStatuses, setSelectedStatuses] = useState(() => new Set(['active']))
   const [statusHeaderOpen, setStatusHeaderOpen] = useState(false)
-  const expiryPickerRef = useRef(null)
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date())
+  const [pendingAction, setPendingAction] = useState(null)
+  const pendingActionRef = useRef(null)
+
+  const readError = (err, fallback) => {
+    const data = err.response?.data
+    if (typeof data === 'string' && data.trim()) return data
+    return data?.detail || data?.title || fallback
+  }
 
   const load = async () => {
     setLoading(true)
@@ -119,6 +211,22 @@ export default function AdminCoupons() {
     setForm(f => ({ ...f, [key]: val }))
   }
 
+  const handleExpiryTextChange = (e) => {
+    setForm((f) => ({ ...f, expiresAt: formatExpiryTyping(e.target.value) }))
+  }
+
+  const openExpiryCalendar = () => {
+    const iso = displayToIsoDate(form.expiresAt)
+    if (iso) {
+      const [y, m] = iso.split('-').map(Number)
+      setCalendarMonth(new Date(y, m - 1, 1))
+    } else {
+      const now = new Date()
+      setCalendarMonth(new Date(now.getFullYear(), now.getMonth(), 1))
+    }
+    setCalendarOpen(true)
+  }
+
   const submit = async (e) => {
     e.preventDefault()
     setError('')
@@ -128,7 +236,7 @@ export default function AdminCoupons() {
 
     const expiresAt = form.expiresAt.trim() ? parseExpiryInput(form.expiresAt) : null
     if (form.expiresAt.trim() && !expiresAt) {
-      setError('Datum isticanja nije validan. Koristite npr. 27.05.2026 18:00')
+      setError('Datum isticanja nije validan. Koristite format dd/mm/yyyy')
       return
     }
 
@@ -152,26 +260,46 @@ export default function AdminCoupons() {
   }
 
   const deactivateCoupon = async (id) => {
+    if (pendingActionRef.current) return
     if (!confirm('Deaktivirati kupon? Neće biti moguće iskoristiti, ali ostaje u listi.')) return
-    await api.patch(`/coupons/${id}/deactivate`)
-    setCoupons(prev => prev.map(c => (c.id === id ? { ...c, isActive: false } : c)))
+    pendingActionRef.current = `deactivate-${id}`
+    setPendingAction(pendingActionRef.current)
+    setError('')
+    try {
+      await api.patch(`/coupons/${id}/deactivate`)
+      setCoupons(prev => prev.map(c => (c.id === id ? { ...c, isActive: false } : c)))
+    } catch (err) {
+      setError(readError(err, 'Deaktiviranje kupona nije uspelo.'))
+    } finally {
+      pendingActionRef.current = null
+      setPendingAction(null)
+    }
   }
 
   const deleteCoupon = async (id) => {
-    if (!confirm('Obrisati kupon?')) return
-    await api.delete(`/coupons/${id}`)
-    setCoupons(prev => prev.filter(c => c.id !== id))
+    if (pendingActionRef.current) return
+    if (!confirm('Ukloniti kupon iz upotrebe? Kupon će biti deaktiviran, a istorija korišćenja sačuvana.')) return
+    pendingActionRef.current = `delete-${id}`
+    setPendingAction(pendingActionRef.current)
+    setError('')
+    try {
+      await api.delete(`/coupons/${id}`)
+      setCoupons(prev => prev.map(c => (c.id === id ? { ...c, isActive: false } : c)))
+    } catch (err) {
+      setError(readError(err, 'Uklanjanje kupona nije uspelo.'))
+    } finally {
+      pendingActionRef.current = null
+      setPendingAction(null)
+    }
   }
 
   const fmt = (c) => `${c.discountValue}%`
 
   const fmtExpiry = (expiresAt) =>
-    expiresAt ? new Date(expiresAt).toLocaleString('sr-RS', {
+    expiresAt ? new Date(expiresAt).toLocaleDateString('sr-RS', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     }) : '—'
 
   const renderCouponActions = (c) => (
@@ -180,17 +308,19 @@ export default function AdminCoupons() {
         <button
           type="button"
           className="adm-btn-sm adm-coupon-btn adm-coupon-btn--deactivate"
+          disabled={pendingAction !== null}
           onClick={() => deactivateCoupon(c.id)}
         >
-          Deaktiviraj
+          {pendingAction === `deactivate-${c.id}` ? 'Deaktiviranje…' : 'Deaktiviraj'}
         </button>
       ) : null}
       <button
         type="button"
         className="adm-btn-sm adm-coupon-btn adm-coupon-btn--delete"
+        disabled={pendingAction !== null}
         onClick={() => deleteCoupon(c.id)}
       >
-        Obriši
+        {pendingAction === `delete-${c.id}` ? 'Uklanjanje…' : 'Ukloni'}
       </button>
     </>
   )
@@ -206,6 +336,8 @@ export default function AdminCoupons() {
           {showForm ? 'Zatvori' : '+ Novi kupon'}
         </button>
       </div>
+
+      {error && !showForm && <p className="adm-form-error" role="alert">{error}</p>}
 
       {showForm && (
         <form className="adm-modal-body" onSubmit={submit} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '1.4rem', marginBottom: '1.5rem' }}>
@@ -241,28 +373,29 @@ export default function AdminCoupons() {
               <input
                 className="adm-input adm-coupon-expiry-input"
                 type="text"
-                placeholder="npr. 27.05.2026 18:00"
+                inputMode="numeric"
+                placeholder="dd/mm/yyyy"
+                maxLength={10}
                 value={form.expiresAt}
-                onChange={set('expiresAt')}
-              />
-              <input
-                ref={expiryPickerRef}
-                type="datetime-local"
-                className="adm-coupon-expiry-picker-hidden"
-                value={toDatetimeLocalValue(form.expiresAt)}
-                onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
-                tabIndex={-1}
-                aria-hidden="true"
+                onChange={handleExpiryTextChange}
               />
               <button
                 type="button"
                 className="adm-coupon-expiry-calendar-btn"
-                onClick={() => expiryPickerRef.current?.showPicker?.()}
-                aria-label="Izaberi datum i vreme isticanja"
-                title="Kalendar"
+                title="Izaberi datum"
+                aria-label="Izaberi datum"
+                aria-expanded={calendarOpen}
+                onClick={openExpiryCalendar}
               >
                 📅
               </button>
+              <ExpiryCalendar
+                open={calendarOpen}
+                anchorMonth={calendarMonth}
+                selectedDisplay={form.expiresAt}
+                onPick={(formatted) => setForm((f) => ({ ...f, expiresAt: formatted }))}
+                onClose={() => setCalendarOpen(false)}
+              />
             </div>
           </div>
 

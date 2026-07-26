@@ -11,7 +11,12 @@ public static class ProductImageSync
         IReadOnlyList<string>? imageUrls,
         CancellationToken cancellationToken = default)
     {
-        var urls = (imageUrls ?? Array.Empty<string>())
+        // Omitted means that an older/partial client did not intend to edit the gallery.
+        // An explicitly supplied empty list still clears all additional images.
+        if (imageUrls is null)
+            return;
+
+        var urls = imageUrls
             .Select(u => u.Trim())
             .Where(u => u.Length > 0)
             .ToList();

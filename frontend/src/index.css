@@ -823,6 +823,7 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   align-items: center;
   gap: 0.85rem 1rem;
   margin-bottom: 1.75rem;
+  --pd-buy-btn-h: 2.35rem;
 }
 .pd-qty {
   display: inline-flex;
@@ -852,10 +853,70 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   font-size: 0.9rem;
   color: var(--espresso);
 }
+.pd-buy-actions {
+  display: flex;
+  flex: 1 1 12rem;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 10rem;
+}
+.pd-buy-actions .pd-add-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--pd-buy-btn-h);
+  padding: 0 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pd-buy-wishlist-btn {
+  position: static;
+  top: auto;
+  right: auto;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: var(--pd-buy-btn-h);
+  height: var(--pd-buy-btn-h);
+  min-width: var(--pd-buy-btn-h);
+  min-height: var(--pd-buy-btn-h);
+  border: 1px solid #d8c7b8;
+  border-radius: 50%;
+  background: #fff;
+  filter: none;
+  padding: 0;
+}
+.pd-buy-wishlist-btn .product-card-heart-icon {
+  --pca-heart-size: 0.82rem;
+}
+.pd-buy-wishlist-btn.product-card-action--wishlist:hover,
+.pd-buy-wishlist-btn.product-card-action--wishlist:active,
+.pd-buy-wishlist-btn.product-card-action--wishlist.is-active,
+.pd-buy-wishlist-btn.product-card-action--wishlist.is-active:hover {
+  box-sizing: border-box;
+  width: var(--pd-buy-btn-h);
+  height: var(--pd-buy-btn-h);
+  min-width: var(--pd-buy-btn-h);
+  min-height: var(--pd-buy-btn-h);
+  border: 1px solid #d8c7b8;
+  border-radius: 50%;
+  background: #fff;
+  filter: none;
+  opacity: 1;
+  padding: 0;
+}
+.pd-buy-wishlist-btn.product-card-action--wishlist:hover {
+  background: #f6efe7;
+  border-color: #c9b5a4;
+}
+.pd-buy-wishlist-btn.product-card-action--wishlist:active {
+  background: #f0e7dc;
+  border-color: #c9b5a4;
+}
 .pd-add-btn {
   flex: 1 1 12rem;
   min-width: 10rem;
-  padding: 0.75rem 1.5rem;
+  height: var(--pd-buy-btn-h);
+  padding: 0 1.5rem;
   border: none;
   border-radius: 999px;
   background: linear-gradient(180deg, #e8d5c0 0%, #d4b896 100%);
@@ -863,6 +924,10 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   font-family: inherit;
   font-size: 0.72rem;
   letter-spacing: 0.04em;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: opacity 0.2s ease, transform 0.2s ease;
   box-shadow: 0 4px 14px rgba(63, 43, 34, 0.08);
@@ -1094,8 +1159,11 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
   }
 }
 @media (max-width: 540px) {
-  .pd-add-btn {
+  .pd-buy-actions {
     flex: 1 1 100%;
+  }
+  .pd-buy-actions .pd-add-btn {
+    flex: 1 1 auto;
   }
 }
 
@@ -2426,6 +2494,27 @@ button, input, select, textarea { font-family: inherit; font-variant-numeric: in
 .adm-product-stock-qty--out strong {
   color: #92400e;
 }
+.adm-product-stock-qty--variants {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.1rem;
+}
+.adm-product-stock-line {
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: #1a1a2e;
+}
+.adm-product-stock-line strong {
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+.adm-product-stock-line--out {
+  color: #b45309;
+}
+.adm-product-stock-line--out strong {
+  color: #92400e;
+}
 .adm-product-actions {
   display: flex;
   flex-direction: column;
@@ -2763,6 +2852,24 @@ body.is-adm-modal-open {
 }
 .adm-img-preview { margin-top: 0.5rem; height: 100px; border-radius: 8px; object-fit: fill; border: 1px solid #e5e7eb; }
 .adm-form-error { background: #fef2f2; color: #dc2626; padding: 0.7rem 0.9rem; border-radius: 8px; font-size: 0.85rem; }
+.adm-form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+}
+.adm-form-actions__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+.adm-form-actions__error {
+  margin: 0;
+}
+.adm-form-actions__success {
+  margin: 0;
+}
 .adm-notice { background: #dcfce7; color: #166534; padding: 0.7rem 0.9rem; border-radius: 8px; font-size: 0.85rem; margin: 0.75rem 0 0; }
 
 /* Admin mobile drawer (sidebar kao mini-cart sa desne, ali sleva) */
@@ -2804,6 +2911,9 @@ body.is-adm-modal-open {
   }
   .adm-sidebar-rail.is-closing {
     transform: translateX(calc(var(--adm-drawer-tab) - 100%));
+  }
+  .adm-sidebar-rail:not(.is-open) .adm-sidebar {
+    pointer-events: none;
   }
 
   .adm-sidebar {
@@ -2909,6 +3019,28 @@ body.is-adm-modal-open {
   .adm-form {
     padding: 0.85rem 1rem;
     gap: 0.85rem;
+  }
+  .adm-form--page {
+    padding-bottom: 0.35rem;
+  }
+  .adm-form--page .adm-form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 0.5rem -1rem 0;
+    padding: 0.75rem 1rem max(0.85rem, env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, #fff 28%);
+    border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -8px 24px rgba(17, 24, 39, 0.06);
+  }
+  .adm-form--page .adm-form-actions__buttons {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .adm-form--page .adm-form-actions__buttons .adm-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 2.75rem;
   }
   .adm-form-row label { font-size: 0.78rem; }
   .adm-input,
@@ -8567,19 +8699,13 @@ body.is-adm-modal-open {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
-.adm-coupon-expiry-picker-hidden {
-  position: absolute;
-  width: 0;
-  height: 0;
-  opacity: 0;
-  pointer-events: none;
-}
 .adm-coupon-expiry-calendar-btn {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0 0.85rem;
+  margin: 0;
   border: 1px solid #e5e7eb;
   border-left: none;
   border-radius: 0 8px 8px 0;
@@ -8590,6 +8716,99 @@ body.is-adm-modal-open {
 }
 .adm-coupon-expiry-calendar-btn:hover {
   background: #f3f4f6;
+}
+.adm-coupon-expiry-calendar-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  box-sizing: border-box;
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+.adm-coupon-expiry-calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+.adm-coupon-expiry-calendar-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+.adm-coupon-expiry-calendar-nav {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+  color: #374151;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.adm-coupon-expiry-calendar-nav:hover {
+  background: #f3f4f6;
+}
+.adm-coupon-expiry-calendar-weekdays,
+.adm-coupon-expiry-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.15rem;
+  width: 100%;
+}
+.adm-coupon-expiry-calendar-weekdays {
+  margin-bottom: 0.35rem;
+}
+.adm-coupon-expiry-calendar-weekdays span {
+  display: block;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #9ca3af;
+  line-height: 1.2;
+}
+.adm-coupon-expiry-calendar-day,
+.adm-coupon-expiry-calendar-empty {
+  height: 1.75rem;
+  min-width: 0;
+}
+.adm-coupon-expiry-calendar-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #374151;
+  font-size: 0.78rem;
+  line-height: 1;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.adm-coupon-expiry-calendar-day:hover {
+  background: #f3f4f6;
+}
+.adm-coupon-expiry-calendar-day.is-selected {
+  background: #1a1a2e;
+  color: #fff;
 }
 .adm-coupon-status {
   display: inline-flex;

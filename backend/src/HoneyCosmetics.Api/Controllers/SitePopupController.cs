@@ -1,4 +1,5 @@
 using HoneyCosmetics.Application.DTOs;
+using HoneyCosmetics.Domain.Enums;
 using HoneyCosmetics.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +17,9 @@ public class SitePopupController(AppDbContext db) : ControllerBase
     {
         var popup = await db.SitePopups
             .AsNoTracking()
-            .Where(p => p.IsActive)
+            .Where(p => p.IsActive
+                && (p.Type != SitePopupType.Product
+                    || (p.Product != null && !p.Product.IsDeleted)))
             .OrderByDescending(p => p.CreatedAt)
             .Select(p => new ActiveSitePopupResponse(
                 p.Id,

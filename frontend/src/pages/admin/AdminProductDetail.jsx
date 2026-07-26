@@ -281,6 +281,8 @@ export default function AdminProductDetail() {
   const [otpis, setOtpis] = useState(EMPTY_OTPIS)
   const merchTotalManual = useRef(false)
   const transportTotalManual = useRef(false)
+  const purchaseSubmittingRef = useRef(false)
+  const arrivalSubmittingRef = useRef(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -413,6 +415,8 @@ export default function AdminProductDetail() {
   }
 
   const confirmArrival = async (receiptId) => {
+    if (arrivalSubmittingRef.current) return
+    arrivalSubmittingRef.current = true
     setSaving(true)
     setError('')
     try {
@@ -421,6 +425,7 @@ export default function AdminProductDetail() {
     } catch (err) {
       setError(typeof err.response?.data === 'string' ? err.response.data : 'Prijava robe nije uspela.')
     } finally {
+      arrivalSubmittingRef.current = false
       setSaving(false)
     }
   }
@@ -441,6 +446,8 @@ export default function AdminProductDetail() {
 
   const submitNabavka = async (e) => {
     e.preventDefault()
+    if (purchaseSubmittingRef.current) return
+    purchaseSubmittingRef.current = true
     setError('')
     setSaving(true)
     const qty = parseInt(nabavka.quantity, 10)
@@ -469,6 +476,7 @@ export default function AdminProductDetail() {
     } catch (err) {
       setError(typeof err.response?.data === 'string' ? err.response.data : 'Nabavka nije sačuvana.')
     } finally {
+      purchaseSubmittingRef.current = false
       setSaving(false)
     }
   }

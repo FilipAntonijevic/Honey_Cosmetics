@@ -6,6 +6,7 @@ using HoneyCosmetics.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace HoneyCosmetics.Api.Controllers;
 
@@ -77,7 +78,8 @@ public class CouponsController(AppDbContext db) : ControllerBase
     {
         var coupon = await db.Coupons.FindAsync(id);
         if (coupon is null) return NotFound();
-        db.Coupons.Remove(coupon);
+        // Keep CouponUsage foreign keys and audit history intact. DELETE means retire here.
+        coupon.IsActive = false;
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -105,7 +107,15 @@ public class CouponsController(AppDbContext db) : ControllerBase
             IsActive = true
         });
 
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (
+            ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            return Conflict("Coupon code already exists.");
+        }
         return NoContent();
     }
 }

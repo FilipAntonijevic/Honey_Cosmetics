@@ -133,6 +133,8 @@ export default function Shop() {
   const { toggleWishlist, productSearch, productSearchRevision, suspendProductSearchFilter } = useStore()
   const loadMoreRef = useRef(null)
   const loadingMoreRef = useRef(false)
+  const fetchEpochRef = useRef(0)
+  const activeShopKeyRef = useRef('')
 
   const searchTerm = productSearch.trim()
   const hasSearchFilter = searchTerm.length > 0
@@ -213,6 +215,12 @@ export default function Shop() {
     : `${resolvedVrstaName}|${selectedTypeId}|${bestsellersMode}|${categoryIdParam}`
 
   useEffect(() => {
+    const epoch = ++fetchEpochRef.current
+    activeShopKeyRef.current = shopFetchKey
+    loadingMoreRef.current = false
+    queueMicrotask(() => {
+      if (fetchEpochRef.current === epoch) setLoadingMore(false)
+    })
     const cached = readShopListCache(shopFetchKey)
     if (cached) {
       setProducts(cached.products)
@@ -231,7 +239,7 @@ export default function Shop() {
       try {
         if (bestsellersMode) {
           const { data } = await api.get('/products/bestsellers')
-          if (!cancelled) {
+          if (!cancelled && fetchEpochRef.current === epoch) {
             const items = Array.isArray(data) ? data : []
             setProducts(items)
             writeShopListCache(shopFetchKey, { products: items, hasMore: false, page: 1 })
@@ -240,7 +248,7 @@ export default function Shop() {
         }
 
         const { data } = await api.get('/products', { params: buildListParams(1) })
-        if (cancelled) return
+        if (cancelled || fetchEpochRef.current !== epoch) return
         const parsed = parsePagedProducts(data)
         setProducts(parsed.items)
         setHasMore(parsed.hasMore)
@@ -267,8 +275,14 @@ export default function Shop() {
     loadingMoreRef.current = true
     setLoadingMore(true)
     const nextPage = page + 1
+    const requestEpoch = fetchEpochRef.current
+    const requestKey = shopFetchKey
     try {
       const { data } = await api.get('/products', { params: buildListParams(nextPage) })
+      if (
+        fetchEpochRef.current !== requestEpoch ||
+        activeShopKeyRef.current !== requestKey
+      ) return
       const parsed = parsePagedProducts(data)
       setProducts((prev) => {
         const next = [...prev, ...parsed.items]
@@ -282,10 +296,15 @@ export default function Shop() {
       setHasMore(parsed.hasMore)
       setPage(nextPage)
     } catch {
-      setHasMore(false)
+      // Keep pagination available so a transient failure can be retried.
     } finally {
-      loadingMoreRef.current = false
-      setLoadingMore(false)
+      if (
+        fetchEpochRef.current === requestEpoch &&
+        activeShopKeyRef.current === requestKey
+      ) {
+        loadingMoreRef.current = false
+        setLoadingMore(false)
+      }
     }
   }, [usesPagination, hasMore, page, buildListParams, shopFetchKey])
 

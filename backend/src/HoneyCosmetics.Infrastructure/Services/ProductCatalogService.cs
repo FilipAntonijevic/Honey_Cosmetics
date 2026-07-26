@@ -60,16 +60,36 @@ public static class ProductCatalogService
 
         var softDeleted = await db.Products
             .Include(p => p.AdditionalImages)
-            .FirstOrDefaultAsync(p => p.IsDeleted && p.Name == normalized, ct);
+            .Where(p => p.IsDeleted && p.Name == normalized)
+            .ToListAsync(ct);
 
-        if (softDeleted is not null)
+        if (softDeleted.Count > 0)
         {
-            ApplyRequest(softDeleted, request);
-            softDeleted.IsDeleted = false;
-            softDeleted.DeletedAt = null;
-            softDeleted.IsBestseller = false;
-            softDeleted.BestsellerSortOrder = 0;
-            return (softDeleted, true);
+            var anchor = softDeleted
+                .OrderBy(p => p.VariantGroupId == null ? 0 : 1)
+                .ThenBy(p => p.Id)
+                .First();
+            ApplyRequest(anchor, request);
+            anchor.IsDeleted = false;
+            anchor.DeletedAt = null;
+            anchor.IsBestseller = false;
+            anchor.BestsellerSortOrder = 0;
+
+            var groupId = anchor.VariantGroupId ?? anchor.Id;
+            foreach (var sibling in softDeleted)
+            {
+                if (sibling.Id == anchor.Id)
+                    continue;
+                if (sibling.VariantGroupId == groupId || sibling.Id == groupId)
+                {
+                    sibling.IsDeleted = false;
+                    sibling.DeletedAt = null;
+                    sibling.IsBestseller = false;
+                    sibling.BestsellerSortOrder = 0;
+                }
+            }
+
+            return (anchor, true);
         }
 
         var conflict = await GetActiveNameConflictAsync(
@@ -96,5 +116,12 @@ public static class ProductCatalogService
 
         await db.Carts.Where(c => c.ProductId == product.Id).ExecuteDeleteAsync(ct);
         await db.Wishlists.Where(w => w.ProductId == product.Id).ExecuteDeleteAsync(ct);
+        await db.SitePopups
+            .Where(p => p.ProductId == product.Id)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(p => p.IsActive, false)
+                    .SetProperty(p => p.ProductId, (int?)null),
+                ct);
     }
 }

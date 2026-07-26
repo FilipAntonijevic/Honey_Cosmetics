@@ -85,7 +85,7 @@ export function applyStockLimitsToCart(cart, productsById) {
   let message = null
   if (removedOutOfStock.length > 0) {
     message = removedOutOfStock.length === 1
-      ? `${removedOutOfStock[0]} više nije na stanju i uklonjen je iz korpe.`
+      ? `${removedOutOfStock[0]} je rasprodat i uklonjen iz korpe.`
       : 'Neki proizvodi više nisu na stanju i uklonjeni su iz korpe.'
   } else if (adjusted) {
     message = 'Nema dovoljno proizvoda na stanju.'

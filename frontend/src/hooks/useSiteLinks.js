@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import api from '../api'
 
 const parseEmailList = (raw) =>
@@ -17,8 +17,8 @@ const EMPTY = {
   complaintsEmail: '',
   whatsAppNumber: '',
   viberNumber: '',
-  freeShippingThreshold: 10000,
-  shippingCost: 430,
+  freeShippingThreshold: null,
+  shippingCost: null,
   notificationBannerText: '',
   notificationBannerEnabled: true,
   bankTransferRecipientName: '',
@@ -35,6 +35,13 @@ const EMPTY = {
 export default function useSiteLinks() {
   const [data, setData] = useState(EMPTY)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [revision, setRevision] = useState(0)
+  const retry = useCallback(() => {
+    setLoading(true)
+    setError(null)
+    setRevision((value) => value + 1)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -54,8 +61,8 @@ export default function useSiteLinks() {
           complaintsEmail: data?.complaintsEmail ?? '',
           whatsAppNumber: data?.whatsAppNumber ?? '',
           viberNumber: data?.viberNumber ?? '',
-          freeShippingThreshold: data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : 10000,
-          shippingCost: data?.shippingCost != null ? Number(data.shippingCost) : 430,
+          freeShippingThreshold: data?.freeShippingThreshold != null ? Number(data.freeShippingThreshold) : null,
+          shippingCost: data?.shippingCost != null ? Number(data.shippingCost) : null,
           notificationBannerText: data?.notificationBannerText ?? '',
           notificationBannerEnabled: data?.notificationBannerEnabled ?? true,
           bankTransferRecipientName: data?.bankTransferRecipientName ?? '',
@@ -65,7 +72,10 @@ export default function useSiteLinks() {
         })
       })
       .catch(() => {
-        if (!cancelled) setData(EMPTY)
+        if (!cancelled) {
+          setData(EMPTY)
+          setError('Podešavanja sajta nisu dostupna.')
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -73,7 +83,7 @@ export default function useSiteLinks() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [revision])
 
-  return { ...data, loading }
+  return { ...data, loading, error, retry }
 }

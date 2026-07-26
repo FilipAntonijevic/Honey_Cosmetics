@@ -21,9 +21,9 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
     {
         var query = db.LedgerEntries.AsNoTracking().AsQueryable();
         if (from.HasValue)
-            query = query.Where(x => x.OccurredAt >= from.Value.ToUniversalTime());
+            query = query.Where(x => x.OccurredAt >= NormalizeUtc(from.Value));
         if (to.HasValue)
-            query = query.Where(x => x.OccurredAt <= to.Value.ToUniversalTime());
+            query = query.Where(x => x.OccurredAt <= NormalizeUtc(to.Value));
 
         var list = await query
             .Include(x => x.Product)
@@ -55,7 +55,9 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
     {
         var entry = new LedgerEntry
         {
-            OccurredAt = request.OccurredAt?.ToUniversalTime() ?? DateTime.UtcNow,
+            OccurredAt = request.OccurredAt is { } occurredAt
+                ? NormalizeUtc(occurredAt)
+                : DateTime.UtcNow,
             EntryType = request.EntryType,
             Amount = request.Amount,
             Description = request.Description.Trim(),
@@ -69,23 +71,71 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
     [HttpDelete("ledger/{id:int}")]
     public async Task<IActionResult> DeleteLedger(int id)
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
+
         var entry = await db.LedgerEntries
             .Include(e => e.StockReceipt)
             .Include(e => e.Order)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (entry is null)
+        {
+            await tx.RollbackAsync();
             return NotFound();
+        }
+
+        if (entry.Source == LedgerSource.OrderDelivered
+            && entry.Order is { } deliveredOrder
+            && (deliveredOrder.Status == OrderStatus.Delivered || deliveredOrder.FinanceRecorded))
+        {
+            await tx.RollbackAsync();
+            return BadRequest(
+                "Prihod dostavljene porudžbine ne može biti obrisan jer je status finalan i finansije se ne bi mogle bezbedno ponovo evidentirati.");
+        }
+
+        if (entry.Source == LedgerSource.FreeShippingDelivery
+            && entry.Order is { Status: OrderStatus.Returned })
+        {
+            await tx.RollbackAsync();
+            return BadRequest(
+                "Trošak dostave vraćene porudžbine ne može biti obrisan jer je status finalan.");
+        }
 
         StockReceipt? receiptToRemove = entry.StockReceipt;
         if (receiptToRemove is not null)
         {
+            await db.Database.ExecuteSqlRawAsync(
+                """SELECT 1 FROM "Products" WHERE "Id" = {0} FOR UPDATE""",
+                [receiptToRemove.ProductId]);
+
+            var currentReceiptValues = await db.Entry(receiptToRemove).GetDatabaseValuesAsync();
+            if (currentReceiptValues is null)
+            {
+                await tx.RollbackAsync();
+                return BadRequest("Evidencija nabavke je u međuvremenu već uklonjena.");
+            }
+            db.Entry(receiptToRemove).CurrentValues.SetValues(currentReceiptValues);
+
             var product = await db.Products.FindAsync(receiptToRemove.ProductId);
             if (product is not null)
             {
+                await db.Entry(product).ReloadAsync();
                 if (receiptToRemove.ReceivedAt is null)
                     product.OrderedQuantity = Math.Max(0, product.OrderedQuantity - receiptToRemove.Quantity);
                 else
+                {
+                    if (product.StockQuantity < receiptToRemove.Quantity)
+                    {
+                        await tx.RollbackAsync();
+                        return BadRequest(
+                            "Primljena nabavka ne može biti obrisana jer deo te količine više nije na stanju.");
+                    }
+
                     product.StockQuantity = Math.Max(0, product.StockQuantity - receiptToRemove.Quantity);
+                    await InventoryFinanceService.RecalculateWeightedCostsAsync(
+                        db,
+                        product,
+                        excludedReceiptId: receiptToRemove.Id);
+                }
             }
         }
 
@@ -119,8 +169,19 @@ public class AdminFinanceController(AppDbContext db) : ControllerBase
         if (receiptToRemove is not null)
             db.StockReceipts.Remove(receiptToRemove);
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
         return NoContent();
     }
+
+    private static DateTime NormalizeUtc(DateTime value) =>
+        value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            // Date-only values from the admin UI have no timezone. Treat them
+            // deterministically as UTC instead of applying the server timezone.
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+        };
 
     private static LedgerEntryResponse MapLedger(LedgerEntry e)
     {

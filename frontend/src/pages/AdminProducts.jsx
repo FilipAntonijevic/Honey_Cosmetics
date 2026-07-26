@@ -14,6 +14,84 @@ function parsePagedAdminProducts(data) {
   }
 }
 
+function normalizeVariantStocks(raw) {
+  if (!Array.isArray(raw) || raw.length === 0) return []
+  return raw.map((variant) => ({
+    label: String(variant.label ?? variant.variantLabel ?? '—').trim() || '—',
+    stockQuantity: Number(variant.stockQuantity ?? 0) || 0,
+  }))
+}
+
+/** If list API has no per-option stock, load it from product detail (variants). */
+async function enrichVariantStocks(items) {
+  const needEnrichment = items.filter(
+    (product) =>
+      (product.variantCount ?? 1) > 1 &&
+      normalizeVariantStocks(product.variantStocks).length === 0,
+  )
+  if (needEnrichment.length === 0) {
+    return items.map((product) => ({
+      ...product,
+      variantStocks: normalizeVariantStocks(product.variantStocks),
+    }))
+  }
+
+  const details = await Promise.all(
+    needEnrichment.map(async (product) => {
+      try {
+        const { data } = await api.get(`/admin/products/${product.id}`)
+        const variants = Array.isArray(data?.variants) ? data.variants : []
+        return {
+          id: product.id,
+          variantStocks: normalizeVariantStocks(
+            variants.map((variant) => ({
+              label: variant.variantLabel,
+              stockQuantity: variant.stockQuantity,
+            })),
+          ),
+        }
+      } catch {
+        return { id: product.id, variantStocks: [] }
+      }
+    }),
+  )
+
+  const byId = new Map(details.map((entry) => [entry.id, entry.variantStocks]))
+  return items.map((product) => ({
+    ...product,
+    variantStocks: byId.has(product.id)
+      ? byId.get(product.id)
+      : normalizeVariantStocks(product.variantStocks),
+  }))
+}
+
+function AdminProductStock({ product }) {
+  const stock = product.totalStock ?? 0
+  const variantStocks = normalizeVariantStocks(product.variantStocks)
+  const showPerVariant = (product.variantCount ?? 1) > 1 && variantStocks.length > 0
+
+  if (showPerVariant) {
+    return (
+      <div className={`adm-product-stock-qty adm-product-stock-qty--variants${stock <= 0 ? ' adm-product-stock-qty--out' : ''}`}>
+        {variantStocks.map((variant, index) => (
+          <div
+            key={`${product.id}-${variant.label}-${index}`}
+            className={`adm-product-stock-line${variant.stockQuantity <= 0 ? ' adm-product-stock-line--out' : ''}`}
+          >
+            {variant.label}: <strong>{variant.stockQuantity}</strong> kom
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`adm-product-stock-qty${stock <= 0 ? ' adm-product-stock-qty--out' : ''}`}>
+      <strong>{stock}</strong> kom na stanju
+    </div>
+  )
+}
+
 export default function AdminProducts() {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -39,7 +117,9 @@ export default function AdminProducts() {
         ...(searchTerm ? { search: searchTerm } : {}),
       },
     })
-    return parsePagedAdminProducts(data)
+    const parsed = parsePagedAdminProducts(data)
+    const items = await enrichVariantStocks(parsed.items)
+    return { ...parsed, items }
   }, [])
 
   useEffect(() => {
@@ -182,9 +262,7 @@ export default function AdminProducts() {
                         <span className="adm-product-cat">{variantCount} gramaže</span>
                       )}
                     </div>
-                    <div className={`adm-product-stock-qty${stock <= 0 ? ' adm-product-stock-qty--out' : ''}`}>
-                      <strong>{stock}</strong> kom na stanju
-                    </div>
+                    <AdminProductStock product={product} />
                   </div>
                 </Link>
               )

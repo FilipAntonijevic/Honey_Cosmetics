@@ -1,4 +1,6 @@
 using System.Text;
+using System.Threading.RateLimiting;
+using System.Net;
 using HoneyCosmetics.Api.Extensions;
 using HoneyCosmetics.Application.Interfaces;
 using HoneyCosmetics.Domain.Entities;
@@ -9,6 +11,7 @@ using HoneyCosmetics.Api.Services;
 using HoneyCosmetics.Infrastructure.Services;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -47,9 +50,73 @@ builder.Services.Configure<MakeWebhookSettings>(
 // Services
 //
 builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddHttpClient<IEmailService, EmailService>();
-builder.Services.AddHttpClient<IMakeWebhookService, MakeWebhookService>();
+builder.Services.AddHttpClient<IEmailService, EmailService>(client =>
+    client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient<IMakeWebhookService, MakeWebhookService>(client =>
+    client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<ImageStorage>();
 builder.Services.AddSingleton<ImageThumbnailService>();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    static string PartitionKey(HttpContext context) =>
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    options.AddPolicy("auth-login", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+    options.AddPolicy("auth-register", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 3,
+                Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+    options.AddPolicy("auth-recovery", context =>
+        RateLimitPartition.GetSlidingWindowLimiter(
+            PartitionKey(context),
+            _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                SegmentsPerWindow = 3,
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+    options.AddPolicy("auth-confirm", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+    options.AddPolicy("contact", context =>
+        RateLimitPartition.GetSlidingWindowLimiter(
+            PartitionKey(context),
+            _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 6,
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+});
 
 //
 // CORS
@@ -110,6 +177,14 @@ var secret =
     builder.Configuration["Jwt:Secret"]
     ?? throw new InvalidOperationException(
         "Missing Jwt:Secret");
+
+if (!builder.Environment.IsDevelopment()
+    && (secret.Contains("CHANGE_THIS", StringComparison.OrdinalIgnoreCase)
+        || secret.Length < 32))
+{
+    throw new InvalidOperationException(
+        "Jwt:Secret mora biti jak i jedinstven u produkciji (min. 32 karaktera).");
+}
 
 var key = new SymmetricSecurityKey(
     Encoding.UTF8.GetBytes(secret));
@@ -172,9 +247,20 @@ var forwardedOptions = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
         Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
         Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto,
 };
-// Verujemo lokalnom nginx-u na istom hostu.
+// Verujemo samo lokalnom nginx-u (i eksplicitno podešenim proxy adresama).
+// Ne prihvataj X-Forwarded-For od proizvoljnih klijenata jer bi time mogli
+// zaobići IP rate limiting.
 forwardedOptions.KnownNetworks.Clear();
 forwardedOptions.KnownProxies.Clear();
+forwardedOptions.KnownProxies.Add(IPAddress.Loopback);
+forwardedOptions.KnownProxies.Add(IPAddress.IPv6Loopback);
+foreach (var configuredProxy in builder.Configuration
+             .GetSection("ForwardedHeaders:KnownProxies")
+             .Get<string[]>() ?? [])
+{
+    if (IPAddress.TryParse(configuredProxy, out var address))
+        forwardedOptions.KnownProxies.Add(address);
+}
 app.UseForwardedHeaders(forwardedOptions);
 
 var configuredFrontendUrl = app.Configuration["FrontendUrl"];
@@ -208,6 +294,15 @@ using (var scope = app.Services.CreateScope())
         var password = item["Password"];
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
             continue;
+        if (!app.Environment.IsDevelopment() &&
+            (password.Length < 12 ||
+             password.Contains("CHANGE_THIS", StringComparison.OrdinalIgnoreCase)))
+        {
+            app.Logger.LogWarning(
+                "Preskačem nebezbedan Admin:Accounts seed za {Email}. Postojeći nalog nije promenjen.",
+                email);
+            continue;
+        }
 
         var firstName = string.IsNullOrWhiteSpace(item["FirstName"])
             ? "Admin"
@@ -219,7 +314,7 @@ using (var scope = app.Services.CreateScope())
         var user = db.Users.FirstOrDefault(x => x.Email == email);
         if (user is null)
         {
-            user = new User
+            db.Users.Add(new User
             {
                 Email = email,
                 FirstName = firstName,
@@ -227,17 +322,11 @@ using (var scope = app.Services.CreateScope())
                 Role = UserRole.Admin,
                 Country = "Srbija",
                 PhoneNumber = item["PhoneNumber"]?.Trim(),
-            };
-            db.Users.Add(user);
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            });
         }
-        else
-        {
-            user.Role = UserRole.Admin;
-            user.FirstName = firstName;
-            user.LastName = lastName;
-        }
-
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
+        // Postojeći nalog: ne diži Role na Admin i ne diraj lozinku
+        // (sprečava takeover ako neko registruje isti email pre seed-a).
     }
 
     //
@@ -356,19 +445,30 @@ app.UseHttpsRedirection();
 //
 // CORS
 //
+app.UseRouting();
 app.UseCors("frontend");
+app.UseRateLimiter();
 
 //
 // Static Images
+// Prefer Images:RootPath / Images__RootPath so deploy publish dirs never own uploads.
 //
-var imagesPath =
-    Path.Combine(
-        app.Environment.ContentRootPath,
-        "images");
+var imagesPath = app.Services.GetRequiredService<ImageStorage>().RootPath;
+app.Logger.LogInformation("Serving product images from {ImagesPath}", imagesPath);
 
 Directory.CreateDirectory(imagesPath);
 
 var provider = new FileExtensionContentTypeProvider();
+
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/images"),
+    imagesApp => imagesApp.Use(async (context, next) =>
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["Content-Security-Policy"] = "default-src 'none'; sandbox";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+        await next();
+    }));
 
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -393,6 +493,7 @@ app.UseStaticFiles(new StaticFileOptions
             ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", origin);
         }
         ctx.Context.Response.Headers.Append("Cross-Origin-Resource-Policy", "cross-origin");
+        ctx.Context.Response.Headers["Cache-Control"] = "public,max-age=86400";
     },
 });
 

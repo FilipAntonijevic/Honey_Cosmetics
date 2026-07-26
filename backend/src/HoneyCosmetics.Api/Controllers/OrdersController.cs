@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Net;
+using Npgsql;
 
 namespace HoneyCosmetics.Api.Controllers;
 
@@ -44,9 +45,31 @@ public class OrdersController(
         var userId = User.GetUserId();
         var user = await db.Users.FindAsync(userId);
         if (user is null)
-        {
             return Unauthorized();
-        }
+
+        var idempotencyKey = CheckoutLockService.NormalizeKey(request.IdempotencyKey);
+        if (idempotencyKey is null)
+            return BadRequest("IdempotencyKey je obavezan.");
+        if (idempotencyKey.Length > CheckoutLockService.MaxIdempotencyKeyLength)
+            return BadRequest($"IdempotencyKey ne može biti duži od {CheckoutLockService.MaxIdempotencyKeyLength} znakova.");
+
+        var existingByKey = await CheckoutLockService.FindByIdempotencyKeyAsync(db, idempotencyKey);
+        if (existingByKey is not null)
+            return Ok(MapOrder(existingByKey));
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+        try
+        {
+            await CheckoutLockService.AcquireAsync(
+                db,
+                CheckoutLockService.BuildLockKey($"user:{userId}"));
+
+            existingByKey = await CheckoutLockService.FindByIdempotencyKeyAsync(db, idempotencyKey);
+            if (existingByKey is not null)
+            {
+                await tx.CommitAsync();
+                return Ok(MapOrder(existingByKey));
+            }
 
         var allCartItems = await db.Carts
             .Where(x => x.UserId == userId)
@@ -98,7 +121,7 @@ public class OrdersController(
                 return BadRequest("Coupon is invalid or expired.");
             }
 
-            var couponError = await CouponApplicationService.GetEligibilityErrorAsync(db, coupon, userId);
+            var couponError = await CouponApplicationService.LockAndGetEligibilityErrorAsync(db, coupon, userId);
             if (couponError is not null)
             {
                 return BadRequest(couponError);
@@ -118,6 +141,9 @@ public class OrdersController(
             ? user.DefaultAddress ?? string.Empty
             : request.DeliveryAddress.Trim();
 
+        if (string.IsNullOrWhiteSpace(deliveryAddress))
+            return BadRequest("Adresa za isporuku je obavezna.");
+
         var duplicateOrder = await OrderDuplicateGuard.FindRecentDuplicateUserOrderAsync(
             db,
             userId,
@@ -132,6 +158,7 @@ public class OrdersController(
                 "[Order {OrderId}] Duplicate registered checkout suppressed for user {UserId}",
                 duplicateOrder.Id,
                 userId);
+            await tx.CommitAsync();
             return Ok(MapOrder(duplicateOrder));
         }
 
@@ -153,7 +180,12 @@ public class OrdersController(
             ShippingCost = shippingCost,
             Total = total,
             FreeShippingApplied = freeShippingApplied,
-            Status = OrderStatus.Pending,
+            Status = request.PaymentMethod == PaymentMethod.BankTransfer
+                ? OrderStatus.AwaitingPayment
+                : OrderStatus.Pending,
+            CustomerNote = TrimOptional(request.CustomerNote),
+            InstagramHandle = TrimOptional(request.InstagramHandle),
+            IdempotencyKey = idempotencyKey,
             Items = cartItems.Select(x => new OrderItem
             {
                 ProductId = x.ProductId,
@@ -169,10 +201,27 @@ public class OrdersController(
         if (coupon is not null)
             CouponApplicationService.RecordCouponUsage(db, coupon, userId);
 
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsIdempotencyKeyViolation(ex) && idempotencyKey is not null)
+        {
+            await tx.RollbackAsync();
+            var raced = await CheckoutLockService.FindByIdempotencyKeyAsync(db, idempotencyKey);
+            if (raced is not null)
+                return Ok(MapOrder(raced));
+            throw;
+        }
+        catch (DbUpdateException ex) when (IsCouponUsageViolation(ex))
+        {
+            await tx.RollbackAsync();
+            return BadRequest("Kupon je već iskorišćen.");
+        }
 
         await CustomerProfileService.UpsertFromRegisteredOrderAsync(db, user, order);
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
 
         var settings = brevoOptions.Value;
         // Build from cartItems — Product nav property is already loaded there
@@ -219,6 +268,12 @@ public class OrdersController(
         await NotifyMakeWebhookAsync(order, user.FullName, user.Email, orderItems);
 
         return Ok(MapOrder(order));
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
     }
 
     [AllowAnonymous]
@@ -228,11 +283,39 @@ public class OrdersController(
         if (request.Items is null || request.Items.Count == 0)
             return BadRequest("Cart is empty.");
 
+        if (request.Items.Any(i => i.Quantity <= 0))
+            return BadRequest("Količina svakog proizvoda mora biti veća od nule.");
+
         if (string.IsNullOrWhiteSpace(request.DeliveryAddress))
             return BadRequest("Delivery address is required.");
 
         if (!TryNormalizeOrderPhone(request.Phone, out var guestPhone))
             return BadRequest("Broj telefona je obavezan.");
+
+        var idempotencyKey = CheckoutLockService.NormalizeKey(request.IdempotencyKey);
+        if (idempotencyKey is null)
+            return BadRequest("IdempotencyKey je obavezan.");
+        if (idempotencyKey.Length > CheckoutLockService.MaxIdempotencyKeyLength)
+            return BadRequest($"IdempotencyKey ne može biti duži od {CheckoutLockService.MaxIdempotencyKeyLength} znakova.");
+
+        var existingByKey = await CheckoutLockService.FindByIdempotencyKeyAsync(db, idempotencyKey);
+        if (existingByKey is not null)
+            return Ok(MapOrder(existingByKey));
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+        try
+        {
+            var guestScope = (request.GuestEmail ?? guestPhone).Trim().ToLowerInvariant();
+            await CheckoutLockService.AcquireAsync(
+                db,
+                CheckoutLockService.BuildLockKey($"guest:{guestScope}"));
+
+            existingByKey = await CheckoutLockService.FindByIdempotencyKeyAsync(db, idempotencyKey);
+            if (existingByKey is not null)
+            {
+                await tx.CommitAsync();
+                return Ok(MapOrder(existingByKey));
+            }
 
         // Fetch real prices from DB — never trust client
         var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();
@@ -257,7 +340,7 @@ public class OrdersController(
                 return BadRequest("Coupon is invalid or expired.");
             }
 
-            var couponError = await CouponApplicationService.GetEligibilityErrorAsync(db, coupon, userId: null);
+            var couponError = await CouponApplicationService.LockAndGetEligibilityErrorAsync(db, coupon, userId: null);
             if (couponError is not null)
             {
                 return BadRequest(couponError);
@@ -277,6 +360,9 @@ public class OrdersController(
         var guestName = request.GuestName?.Trim() ?? string.Empty;
         var guestEmail = request.GuestEmail?.Trim() ?? string.Empty;
 
+        if (string.IsNullOrWhiteSpace(guestName))
+            return BadRequest("Ime i prezime su obavezni.");
+
         var duplicateOrder = await OrderDuplicateGuard.FindRecentDuplicateGuestOrderAsync(
             db,
             guestName,
@@ -292,6 +378,7 @@ public class OrdersController(
                 "[Order {OrderId}] Duplicate guest checkout suppressed for {Email}",
                 duplicateOrder.Id,
                 string.IsNullOrWhiteSpace(guestEmail) ? guestPhone : guestEmail);
+            await tx.CommitAsync();
             return Ok(MapOrder(duplicateOrder));
         }
 
@@ -315,7 +402,12 @@ public class OrdersController(
             ShippingCost = shippingCost,
             Total = total,
             FreeShippingApplied = freeShippingApplied,
-            Status = OrderStatus.Pending,
+            Status = request.PaymentMethod == PaymentMethod.BankTransfer
+                ? OrderStatus.AwaitingPayment
+                : OrderStatus.Pending,
+            CustomerNote = TrimOptional(request.CustomerNote),
+            InstagramHandle = TrimOptional(request.InstagramHandle),
+            IdempotencyKey = idempotencyKey,
             Items = request.Items.Select(i => new OrderItem
             {
                 ProductId = i.ProductId,
@@ -330,9 +422,27 @@ public class OrdersController(
         if (coupon is not null)
             CouponApplicationService.RecordCouponUsage(db, coupon, userId: null);
 
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsIdempotencyKeyViolation(ex) && idempotencyKey is not null)
+        {
+            await tx.RollbackAsync();
+            var raced = await CheckoutLockService.FindByIdempotencyKeyAsync(db, idempotencyKey);
+            if (raced is not null)
+                return Ok(MapOrder(raced));
+            throw;
+        }
+        catch (DbUpdateException ex) when (IsCouponUsageViolation(ex))
+        {
+            await tx.RollbackAsync();
+            return BadRequest("Kupon je već iskorišćen.");
+        }
 
         await CustomerProfileService.UpsertFromGuestOrderAsync(db, order);
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
 
         var settings = brevoOptions.Value;
         guestName = order.GuestName ?? "Gost";
@@ -405,6 +515,12 @@ public class OrdersController(
             orderItemsGuest);
 
         return Ok(MapOrder(order));
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
     }
 
     [Authorize(Roles = "Admin")]
@@ -435,17 +551,27 @@ public class OrdersController(
     [HttpPut("{orderId:int}/status")]
     public async Task<IActionResult> UpdateStatus(int orderId, [FromBody] OrderStatus status)
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
+        await OrderStatusWorkflow.LockOrderAsync(db, orderId);
+
         var order = await db.Orders
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == orderId);
         if (order is null)
+        {
+            await tx.RollbackAsync();
             return NotFound();
+        }
 
         var error = await OrderStatusWorkflow.TryApplyStatusChangeAsync(db, order, status);
         if (error is not null)
+        {
+            await tx.RollbackAsync();
             return BadRequest(error);
+        }
 
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
         return NoContent();
     }
 
@@ -689,8 +815,10 @@ public class OrdersController(
         var shippingRow = BuildShippingRowHtml(freeShippingApplied, shippingCost);
         var phoneRow = string.IsNullOrWhiteSpace(phone)
             ? ""
-            : $"""<p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Telefon:</strong> {phone}</p>""";
+            : $"""<p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Telefon:</strong> {WebUtility.HtmlEncode(phone)}</p>""";
         var encodedContact = WebUtility.HtmlEncode(contactEmail);
+        var encodedName = WebUtility.HtmlEncode(name);
+        var encodedAddress = WebUtility.HtmlEncode(address);
         var paymentLabel = FormatPaymentMethodLabel(paymentMethod);
         var bankSlipSection = string.IsNullOrEmpty(bankTransferSlipHtml)
             ? ""
@@ -702,7 +830,7 @@ public class OrdersController(
           <p style="color:#9b8276;font-size:0.82rem;margin-top:0.2rem;">Premium Beauty</p>
           <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.2rem 0;">
 
-          <p style="font-size:1rem;">Zdravo <strong>{name}</strong>,</p>
+          <p style="font-size:1rem;">Zdravo <strong>{encodedName}</strong>,</p>
           <p style="color:#3f2b22;">Hvala na porudžbini! Potvrđujemo da smo primili vašu porudžbinu.</p>
 
           <div style="background:#fdf9f5;border:1px solid #f1e5d8;border-radius:8px;padding:1rem 1.2rem;margin:1.2rem 0;">
@@ -727,7 +855,7 @@ public class OrdersController(
           <hr style="border:none;border-top:1px solid #f1e5d8;margin:1.2rem 0;">
 
           <h3 style="color:#3f2b22;font-size:0.85rem;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.6rem;">Podaci o dostavi</h3>
-          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Adresa:</strong> {address}</p>
+          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Adresa:</strong> {encodedAddress}</p>
           {phoneRow}
           <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Način plaćanja:</strong> {paymentLabel}</p>
 
@@ -752,7 +880,11 @@ public class OrdersController(
         var shippingRow = BuildShippingRowHtml(freeShippingApplied, shippingCost);
         var phoneRow = string.IsNullOrWhiteSpace(phone)
             ? ""
-            : $"""<p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Telefon:</strong> {phone}</p>""";
+            : $"""<p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Telefon:</strong> {WebUtility.HtmlEncode(phone)}</p>""";
+        var encodedCustomerName = WebUtility.HtmlEncode(customerName);
+        var encodedCustomerEmail = WebUtility.HtmlEncode(customerEmail);
+        var encodedAddress = WebUtility.HtmlEncode(address);
+        var encodedPayment = WebUtility.HtmlEncode(FormatPaymentMethodLabel(paymentMethod));
 
         return $"""
         <div style="font-family:'Source Sans Pro',Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#fff;padding:2rem;border:1px solid #ddd;border-radius:12px;">
@@ -761,11 +893,11 @@ public class OrdersController(
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:1.2rem 0;">
 
           <h3 style="font-size:0.85rem;letter-spacing:0.08em;text-transform:uppercase;color:#374151;margin-bottom:0.6rem;">Podaci o kupcu</h3>
-          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Ime i prezime:</strong> {customerName}</p>
-          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Email:</strong> <a href="mailto:{customerEmail}" style="color:#1a1a2e;">{customerEmail}</a></p>
+          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Ime i prezime:</strong> {encodedCustomerName}</p>
+          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Email:</strong> <a href="mailto:{encodedCustomerEmail}" style="color:#1a1a2e;">{encodedCustomerEmail}</a></p>
           {phoneRow}
-          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Adresa:</strong> {address}</p>
-          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Način plaćanja:</strong> {paymentMethod}</p>
+          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Adresa:</strong> {encodedAddress}</p>
+          <p style="margin:0.3rem 0;font-size:0.9rem;"><strong>Način plaćanja:</strong> {encodedPayment}</p>
 
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:1.2rem 0;">
 
@@ -784,4 +916,20 @@ public class OrdersController(
         </div>
         """;
     }
+
+    private static string? TrimOptional(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+
+    private static bool IsIdempotencyKeyViolation(DbUpdateException ex) =>
+        ex.InnerException is PostgresException pg
+        && pg.SqlState == PostgresErrorCodes.UniqueViolation
+        && pg.ConstraintName == "IX_Orders_IdempotencyKey";
+
+    private static bool IsCouponUsageViolation(DbUpdateException ex) =>
+        ex.InnerException is PostgresException pg
+        && pg.SqlState == PostgresErrorCodes.UniqueViolation
+        && (pg.ConstraintName is "IX_CouponUsages_CouponId_UserId" or "IX_CouponUsages_CouponId");
 }

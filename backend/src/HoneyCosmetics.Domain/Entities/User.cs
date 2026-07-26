@@ -19,9 +19,9 @@ public class User
     public string? DefaultAddress { get; set; }
     public UserRole Role { get; set; } = UserRole.User;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public string? RefreshToken { get; set; }
+    public string? RefreshTokenHash { get; set; }
     public DateTime? RefreshTokenExpiresAt { get; set; }
-    public string? ResetToken { get; set; }
+    public string? ResetTokenHash { get; set; }
     public DateTime? ResetTokenExpiresAt { get; set; }
     public List<Order> Orders { get; set; } = [];
     public List<Address> Addresses { get; set; } = [];

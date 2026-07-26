@@ -48,6 +48,35 @@ public static class CouponApplicationService
     public static bool IsExpired(Coupon coupon) =>
         coupon.ExpiresAt.HasValue && coupon.ExpiresAt <= DateTime.UtcNow;
 
+    /// <summary>
+    /// Zaključava red kupona u transakciji pa ponovo proverava eligibility (sprečava race).
+    /// </summary>
+    public static async Task<string?> LockAndGetEligibilityErrorAsync(
+        AppDbContext db,
+        Coupon coupon,
+        Guid? userId,
+        CancellationToken ct = default)
+    {
+        // Row locks exist only on PostgreSQL (skipped for InMemory / unit tests).
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """SELECT 1 FROM "Coupons" WHERE "Id" = {0} FOR UPDATE""",
+                [coupon.Id],
+                ct);
+
+            await db.Entry(coupon).ReloadAsync(ct);
+            if (!coupon.IsActive || IsExpired(coupon))
+                return "Kupon je nevažeći ili je istekao.";
+        }
+        else if (!coupon.IsActive || IsExpired(coupon))
+        {
+            return "Kupon je nevažeći ili je istekao.";
+        }
+
+        return await GetEligibilityErrorAsync(db, coupon, userId);
+    }
+
     public static async Task<string?> GetEligibilityErrorAsync(
         AppDbContext db,
         Coupon coupon,
@@ -85,12 +114,19 @@ public static class CouponApplicationService
                 db.CouponUsages.Add(new CouponUsage { CouponId = coupon.Id, UserId = userId });
                 break;
             case CouponUsageLimit.OnceTotal:
-                db.CouponUsages.Add(new CouponUsage { CouponId = coupon.Id, UserId = userId });
+                // UserId uvek null — unique indeks IX_CouponUsages_CouponId (WHERE UserId IS NULL)
+                // garantuje jednu upotrebu ukupno, nezavisno od ulogovanog/gosta.
+                db.CouponUsages.Add(new CouponUsage { CouponId = coupon.Id, UserId = null });
                 coupon.IsActive = false;
                 break;
         }
     }
 
-    public static decimal CalculateDiscount(Coupon coupon, decimal subtotal) =>
-        coupon.IsPercentage ? subtotal * (coupon.DiscountValue / 100m) : coupon.DiscountValue;
+    public static decimal CalculateDiscount(Coupon coupon, decimal subtotal)
+    {
+        var discount = coupon.IsPercentage
+            ? subtotal * (coupon.DiscountValue / 100m)
+            : coupon.DiscountValue;
+        return Math.Round(discount, 2, MidpointRounding.AwayFromZero);
+    }
 }

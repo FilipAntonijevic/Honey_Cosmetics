@@ -3,6 +3,7 @@ import {
   clearAuthSession,
   getAccessToken,
   getRefreshToken,
+  getStoredUser,
   migrateLegacyAuthFromLocalStorage,
   setAuthSession,
 } from './utils/authStorage'
@@ -35,16 +36,65 @@ refreshApi.interceptors.request.use((config) => {
 })
 
 let refreshPromise = null
+let refreshPromiseToken = null
+const authChannel = typeof BroadcastChannel !== 'undefined'
+  ? new BroadcastChannel('honey-auth-session')
+  : null
+
+authChannel?.addEventListener('message', (event) => {
+  if (event.data?.type === 'session' && event.data.session) {
+    setAuthSession(event.data.session)
+  }
+})
+
+async function requestRefreshedSession(refreshToken) {
+  const { data } = await refreshApi.post('/auth/refresh', { refreshToken })
+  const currentRefreshToken = getRefreshToken()
+  if (!currentRefreshToken || currentRefreshToken === refreshToken) {
+    const session = {
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      user: data.user,
+    }
+    setAuthSession(session)
+    authChannel?.postMessage({ type: 'session', session })
+  }
+  return data
+}
+
+async function refreshAcrossTabs(refreshToken) {
+  if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+    return navigator.locks.request('honey-auth-refresh', async () => {
+      // Drugi tab je možda već rotirao token dok smo čekali lock.
+      const currentToken = getRefreshToken()
+      if (currentToken && currentToken !== refreshToken) {
+        return {
+          accessToken: getAccessToken(),
+          refreshToken: currentToken,
+          user: getStoredUser(),
+        }
+      }
+      return requestRefreshedSession(refreshToken)
+    })
+  }
+  return requestRefreshedSession(refreshToken)
+}
 
 /** Refresh access token without sending a (possibly expired) Bearer header. */
 export async function refreshSession(refreshToken) {
-  const { data } = await refreshApi.post('/auth/refresh', { refreshToken })
-  setAuthSession({
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken,
-    user: data.user,
-  })
-  return data
+  if (!refreshToken) throw new Error('Missing refresh token')
+  if (refreshPromise && refreshPromiseToken === refreshToken) return refreshPromise
+
+  refreshPromiseToken = refreshToken
+  refreshPromise = refreshAcrossTabs(refreshToken)
+    .finally(() => {
+      if (refreshPromiseToken === refreshToken) {
+        refreshPromise = null
+        refreshPromiseToken = null
+      }
+    })
+
+  return refreshPromise
 }
 
 api.interceptors.response.use(
@@ -67,13 +117,7 @@ api.interceptors.response.use(
     original._retry = true
 
     try {
-      // Deduplicate concurrent refresh calls
-      if (!refreshPromise) {
-        refreshPromise = refreshSession(storedRefresh)
-          .finally(() => { refreshPromise = null })
-      }
-
-      const data = await refreshPromise
+      const data = await refreshSession(storedRefresh)
 
       original.headers.Authorization = `Bearer ${data.accessToken}`
       return api(original)

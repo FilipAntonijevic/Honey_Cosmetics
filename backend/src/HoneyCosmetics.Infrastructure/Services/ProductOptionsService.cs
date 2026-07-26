@@ -82,7 +82,7 @@ public static class ProductOptionsService
         if (allowReuseAnchor && !opts.Any(o => o.Id == anchor.Id && anchor.Id > 0))
             reusableAnchor = anchor;
 
-        var anchorImageUrls = (request.AdditionalImageUrls ?? Array.Empty<string>())
+        var anchorImageUrls = request.AdditionalImageUrls?
             .Select(u => u.Trim())
             .Where(u => u.Length > 0)
             .ToList();
@@ -148,22 +148,22 @@ public static class ProductOptionsService
                 defaultRow = row;
         }
 
-        // Uklonjene opcije: soft-delete + skini grupu/labelu da ne bi rušila unique indeks.
+        // Uklonjene opcije: soft-delete bez skidanja grupe (čuva unique indeks).
         foreach (var ex in existing)
         {
             if (keptIds.Contains(ex.Id))
                 continue;
-            ex.VariantGroupId = null;
-            ex.VariantLabel = null;
-            ex.IsDefaultVariant = false;
             await ProductCatalogService.SoftDeleteAsync(db, ex, ct);
         }
 
         await db.SaveChangesAsync(ct);
 
         // Iste slike na svim opcijama (da galerija bude ista bez obzira na gramazu).
-        foreach (var row in resultRows)
-            await db.SyncAdditionalImagesAsync(row.Id, anchorImageUrls, ct);
+        if (anchorImageUrls is not null)
+        {
+            foreach (var row in resultRows)
+                await db.SyncAdditionalImagesAsync(row.Id, anchorImageUrls, ct);
+        }
 
         await db.SaveChangesAsync(ct);
 

@@ -27,6 +27,8 @@ const fromStorage = (key, fallback) => {
 
 /** Guest korpa u ovom tabu — snapshot pre logina, vraća se pri logout-u. */
 const GUEST_CART_SNAPSHOT_KEY = 'honey_guest_cart_snapshot'
+const GUEST_WISHLIST_SNAPSHOT_KEY = 'honey_guest_wishlist_snapshot'
+let sessionRestorePromise = null
 
 const saveGuestCartSnapshot = (items) => {
   try {
@@ -43,6 +45,38 @@ const loadGuestCartSnapshot = () => {
   } catch {
     return []
   }
+}
+
+const saveGuestWishlistSnapshot = (items) => {
+  try {
+    sessionStorage.setItem(GUEST_WISHLIST_SNAPSHOT_KEY, JSON.stringify(items))
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+const loadGuestWishlistSnapshot = () => {
+  try {
+    const raw = sessionStorage.getItem(GUEST_WISHLIST_SNAPSHOT_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+const clearAccountWishlistState = () => {
+  localStorage.removeItem('honey_wishlist')
+}
+
+const restoreStoredSession = () => {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) return Promise.resolve(null)
+  if (!sessionRestorePromise) {
+    sessionRestorePromise = refreshSession(refreshToken).finally(() => {
+      sessionRestorePromise = null
+    })
+  }
+  return sessionRestorePromise
 }
 
 const mapServerCartRows = (rows) =>
@@ -72,14 +106,16 @@ async function fetchValidProductIds() {
   return new Set((data ?? []).map((p) => p.id))
 }
 
-async function mergeLocalWishlistToServer(validIds) {
-  const local = fromStorage('honey_wishlist', [])
+async function mergeLocalWishlistToServer(validIds, local = fromStorage('honey_wishlist', [])) {
   const toMerge = validIds
     ? local.filter((item) => validIds.has(item.id))
     : local
-  await Promise.all(
-    toMerge.map((item) => api.post(`/wishlist/${item.id}`).catch(() => {})),
+  const results = await Promise.allSettled(
+    toMerge.map((item) => api.post(`/wishlist/${item.id}`)),
   )
+  if (results.some((result) => result.status === 'rejected')) {
+    throw new Error('Wishlist merge failed')
+  }
 }
 
 async function fetchServerWishlist() {
@@ -94,6 +130,7 @@ function cartStockUnchanged(prev, next) {
     const b = next[i]
     if (a.id !== b.id) return false
     if (a.quantity !== b.quantity) return false
+    if (Number(a.price) !== Number(b.price)) return false
     if (Boolean(a.inStock) !== Boolean(b.inStock)) return false
     if ((a.stockQuantity ?? -1) !== (b.stockQuantity ?? -1)) return false
   }
@@ -107,7 +144,8 @@ function canSyncWithServer(user, initializing) {
 export function StoreProvider({ children }) {
   const [user, setUser] = useState(null)
   const [cart, setCart] = useState(fromStorage('honey_cart', []))
-  const [wishlist, setWishlist] = useState(fromStorage('honey_wishlist', []))
+  const [wishlist, setWishlist] = useState([])
+  const [wishlistReady, setWishlistReady] = useState(false)
   const [toast, setToast] = useState('')
   const [cartAddTick, setCartAddTick] = useState(0)
   const [checkoutCoupon, setCheckoutCoupon] = useState(null)
@@ -118,6 +156,10 @@ export function StoreProvider({ children }) {
   const [productSearchRevision, setProductSearchRevision] = useState(0)
   const appliedProductSearchRef = useRef('')
   const searchDraftRef = useRef('')
+  const restoreStartedRef = useRef(false)
+  const quantitySyncsRef = useRef(new Map())
+  const cartRef = useRef(cart)
+  cartRef.current = cart
 
   const updateSearchDraft = useCallback((value) => {
     searchDraftRef.current = value
@@ -147,7 +189,13 @@ export function StoreProvider({ children }) {
   }, [])
 
   useEffect(() => localStorage.setItem('honey_cart', JSON.stringify(cart)), [cart])
-  useEffect(() => localStorage.setItem('honey_wishlist', JSON.stringify(wishlist)), [wishlist])
+  useEffect(() => {
+    if (user) {
+      clearAccountWishlistState()
+      return
+    }
+    localStorage.setItem('honey_wishlist', JSON.stringify(wishlist))
+  }, [wishlist, user])
 
   // Učitaj/očisti notifikacije porudžbina kad se promeni korisnik.
   useEffect(() => {
@@ -180,13 +228,24 @@ export function StoreProvider({ children }) {
   const syncWishlist = useCallback(async () => {
     try {
       if (getAccessToken()) {
-        setWishlist(await fetchServerWishlist())
+        const server = await fetchServerWishlist()
+        setWishlist(server)
+        clearAccountWishlistState()
         return
       }
       const validIds = await fetchValidProductIds()
-      setWishlist((prev) => prev.filter((item) => validIds.has(item.id)))
+      const local = fromStorage('honey_wishlist', [])
+      const pruned = local.filter((item) => validIds.has(item.id))
+      setWishlist(pruned)
+      try {
+        localStorage.setItem('honey_wishlist', JSON.stringify(pruned))
+      } catch {
+        /* ignore quota errors */
+      }
     } catch {
       /* keep current state on network error */
+    } finally {
+      setWishlistReady(true)
     }
   }, [])
 
@@ -199,11 +258,14 @@ export function StoreProvider({ children }) {
 
   // Session restore: validate stored refresh token on mount
   useEffect(() => {
+    if (restoreStartedRef.current) return
+    restoreStartedRef.current = true
     const restore = async () => {
       const refreshToken = getRefreshToken()
       if (refreshToken) {
         try {
-          const data = await refreshSession(refreshToken)
+          const data = await restoreStoredSession()
+          if (!data) throw new Error('Session unavailable')
           setUser(data.user)
           // Cart sync: server is source of truth for logged-in users
           try {
@@ -212,20 +274,30 @@ export function StoreProvider({ children }) {
               setCart(mapServerCartRows(serverCart))
             } else {
               const localCart = fromStorage('honey_cart', [])
-              localCart.forEach(item => {
-                api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {})
-              })
+              const results = await Promise.allSettled(
+                localCart.map((item) =>
+                  api.post('/cart', { productId: item.id, quantity: item.quantity }),
+                ),
+              )
+              if (results.some((result) => result.status === 'rejected')) {
+                setToast('Korpa nije potpuno sinhronizovana sa serverom.')
+              }
             }
-          } catch {}
+          } catch {
+            setToast('Korpa nije mogla da se učita sa servera.')
+          }
           try {
-            const validIds = await fetchValidProductIds()
-            await mergeLocalWishlistToServer(validIds)
             setWishlist(await fetchServerWishlist())
-          } catch {}
+          } catch {
+            setToast('Wishlist nije mogla da se sinhronizuje sa serverom.')
+          }
         } catch {
           clearAuthSession()
           setUser(null)
+          setCheckoutCoupon(null)
           setCart(loadGuestCartSnapshot())
+          clearAccountWishlistState()
+          setWishlist(loadGuestWishlistSnapshot())
           setToast('Sesija je istekla. Prijavite se ponovo.')
         }
       } else {
@@ -234,7 +306,8 @@ export function StoreProvider({ children }) {
           const { data: products } = await api.get('/products')
           const validIds = new Set(products.map(p => p.id))
           setCart(prev => prev.filter(item => validIds.has(item.id)))
-          setWishlist(prev => prev.filter(item => validIds.has(item.id)))
+          const local = fromStorage('honey_wishlist', [])
+          setWishlist(local.filter(item => validIds.has(item.id)))
         } catch {}
       }
       setInitializing(false)
@@ -252,7 +325,10 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     const handleForcedLogout = () => {
       setUser(null)
+      setCheckoutCoupon(null)
       setCart(loadGuestCartSnapshot())
+      clearAccountWishlistState()
+      setWishlist(loadGuestWishlistSnapshot())
       setToast('Sesija je istekla. Prijavite se ponovo.')
     }
     window.addEventListener('auth:logout', handleForcedLogout)
@@ -260,8 +336,12 @@ export function StoreProvider({ children }) {
   }, [])
 
   const login = useCallback(async (payload) => {
-    // Sačuvaj gost korpu ovog taba pre nego što učitamo serversku
-    saveGuestCartSnapshot(cart.map((item) => ({ ...item })))
+    // Samo stvarno gostujuće stanje sme da se prenese na novi nalog.
+    const guestCart = user ? [] : cart.map((item) => ({ ...item }))
+    const guestWishlist = user ? [] : wishlist.map((item) => ({ ...item }))
+    saveGuestCartSnapshot(guestCart)
+    saveGuestWishlistSnapshot(guestWishlist)
+    clearAccountWishlistState()
 
     const { data } = await api.post('/auth/login', payload)
     setAuthSession({
@@ -271,22 +351,29 @@ export function StoreProvider({ children }) {
     })
     setUser(data.user)
     setToast('Uspešno ste prijavljeni.')
-    await Promise.all(
-      cart.map((item) =>
-        api.post('/cart', { productId: item.id, quantity: item.quantity }).catch(() => {}),
+    const cartMergeResults = await Promise.allSettled(
+      guestCart.map((item) =>
+        api.post('/cart', { productId: item.id, quantity: item.quantity }),
       ),
     )
+    if (cartMergeResults.some((result) => result.status === 'rejected')) {
+      setToast('Prijavljeni ste, ali korpa nije potpuno sinhronizovana.')
+    }
     try {
       const { data: serverCart } = await api.get('/cart')
       setCart(mapServerCartRows(serverCart ?? []))
-    } catch {}
+    } catch {
+      setToast('Prijavljeni ste, ali korpa nije mogla da se učita.')
+    }
     try {
       const validIds = await fetchValidProductIds()
-      await mergeLocalWishlistToServer(validIds)
+      await mergeLocalWishlistToServer(validIds, guestWishlist)
       setWishlist(await fetchServerWishlist())
-    } catch {}
+    } catch {
+      setToast('Prijavljeni ste, ali wishlist nije mogla da se sinhronizuje.')
+    }
     return data.user
-  }, [cart])
+  }, [cart, user, wishlist])
 
   const register = useCallback(async (payload) => {
     const { data } = await api.post('/auth/register', payload)
@@ -313,6 +400,8 @@ export function StoreProvider({ children }) {
     setUser(null)
     setCheckoutCoupon(null)
     setCart(loadGuestCartSnapshot())
+    clearAccountWishlistState()
+    setWishlist(loadGuestWishlistSnapshot())
     setToast('Odjavljeni ste.')
   }, [])
 
@@ -326,30 +415,109 @@ export function StoreProvider({ children }) {
       /* ignore quota errors */
     }
 
+    // Lokalno je već prazno — server cleanup u pozadini da dugme ne ostane disabled.
     if (canSyncWithServer(user, false)) {
-      try {
-        const { data: serverCart } = await api.get('/cart')
-        if (Array.isArray(serverCart) && serverCart.length > 0) {
-          await Promise.all(
-            serverCart.map((item) =>
-              api.delete(`/cart/${item.productId}`).catch(() => {}),
-            ),
-          )
+      void (async () => {
+        try {
+          const { data: serverCart } = await api.get('/cart')
+          if (Array.isArray(serverCart) && serverCart.length > 0) {
+            await Promise.all(
+              serverCart.map((item) =>
+                api.delete(`/cart/${item.productId}`).catch(() => {}),
+              ),
+            )
+          }
+        } catch {
+          /* server cart already cleared by checkout */
         }
-      } catch {
-        /* server cart already cleared by checkout */
-      }
+      })()
     }
   }, [user])
 
+  const refreshCartStock = useCallback(async () => {
+    try {
+      const { data: products } = await api.get('/products')
+      const byId = new Map(products.map((p) => [p.id, p]))
+      const enrichedSnapshot = enrichCartItems(cart, byId)
+      const checkoutSnapshot = getCheckoutCart(enrichedSnapshot)
+      const oosIds = enrichedSnapshot.filter((item) => !item.inStock).map((item) => item.id)
+
+      setCart((current) => {
+        const enriched = enrichCartItems(current, byId)
+        return cartStockUnchanged(current, enriched) ? current : enriched
+      })
+
+      if (canSyncWithServer(user, false) && oosIds.length > 0) {
+        const removals = await Promise.allSettled(
+          oosIds.map((id) => api.delete(`/cart/${id}`)),
+        )
+        if (removals.some((result) => result.status === 'rejected')) {
+          setToast('Rasprodati proizvodi nisu potpuno uklonjeni sa servera.')
+        }
+      }
+      return checkoutSnapshot
+    } catch {
+      return getCheckoutCart(cart)
+    }
+  }, [user, cart])
+
+  const syncCartQuantity = useCallback(
+    (productId, quantity) => {
+      if (!canSyncWithServer(user, false)) return true
+      const syncs = quantitySyncsRef.current
+      let entry = syncs.get(productId)
+      if (!entry) {
+        entry = { desired: quantity, running: false, timer: null, waiters: [] }
+        syncs.set(productId, entry)
+      }
+      entry.desired = quantity
+
+      const result = new Promise((resolve) => entry.waiters.push(resolve))
+      const flush = async () => {
+        if (entry.running) return
+        entry.running = true
+        let succeeded = true
+        try {
+          while (true) {
+            const target = entry.desired
+            if (target <= 0) {
+              await api.delete(`/cart/${productId}`)
+            } else {
+              await api.put(`/cart/${productId}`, { productId, quantity: target })
+            }
+            if (target === entry.desired) break
+          }
+        } catch {
+          succeeded = false
+          setToast('Korpa nije sinhronizovana sa serverom.')
+          await refreshCartStock()
+        } finally {
+          entry.running = false
+          entry.timer = null
+          const waiters = entry.waiters.splice(0)
+          syncs.delete(productId)
+          waiters.forEach((resolve) => resolve(succeeded))
+        }
+      }
+
+      if (!entry.running) {
+        if (entry.timer) window.clearTimeout(entry.timer)
+        entry.timer = window.setTimeout(flush, 120)
+      }
+      return result
+    },
+    [user, refreshCartStock],
+  )
+
   const addToCart = useCallback((product, qty = 1) => {
     if (!isInStock(product)) {
-      setToast('Proizvod trenutno nije na stanju.')
+      setToast('Rasprodato.')
       return false
     }
     const stock = Number(product.stockQuantity) || 0
     const requestedAdd = Math.max(1, Math.floor(Number(qty) || 1))
-    const existing = cart.find((item) => item.id === product.id)
+    const currentCart = cartRef.current
+    const existing = currentCart.find((item) => item.id === product.id)
     const currentQty = Number(existing?.quantity) || 0
     const nextQty = clampCartQuantity(currentQty + requestedAdd, stock)
     const addedQty = nextQty - currentQty
@@ -359,23 +527,22 @@ export function StoreProvider({ children }) {
       return false
     }
 
-    setCart((prev) => {
-      const ex = prev.find((item) => item.id === product.id)
-      if (ex) {
-        const prevQty = Number(ex.quantity) || 0
-        const updatedQty = clampCartQuantity(prevQty + requestedAdd, stock)
-        return prev.map((item) =>
+    const nextCart = existing
+      ? currentCart.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: updatedQty, stockQuantity: stock, inStock: true }
+            ? { ...item, quantity: nextQty, stockQuantity: stock, inStock: true }
             : item,
         )
-      }
-      return [...prev, { ...product, quantity: clampCartQuantity(requestedAdd, stock), stockQuantity: stock, inStock: true }]
-    })
+      : [...currentCart, { ...product, quantity: nextQty, stockQuantity: stock, inStock: true }]
+    cartRef.current = nextCart
+    setCart(nextCart)
 
+    // Sve promene korpe koriste isti serializovani apsolutni PUT red.
+    // Mešanje starog aditivnog POST-a sa PUT-ovima moglo je da naduva količinu.
     if (canSyncWithServer(user, false)) {
-      api.post('/cart', { productId: product.id, quantity: addedQty }).catch(() => {})
+      void syncCartQuantity(product.id, nextQty)
     }
+
     const isMobile = typeof window !== 'undefined'
       && window.matchMedia('(max-width: 768px)').matches
     if (!isMobile) {
@@ -383,45 +550,28 @@ export function StoreProvider({ children }) {
     }
     setCartAddTick((t) => t + 1)
     return true
-  }, [user, cart])
+  }, [user, syncCartQuantity])
 
   const removeFromCart = useCallback(
-    (productId) => {
+    async (productId) => {
       setCart((prev) => prev.filter((item) => item.id !== productId))
-      if (canSyncWithServer(user, false)) {
-        api.delete(`/cart/${productId}`).catch(() => {})
-      }
+      return syncCartQuantity(productId, 0)
     },
-    [user],
+    [syncCartQuantity],
   )
 
-  const refreshCartStock = useCallback(async () => {
-    try {
-      const { data: products } = await api.get('/products')
-      const byId = new Map(products.map((p) => [p.id, p]))
-      let oosIds = []
-      let checkoutSnapshot = []
-
-      setCart((prev) => {
-        if (!prev.length) {
-          checkoutSnapshot = []
-          return prev
-        }
-        const enriched = enrichCartItems(prev, byId)
-        checkoutSnapshot = getCheckoutCart(enriched)
-        oosIds = enriched.filter((i) => !i.inStock).map((i) => i.id)
-        if (cartStockUnchanged(prev, enriched)) return prev
-        return enriched
-      })
-
-      if (canSyncWithServer(user, false) && oosIds.length > 0) {
-        await Promise.all(oosIds.map((id) => api.delete(`/cart/${id}`).catch(() => {})))
-      }
-      return checkoutSnapshot
-    } catch {
-      return getCheckoutCart(cart)
-    }
-  }, [user, cart])
+  /** Pre checkout-a: potisni lokalne količine na server (ulogovani). */
+  const pushCartToServer = useCallback(async () => {
+    if (!canSyncWithServer(user, false)) return true
+    const items = getCheckoutCart(cart)
+    await Promise.all([...quantitySyncsRef.current.values()].map(
+      (entry) => new Promise((resolve) => entry.waiters.push(() => resolve())),
+    ))
+    const results = await Promise.all(
+      items.map((item) => syncCartQuantity(item.id, Number(item.quantity) || 0)),
+    )
+    return results.every(Boolean)
+  }, [user, cart, syncCartQuantity])
 
   const checkoutCart = useMemo(() => getCheckoutCart(cart), [cart])
 
@@ -433,7 +583,8 @@ export function StoreProvider({ children }) {
   const checkoutDiscount = useMemo(() => {
     if (!checkoutCoupon) return 0
     const val = Number(checkoutCoupon.discountValue) || 0
-    return checkoutCoupon.isPercentage ? checkoutSubtotal * (val / 100) : val
+    const raw = checkoutCoupon.isPercentage ? checkoutSubtotal * (val / 100) : val
+    return Math.round((raw + Number.EPSILON) * 100) / 100
   }, [checkoutCoupon, checkoutSubtotal])
 
   const checkoutGrandTotal = useMemo(
@@ -453,20 +604,28 @@ export function StoreProvider({ children }) {
 
   const toggleWishlist = useCallback((product) => {
     const syncWithServer = canSyncWithServer(user, initializing)
-    setWishlist((prev) => {
-      const exists = prev.some((item) => item.id === product.id)
-      if (syncWithServer) {
-        if (exists) api.delete(`/wishlist/${product.id}`).catch(() => {})
-        else api.post(`/wishlist/${product.id}`).catch(() => {})
-      }
-      if (exists) {
-        setToast('Uklonjeno sa wishlist-e.')
-        return prev.filter((item) => item.id !== product.id)
-      }
-      setToast('Dodato u wishlist.')
-      return [...prev, product]
-    })
-  }, [user, initializing])
+    const previous = wishlist
+    const exists = previous.some((item) => item.id === product.id)
+    const next = exists
+      ? previous.filter((item) => item.id !== product.id)
+      : [...previous, product]
+    setWishlist(next)
+    setToast(exists ? 'Uklonjeno sa wishlist-e.' : 'Dodato u wishlist.')
+
+    if (syncWithServer) {
+      const request = exists
+        ? api.delete(`/wishlist/${product.id}`)
+        : api.post(`/wishlist/${product.id}`)
+      void request.catch(() => {
+        setWishlist((current) => {
+          const stillOptimistic = current.some((item) => item.id === product.id) === !exists
+          if (!stillOptimistic) return current
+          return previous
+        })
+        setToast('Wishlist nije sinhronizovana sa serverom.')
+      })
+    }
+  }, [user, initializing, wishlist])
 
   const value = useMemo(
     () => ({
@@ -474,6 +633,7 @@ export function StoreProvider({ children }) {
       setUser,
       cart,
       wishlist,
+      wishlistReady,
       toast,
       cartAddTick,
       initializing,
@@ -486,6 +646,8 @@ export function StoreProvider({ children }) {
       clearCartAfterOrder,
       addToCart,
       removeFromCart,
+      syncCartQuantity,
+      pushCartToServer,
       toggleWishlist,
       syncWishlist,
       refreshCartStock,
@@ -505,7 +667,7 @@ export function StoreProvider({ children }) {
       suspendProductSearchFilter,
       updateSearchDraft,
     }),
-    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, toast, cartAddTick, initializing, unseenOrders, addOrderNotification, markOrderSeen, login, register, logout, clearCartAfterOrder, addToCart, removeFromCart, toggleWishlist, syncWishlist, refreshCartStock, setCart, setUser, productSearch, applyProductSearch, forceProductSearch, suspendProductSearchFilter, updateSearchDraft, productSearchRevision],
+    [user, cart, checkoutCart, checkoutCoupon, checkoutSubtotal, checkoutDiscount, checkoutGrandTotal, wishlist, wishlistReady, toast, cartAddTick, initializing, unseenOrders, addOrderNotification, markOrderSeen, login, register, logout, clearCartAfterOrder, addToCart, removeFromCart, syncCartQuantity, pushCartToServer, toggleWishlist, syncWishlist, refreshCartStock, setCart, setUser, productSearch, applyProductSearch, forceProductSearch, suspendProductSearchFilter, updateSearchDraft, productSearchRevision],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

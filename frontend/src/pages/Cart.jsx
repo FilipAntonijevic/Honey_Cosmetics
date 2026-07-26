@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import api from '../api'
 import { useStore } from '../context/StoreContext'
 import ApiImage from '../components/ApiImage'
 import FreeShippingBar from '../components/FreeShippingBar'
@@ -9,8 +8,12 @@ import { clampCartQuantity, isInStock } from '../utils/stock'
 import ProductNameWithVariant from '../components/ProductNameWithVariant'
 
 export default function Cart() {
-  const { checkoutCart, removeFromCart, setCart, user, setToast, refreshCartStock } = useStore()
-  const { freeShippingThreshold } = useSiteLinks()
+  const { checkoutCart, removeFromCart, setCart, user, setToast, refreshCartStock, syncCartQuantity } = useStore()
+  const {
+    freeShippingThreshold,
+    loading: siteLinksLoading,
+    error: siteLinksError,
+  } = useSiteLinks()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -25,7 +28,7 @@ export default function Cart() {
     const item = checkoutCart.find((i) => i.id === id)
     if (!item) return
     if (delta > 0 && !isInStock(item)) {
-      setToast('Proizvod trenutno nije na stanju.')
+      setToast('Rasprodato.')
       return
     }
     const stock = Number(item.stockQuantity) || 0
@@ -34,24 +37,15 @@ export default function Cart() {
       setToast('Nema dovoljno proizvoda na stanju.')
       return
     }
-    setCart((prev) =>
-      prev.map((row) => {
-        if (row.id !== id) return row
-        const rowQty = Number(row.quantity) || 0
-        const requested = rowQty + delta
-        const nextQty = clampCartQuantity(requested, stock)
-        if (nextQty < requested && delta > 0) {
-          setToast('Nema dovoljno proizvoda na stanju.')
-        }
-        return { ...row, quantity: Math.max(1, nextQty) }
-      }),
-    )
-    if (user && delta > 0) {
-      api.post('/cart', { productId: id, quantity: delta }).catch(() => {
-        setToast('Nema dovoljno proizvoda na stanju.')
-        refreshCartStock()
-      })
+    const requested = currentQty + delta
+    const nextQty = Math.max(1, clampCartQuantity(requested, stock))
+    if (nextQty < requested && delta > 0) {
+      setToast('Nema dovoljno proizvoda na stanju.')
     }
+    setCart((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, quantity: nextQty } : row)),
+    )
+    if (user) void syncCartQuantity(id, nextQty)
   }
 
   const fmt = (n) => Number(n).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -73,7 +67,9 @@ export default function Cart() {
         </div>
       ) : (
         <>
-          <FreeShippingBar cartTotal={total} threshold={freeShippingThreshold} />
+          {!siteLinksLoading && !siteLinksError && (
+            <FreeShippingBar cartTotal={total} threshold={freeShippingThreshold} />
+          )}
           <div className="cart-grid">
           <div className="cart-left">
             <div className="cart-col-headers">
