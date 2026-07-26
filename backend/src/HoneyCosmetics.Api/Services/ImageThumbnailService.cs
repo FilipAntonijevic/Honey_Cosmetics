@@ -4,14 +4,14 @@ using SixLabors.ImageSharp.Processing;
 
 namespace HoneyCosmetics.Api.Services;
 
-public class ImageThumbnailService(IWebHostEnvironment env, ILogger<ImageThumbnailService> logger)
+public class ImageThumbnailService(ImageStorage imageStorage, ILogger<ImageThumbnailService> logger)
 {
     private const int ThumbMaxWidth = 64;
     private const int MediumMaxWidth = 800;
     private static readonly string[] SkipExtensions = [".gif"];
     private static readonly string[] RasterExtensions = [".png", ".jpg", ".jpeg"];
 
-    public string ImagesDirectory => Path.Combine(env.ContentRootPath, "images");
+    public string ImagesDirectory => imageStorage.RootPath;
     public string ThumbsDirectory => Path.Combine(ImagesDirectory, "thumbs");
     public string MediumDirectory => Path.Combine(ImagesDirectory, "medium");
 
