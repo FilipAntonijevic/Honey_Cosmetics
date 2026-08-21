@@ -8,7 +8,7 @@ namespace HoneyCosmetics.Infrastructure.Services;
 public static class ProductVariantService
 {
     public const string DefaultMl = "15ml";
-    public const string DefaultGr = "15gr";
+    public const string DefaultGr = "15g";
 
     public static bool IsInVariantGroup(Product p) =>
         p.VariantGroupId is not null || !string.IsNullOrWhiteSpace(p.VariantLabel);
@@ -118,9 +118,11 @@ public static class ProductVariantService
         return normalized switch
         {
             "15ml" => 10,
+            "15g" => 10,
             "15gr" => 10,
             "8ml" => 20,
-            "38gr" => 30,
+            "38g" => 20,
+            "38gr" => 20,
             _ => 100,
         };
     }

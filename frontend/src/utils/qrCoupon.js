@@ -60,24 +60,90 @@ export function setQrPopupDismissed(dismissed = true) {
   }
 }
 
+const isQrParamName = (key) => key.trim().toLowerCase() === QR_COUPON_PARAM
+
+/** Accepts both `hny15` and the coupon code itself, in any letter case. */
+function isQrCampaignValue(raw) {
+  const value = (raw ?? '').trim().toLowerCase()
+  return value === QR_COUPON_PARAM_VALUE || value === QR_COUPON_CODE.toLowerCase()
+}
+
+/**
+ * Campaign value from a query string, or null. The param name is matched
+ * case-insensitively because some scanners hand over `?QR=hny15`.
+ */
+export function readQrCouponParam(search) {
+  for (const [key, value] of new URLSearchParams(search).entries()) {
+    if (isQrParamName(key) && isQrCampaignValue(value)) return value
+  }
+  return null
+}
+
+function withoutQrParam(search) {
+  const params = new URLSearchParams(search)
+  for (const key of [...params.keys()]) {
+    if (isQrParamName(key)) params.delete(key)
+  }
+  return params
+}
+
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+/**
+ * Phone QR scanners do not always hand over a clean query string: some
+ * percent-encode it into the path (`/%3Fqr=hny15`), others push it into the
+ * hash (`/#?qr=hny15`). In both shapes `location.search` is empty, the router
+ * sees an unknown path, the catch-all route replaces it with `/`, and the
+ * campaign silently never starts — which is why scanning failed while typing
+ * the same link worked. Rewrite those shapes into a real query string before
+ * the router mounts. Returns true when the URL was rewritten.
+ */
+export function normalizeQrCouponUrl() {
+  if (typeof window === 'undefined' || !window.history?.replaceState) return false
+
+  const { pathname, search, hash } = window.location
+  if (readQrCouponParam(search)) return false
+
+  const decodedPath = safeDecode(pathname)
+  const marker = decodedPath.indexOf('?')
+
+  const candidates = []
+  if (marker !== -1) {
+    candidates.push([decodedPath.slice(0, marker), decodedPath.slice(marker + 1)])
+  }
+  if (hash) candidates.push([pathname, hash.replace(/^#\??/, '')])
+
+  for (const [base, query] of candidates) {
+    if (!readQrCouponParam(query)) continue
+
+    const params = withoutQrParam(query)
+    params.set(QR_COUPON_PARAM, QR_COUPON_PARAM_VALUE)
+    window.history.replaceState(null, '', `${base || '/'}?${params.toString()}`)
+    return true
+  }
+
+  return false
+}
+
 /**
  * If the current URL has ?qr=hny15 (case-insensitive), activate the campaign
  * and return true so the win popup can be shown. Strips the param via replace.
  */
 export function consumeQrCouponParam(search, navigate) {
-  const params = new URLSearchParams(search)
-  const raw = (params.get(QR_COUPON_PARAM) ?? '').trim().toLowerCase()
-  if (raw !== QR_COUPON_PARAM_VALUE && raw !== QR_COUPON_CODE.toLowerCase()) {
-    return false
-  }
+  if (!readQrCouponParam(search)) return false
 
   setQrCouponCode(QR_COUPON_CODE)
   // Fresh QR scan: allow auto-apply again and show popup again.
   setQrCouponOptedOut(false)
   setQrPopupDismissed(false)
 
-  params.delete(QR_COUPON_PARAM)
-  const next = params.toString()
+  const next = withoutQrParam(search).toString()
   navigate(
     { search: next ? `?${next}` : '', hash: window.location.hash },
     { replace: true },

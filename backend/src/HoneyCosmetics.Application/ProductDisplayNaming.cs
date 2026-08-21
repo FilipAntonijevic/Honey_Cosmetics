@@ -34,8 +34,8 @@ public static partial class ProductDisplayNaming
     private static string NormalizeVariantUnit(string num, string unit)
     {
         var u = unit.ToLowerInvariant();
-        if (u == "g")
-            u = "gr";
+        if (u == "gr")
+            u = "g";
         return $"{num}{u}";
     }
 
