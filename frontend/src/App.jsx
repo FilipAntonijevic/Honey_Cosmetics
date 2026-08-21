@@ -136,10 +136,16 @@ function ClientRoutes() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/returns" element={<Returns />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<UnknownClientRoute />} />
       </Routes>
     </Layout>
   )
+}
+
+/** Unknown path → home, keeping the query so campaign params (?qr=) survive. */
+function UnknownClientRoute() {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: '/', search }} replace />
 }
 
 function AdminShell() {

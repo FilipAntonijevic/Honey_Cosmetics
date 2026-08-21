@@ -10,7 +10,7 @@ export function stripVariantFromName(name) {
 
 function normalizeVariantUnit(num, unit) {
   const u = String(unit).toLowerCase()
-  const normalized = u === 'g' ? 'gr' : u
+  const normalized = u === 'gr' ? 'g' : u
   return `${num}${normalized}`
 }
 
