@@ -12,6 +12,7 @@ import { cleanPhone, isPhoneComplete, phoneOrDefault } from '../utils/phone'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 import ProductNameWithVariant from '../components/ProductNameWithVariant'
 import { getQrCouponCode, isQrCouponOptedOut, setQrCouponOptedOut } from '../utils/qrCoupon'
+import { trackInitiateCheckout, trackPurchase } from '../lib/metaPixel'
 
 export default function Checkout() {
   const {
@@ -67,6 +68,13 @@ export default function Checkout() {
   useEffect(() => {
     refreshCartStock()
   }, [refreshCartStock])
+
+  const initiatedCheckout = useRef(false)
+  useEffect(() => {
+    if (initiatedCheckout.current || !checkoutCart.length) return
+    initiatedCheckout.current = true
+    trackInitiateCheckout(checkoutCart, checkoutSubtotal)
+  }, [checkoutCart, checkoutSubtotal])
 
   const subtotal = checkoutSubtotal
 
@@ -209,6 +217,11 @@ export default function Checkout() {
           instagramHandle: instagram,
           idempotencyKey,
         })
+        trackPurchase({
+          orderId: data.id,
+          value: data.total,
+          items: data.items,
+        })
         await clearCartAfterOrder()
         idempotencyKeyRef.current = null
         addOrderNotification(data.id)
@@ -229,6 +242,11 @@ export default function Checkout() {
           customerNote: note,
           instagramHandle: instagram,
           idempotencyKey,
+        })
+        trackPurchase({
+          orderId: data.id,
+          value: data.total,
+          items: data.items,
         })
         await clearCartAfterOrder()
         idempotencyKeyRef.current = null

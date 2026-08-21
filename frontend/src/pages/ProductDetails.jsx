@@ -8,6 +8,7 @@ import { useStore } from '../context/StoreContext'
 import { getDefaultSelectedVariant, getVariantOptions, pickDefaultVariantProduct } from '../lib/productVariants'
 import { clampCartQuantity, isInStock } from '../utils/stock'
 import { formatProductPrice } from '../utils/price'
+import { trackViewContent } from '../lib/metaPixel'
 
 function DescriptionBlock({ text }) {
   if (!text?.trim()) return null
@@ -100,6 +101,11 @@ export default function ProductDetails() {
       cancelled = true
     }
   }, [id])
+
+  useEffect(() => {
+    if (!product) return
+    trackViewContent(product)
+  }, [product])
 
   const options = useMemo(() => (product ? getVariantOptions(product) : []), [product])
 

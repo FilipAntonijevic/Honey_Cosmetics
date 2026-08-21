@@ -10,6 +10,7 @@ import {
   setAuthSession,
 } from '../utils/authStorage'
 import { clampCartQuantity, enrichCartItems, getCheckoutCart, isInStock } from '../utils/stock'
+import { trackAddToCart, trackAddToWishlist } from '../lib/metaPixel'
 
 migrateLegacyAuthFromLocalStorage()
 localStorage.removeItem('honey_user')
@@ -549,6 +550,7 @@ export function StoreProvider({ children }) {
       setToast('Proizvod dodat u korpu.')
     }
     setCartAddTick((t) => t + 1)
+    trackAddToCart(product, addedQty)
     return true
   }, [user, syncCartQuantity])
 
@@ -611,6 +613,7 @@ export function StoreProvider({ children }) {
       : [...previous, product]
     setWishlist(next)
     setToast(exists ? 'Uklonjeno sa wishlist-e.' : 'Dodato u wishlist.')
+    if (!exists) trackAddToWishlist(product)
 
     if (syncWithServer) {
       const request = exists

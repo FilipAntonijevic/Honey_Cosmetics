@@ -35,6 +35,7 @@ import AdminSitePopup from './pages/AdminSitePopup'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Returns from './pages/Returns'
+import MetaPixelTracker from './components/MetaPixelTracker'
 
 // Scroll to top on route change (pathname), not on query-only updates (filters).
 function ScrollToTop() {
@@ -213,6 +214,7 @@ export default function App() {
       <BrowserRouter basename={routerBasename()}>
         <ScrollToTop />
         <SamePageScrollToTop />
+        <MetaPixelTracker />
         <AppRoutes />
       </BrowserRouter>
     </StoreProvider>

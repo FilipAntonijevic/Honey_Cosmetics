@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api'
+import { trackCompleteRegistration } from '../lib/metaPixel'
 
 export default function ConfirmEmail() {
   const [searchParams] = useSearchParams()
@@ -30,6 +31,7 @@ export default function ConfirmEmail() {
     setError('')
     try {
       await api.post('/auth/confirm-email', { token, password, confirmPassword })
+      trackCompleteRegistration()
       setStatus('success')
     } catch (err) {
       const msg = err.response?.data

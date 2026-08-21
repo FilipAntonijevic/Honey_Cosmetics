@@ -70,6 +70,14 @@ export default function Privacy() {
         Sajt koristi kolačiće radi poboljšanja korisničkog iskustva i analitike.
         Korisnik može podesiti svoj internet pregledač da odbije kolačiće.
       </p>
+      <p>
+        Za merenje poseta i konverzija oglasa koristimo Meta Pixel (Facebook).
+        Pixel može da postavi kolačiće treće strane. Više informacija:
+        {' '}
+        <a href="https://www.facebook.com/privacy/explanation" target="_blank" rel="noreferrer">
+          Meta politika privatnosti
+        </a>.
+      </p>
     </section>
   )
 }
