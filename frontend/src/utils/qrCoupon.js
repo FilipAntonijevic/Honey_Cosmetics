@@ -1,5 +1,7 @@
 /** QR campaign: open site with ?qr=hny15 → popup + checkout autofill for HNY15. */
 
+import { trackQrCampaign } from '../lib/metaPixel'
+
 export const QR_COUPON_CODE = 'HNY15'
 export const QR_COUPON_PARAM = 'qr'
 export const QR_COUPON_PARAM_VALUE = 'hny15'
@@ -142,6 +144,7 @@ export function consumeQrCouponParam(search, navigate) {
   // Fresh QR scan: allow auto-apply again and show popup again.
   setQrCouponOptedOut(false)
   setQrPopupDismissed(false)
+  trackQrCampaign()
 
   const next = withoutQrParam(search).toString()
   navigate(

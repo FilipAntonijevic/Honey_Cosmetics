@@ -7,6 +7,7 @@ import { useStore } from '../context/StoreContext'
 import { formatProductTypeDisplay, resolveProductTypeApi } from '../lib/productTypes'
 import { groupProductsForDisplay, pickDefaultVariantProduct } from '../lib/productVariants'
 import { readShopListCache, writeShopListCache } from '../utils/shopListCache'
+import { trackSearch } from '../lib/metaPixel'
 
 const SHOP_PAGE_SIZE = 12
 
@@ -138,6 +139,11 @@ export default function Shop() {
 
   const searchTerm = productSearch.trim()
   const hasSearchFilter = searchTerm.length > 0
+
+  useEffect(() => {
+    if (!hasSearchFilter) return
+    trackSearch(searchTerm)
+  }, [hasSearchFilter, searchTerm])
   const isGlobalSearch = hasSearchFilter
   const bestsellersMode = !isGlobalSearch && ['1', 'true'].includes(searchParams.get('bestsellers') ?? '')
   const vrstaName = bestsellersMode
